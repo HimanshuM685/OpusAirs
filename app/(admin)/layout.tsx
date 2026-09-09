@@ -177,7 +177,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
-                placeholder="admin@admin"
+                placeholder="admin@example.com"
                 style={{
                   width: "100%",
                   padding: "12px 14px",

@@ -6,7 +6,9 @@ export const COOKIE_NAME = "opus_session";
 export type AuthUser = { id: number; email: string; role: string };
 
 function sessionSecret(): string {
-  return process.env.SESSION_SECRET || process.env.DATABASE_URL || "opusairs-dev-secret";
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is required to sign session cookies");
+  return secret;
 }
 
 export function hashPassword(password: string): string {
@@ -105,27 +107,23 @@ export function isAuthResponse(value: AuthUser | Response): value is Response {
 }
 
 export function adminSeedEmail(): string {
-  const email = (process.env.ADMIN_EMAIL || process.env.ADMIN_USER || "").trim();
-  if (email.includes("@")) return email.toLowerCase();
-  if (email) return `${email.toLowerCase()}@local`;
-  return "admin@local";
+  return (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 }
 
 export function adminSeedPassword(): string {
-  return process.env.ADMIN_PASSWORD || "admin";
+  return process.env.ADMIN_PASSWORD || "";
 }
 
 export function normalizeLoginEmail(raw: string): string {
-  const email = raw.trim().toLowerCase();
-  if (!email) return email;
-  if (!email.includes("@")) return adminSeedEmail();
-  return email;
+  return raw.trim().toLowerCase();
 }
 
 export async function ensureSeedAdmin(): Promise<void> {
-  const q = sql();
   const email = adminSeedEmail();
-  const hash = hashPassword(adminSeedPassword());
+  const password = adminSeedPassword();
+  if (!email || !password) return;
+  const q = sql();
+  const hash = hashPassword(password);
   const existing = await q`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
   if (!existing.length) {
     await q`
