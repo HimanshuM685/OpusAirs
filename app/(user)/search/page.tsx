@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, type RouteOut, type SearchResult, type TrendPoint } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const TREND_WINDOWS = [
   { key: "30d", label: "30 Days" },
@@ -103,12 +104,16 @@ export default function SearchPage() {
   }, [trends]);
 
   return (
-    <>
-      <h1 className="fade-in">Flight Search &amp; Price Compare</h1>
-      <p className="sub fade-in fade-in-delay-1">
-        Search any 3-letter IATA pair. If no quotes exist and you are signed in,
-        live portals are fetched then. Anonymous search returns warehouse only.
-      </p>
+    <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
+      <JellyAnimatedHero
+        badgeText="Route Intelligence &amp; Carrier Compare"
+        title="Search Flights &amp; Compare Fares"
+        subtitle="Search between any two domestic cities to compare baseline vs tax breakdowns across IndiGo, Air India, SpiceJet and Akasa."
+        primaryCtaText="📊 View Dashboard"
+        primaryCtaHref="/dashboard"
+        secondaryCtaText="🗺️ Heatmap"
+        secondaryCtaHref="/heatmap"
+      />
       {err && <p className="err">{err}</p>}
       {loading && <p className="sub">Fetching live fares… this can take a few minutes.</p>}
 
@@ -215,33 +220,35 @@ export default function SearchPage() {
               <div style={{ height: 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={carrierCompare} layout="vertical">
-                    <CartesianGrid stroke="rgba(62,88,140,0.2)" />
+                    <CartesianGrid stroke="#e1ebe5" />
                     <XAxis
                       type="number"
-                      stroke="#5a6d8e"
-                      tick={{ fontSize: 12, fill: "#8a9bbd" }}
+                      stroke="#7c817b"
+                      tick={{ fontSize: 12, fill: "#525854" }}
                       tickFormatter={(v: number) => `₹${v.toLocaleString("en-IN")}`}
                     />
                     <YAxis
                       type="category"
                       dataKey="carrier"
-                      stroke="#5a6d8e"
-                      tick={{ fontSize: 13, fill: "#e8edf8", fontWeight: 600 }}
+                      stroke="#7c817b"
+                      tick={{ fontSize: 13, fill: "#0c1212", fontWeight: 600 }}
                       width={50}
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "#111d36",
-                        border: "1px solid rgba(62,88,140,0.3)",
+                        background: "#ffffff",
+                        border: "1px solid #d8deda",
                         borderRadius: 8,
                         fontSize: 13,
+                        color: "#0c1212",
+                        boxShadow: "0 4px 12px rgba(11,59,42,0.1)",
                       }}
                       formatter={(v: number) => [
                         `₹${v.toLocaleString("en-IN")}`,
                         "Cheapest fare",
                       ]}
                     />
-                    <Bar dataKey="fare" fill="#3b82f6" radius={[0, 6, 6, 0]} />
+                    <Bar dataKey="fare" fill="#0b3b2a" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -335,33 +342,35 @@ export default function SearchPage() {
                       >
                         <stop
                           offset="5%"
-                          stopColor="#34d399"
-                          stopOpacity={0.3}
+                          stopColor="#0b3b2a"
+                          stopOpacity={0.25}
                         />
                         <stop
                           offset="95%"
-                          stopColor="#34d399"
+                          stopColor="#0b3b2a"
                           stopOpacity={0}
                         />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(62,88,140,0.2)" />
+                    <CartesianGrid stroke="#e1ebe5" />
                     <XAxis
                       dataKey="period_date"
-                      stroke="#5a6d8e"
-                      tick={{ fontSize: 12, fill: "#8a9bbd" }}
+                      stroke="#7c817b"
+                      tick={{ fontSize: 12, fill: "#525854" }}
                     />
                     <YAxis
-                      stroke="#5a6d8e"
-                      tick={{ fontSize: 12, fill: "#8a9bbd" }}
+                      stroke="#7c817b"
+                      tick={{ fontSize: 12, fill: "#525854" }}
                       tickFormatter={(v: number) => `₹${(v / 1000).toFixed(1)}k`}
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "#111d36",
-                        border: "1px solid rgba(62,88,140,0.3)",
+                        background: "#ffffff",
+                        border: "1px solid #d8deda",
                         borderRadius: 8,
                         fontSize: 13,
+                        color: "#0c1212",
+                        boxShadow: "0 4px 12px rgba(11,59,42,0.1)",
                       }}
                       formatter={(v: number, name: string) => [
                         `₹${v.toLocaleString("en-IN")}`,
@@ -376,20 +385,20 @@ export default function SearchPage() {
                       type="monotone"
                       dataKey="max_fare"
                       stroke="transparent"
-                      fill="rgba(240,113,120,0.08)"
+                      fill="rgba(217,56,58,0.06)"
                     />
                     <Area
                       type="monotone"
                       dataKey="avg_fare"
-                      stroke="#34d399"
+                      stroke="#0b3b2a"
                       fill="url(#trendGrad)"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                     />
                     <Area
                       type="monotone"
                       dataKey="min_fare"
                       stroke="transparent"
-                      fill="rgba(59,130,246,0.08)"
+                      fill="rgba(20,87,63,0.06)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -398,6 +407,6 @@ export default function SearchPage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

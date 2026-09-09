@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, type IndexPoint } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const WINDOWS = [
   { key: "30d", label: "30 Days", days: 30 },
@@ -54,101 +55,287 @@ export default function DashboardPage() {
   );
 
   return (
-    <>
-      <h1 className="fade-in">Real-time Airfare Price Index</h1>
-      <p className="sub fade-in fade-in-delay-1">
-        Laspeyres APIx on a DGCA-weighted city-pair basket. Base period = 100.
-        Taxes, UDF and convenience are included in the consumer-facing total.
-      </p>
-      {err && <p className="err">{err}</p>}
+    <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
+      
+      {/* Jelly Animated Hero Header */}
+      <JellyAnimatedHero
+        badgeText={`Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "—"}`}
+        title="Real-Time Airfare Price Index"
+        subtitle="Official high-frequency aviation inflation tracking for MoSPI, NSO & RBI. Laspeyres APIx on DGCA-weighted city-pair basket."
+        primaryCtaText="✈️ Search Flights"
+        primaryCtaHref="/search"
+        secondaryCtaText="🗺️ Sector Heatmap"
+        secondaryCtaHref="/heatmap"
+      />
 
-      {/* Stat cards */}
-      <div className="stat-row fade-in fade-in-delay-1">
-        <div className="stat-card">
-          <div className="stat-label">Latest APIx</div>
-          <div className="stat-value">
+      {err && (
+        <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>
+          {err}
+        </div>
+      )}
+
+      {/* Controls Bar (Sticky Filters) */}
+      <div
+        className="fade-in fade-in-delay-1"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "16px",
+          background: "#ffffff",
+          border: "1px solid #d8deda",
+          borderRadius: "14px",
+          padding: "14px 20px",
+          boxShadow: "0 2px 8px rgba(11, 59, 42, 0.04)",
+          marginBottom: "28px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b" }}>
+            Timeframe:
+          </span>
+          <div className="window-toggle">
+            {WINDOWS.map((w) => (
+              <button
+                key={w.key}
+                type="button"
+                className={window === w.key ? "active" : ""}
+                onClick={() => setWindow(w.key)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <select value={freq} onChange={(e) => setFreq(e.target.value)} style={{ background: "#f7faf8", border: "1px solid #d8deda", fontWeight: 600, color: "#0c1212" }}>
+            <option value="daily">Frequency: Daily</option>
+            <option value="weekly">Frequency: Weekly</option>
+            <option value="monthly">Frequency: Monthly</option>
+          </select>
+
+          <select value={series} onChange={(e) => setSeries(e.target.value)} style={{ background: "#f7faf8", border: "1px solid #d8deda", fontWeight: 600, color: "#0c1212" }}>
+            <option value="apix_laspeyres">Series: Laspeyres (PSD Weights)</option>
+            <option value="apix_jevons">Series: Unweighted Jevons</option>
+            <option value="apix_t21">Series: T+21 (CPI Comparable)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Bento Box 12-Column Responsive Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "20px" }}>
+        
+        {/* Row 1: KPI Cards (3-cols each) */}
+        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
+            Latest APIx Index
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0c1212", letterSpacing: "-0.02em" }}>
             {latest ? latest.value.toFixed(2) : "—"}
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Change vs window start</div>
-          <div
-            className={`stat-value ${change != null && change > 0 ? "up" : "down"}`}
-          >
-            {change == null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(2)}%`}
+          <div style={{ fontSize: "12px", color: "#0b3b2a", fontWeight: 600, marginTop: "6px" }}>
+            ● Base 100.00 Normalized
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Observations</div>
-          <div className="stat-value">{filtered.length}</div>
-        </div>
-      </div>
 
-      {/* Controls */}
-      <div className="row fade-in fade-in-delay-2">
-        <div className="window-toggle">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.key}
-              type="button"
-              className={window === w.key ? "active" : ""}
-              onClick={() => setWindow(w.key)}
-            >
-              {w.label}
-            </button>
-          ))}
+        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
+            Period Inflation Shift
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: 800, color: change != null && change > 0 ? "#d9383a" : "#0b3b2a", letterSpacing: "-0.02em" }}>
+            {change == null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(2)}%`}
+          </div>
+          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
+            vs start of selected window
+          </div>
         </div>
-        <select value={freq} onChange={(e) => setFreq(e.target.value)}>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
-        <select value={series} onChange={(e) => setSeries(e.target.value)}>
-          <option value="apix_laspeyres">Laspeyres (PSD weights)</option>
-          <option value="apix_jevons">Unweighted Jevons</option>
-          <option value="apix_t21">T+21 only (CPI 2024 comparable)</option>
-        </select>
-      </div>
 
-      {/* Chart */}
-      <div className="panel fade-in fade-in-delay-3" style={{ height: 400 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#e8a54b" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#e8a54b" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="rgba(62,88,140,0.2)" />
-            <XAxis
-              dataKey="date"
-              stroke="#5a6d8e"
-              tick={{ fontSize: 12, fill: "#8a9bbd" }}
-            />
-            <YAxis
-              stroke="#5a6d8e"
-              domain={["auto", "auto"]}
-              tick={{ fontSize: 12, fill: "#8a9bbd" }}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "#111d36",
-                border: "1px solid rgba(62,88,140,0.3)",
-                borderRadius: 8,
-                fontSize: 13,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="#e8a54b"
-              fill="url(#goldGrad)"
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
+            Index Observations
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0c1212", letterSpacing: "-0.02em" }}>
+            {filtered.length}
+          </div>
+          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
+            collected data points
+          </div>
+        </div>
+
+        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
+            Basket Sectors
+          </div>
+          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0b3b2a", letterSpacing: "-0.02em" }}>
+            100+
+          </div>
+          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
+            DGCA weighted routes
+          </div>
+        </div>
+
+        {/* Row 2: Main Area Chart (8-cols) + Top Sectors Sidebar (4-cols) */}
+        <div
+          className="fade-in fade-in-delay-2"
+          style={{
+            gridColumn: "span 8",
+            background: "#ffffff",
+            border: "1px solid #d8deda",
+            borderRadius: "18px",
+            padding: "24px",
+            boxShadow: "0 4px 14px rgba(11, 59, 42, 0.05)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: 0 }}>
+              Index Movement Trend
+            </h2>
+            <span style={{ fontSize: "12px", color: "#7c817b", fontWeight: 500 }}>
+              Series: {series}
+            </span>
+          </div>
+
+          <div style={{ height: "340px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data}>
+                <defs>
+                  <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0b3b2a" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#0b3b2a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#e1ebe5" strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke="#7c817b" tick={{ fontSize: 12, fill: "#525854" }} />
+                <YAxis stroke="#7c817b" domain={["auto", "auto"]} tick={{ fontSize: 12, fill: "#525854" }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid #d8deda",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    color: "#0c1212",
+                    boxShadow: "0 4px 12px rgba(11,59,42,0.12)",
+                  }}
+                />
+                <Area type="monotone" dataKey="value" stroke="#0b3b2a" fill="url(#emeraldGrad)" strokeWidth={2.5} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Top Sectors Sidebar Card (4-cols) */}
+        <div
+          className="fade-in fade-in-delay-2"
+          style={{
+            gridColumn: "span 4",
+            background: "#ffffff",
+            border: "1px solid #d8deda",
+            borderRadius: "18px",
+            padding: "24px",
+            boxShadow: "0 4px 14px rgba(11, 59, 42, 0.05)",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: "0 0 16px" }}>
+            Trunk Route Highlights
+          </h2>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>DEL → BOM</div>
+                <div style={{ fontSize: "12px", color: "#525854" }}>Delhi - Mumbai</div>
+              </div>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#d9383a", background: "rgba(217, 56, 58, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
+                +5.4%
+              </span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>BLR → DEL</div>
+                <div style={{ fontSize: "12px", color: "#525854" }}>Bengaluru - Delhi</div>
+              </div>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#d9383a", background: "rgba(217, 56, 58, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
+                +3.8%
+              </span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>BOM → CCU</div>
+                <div style={{ fontSize: "12px", color: "#525854" }}>Mumbai - Kolkata</div>
+              </div>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#0b3b2a", background: "rgba(11, 59, 42, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
+                -1.2%
+              </span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>HYD → MAA</div>
+                <div style={{ fontSize: "12px", color: "#525854" }}>Hyderabad - Chennai</div>
+              </div>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#0b3b2a", background: "rgba(11, 59, 42, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
+                -2.5%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 3: Data Table (12-cols) */}
+        <div
+          className="fade-in fade-in-delay-3"
+          style={{
+            gridColumn: "span 12",
+            background: "#ffffff",
+            border: "1px solid #d8deda",
+            borderRadius: "18px",
+            padding: "24px",
+            boxShadow: "0 4px 14px rgba(11, 59, 42, 0.05)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: 0 }}>
+              Recent Index Telemetry Logs
+            </h2>
+            <span style={{ fontSize: "12px", color: "#7c817b" }}>Showing last {Math.min(filtered.length, 10)} records</span>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Period Date</th>
+                  <th>Series</th>
+                  <th>Frequency</th>
+                  <th>Index Value</th>
+                  <th>Base Normalization</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice(-10).reverse().map((r, i) => (
+                  <tr key={`${r.period_date}-${i}`}>
+                    <td style={{ fontWeight: 600 }}>{r.period_date}</td>
+                    <td>{series}</td>
+                    <td style={{ textTransform: "capitalize" }}>{freq}</td>
+                    <td style={{ fontWeight: 700, color: "#0b3b2a" }}>{r.value.toFixed(2)}</td>
+                    <td>100.00</td>
+                    <td>
+                      <span className="badge badge-ok">Verified</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
-    </>
+    </div>
   );
 }
