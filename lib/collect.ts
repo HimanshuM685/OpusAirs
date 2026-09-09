@@ -47,21 +47,54 @@ function faresFromHtml(html: string): number[] {
   return found;
 }
 
+import { DEFAULT_SCRAPE_SOURCES } from "./seeds";
+
 export async function scrapePortals(collectedOn?: string): Promise<CollectionEvent[]> {
   const day = collectedOn || new Date().toISOString().slice(0, 10);
-  const cfg = JSON.parse(readFileSync(join(dataDir(), "scrape_sources.json"), "utf8")) as {
-    max_searches_per_run?: number;
-    lead_times?: number[];
-    sources: Source[];
-  };
-  const routes = loadPsdBasket();
-  const leads = cfg.lead_times?.length ? cfg.lead_times : [1, 7, 21];
-  const budget = cfg.max_searches_per_run ?? 18;
+  const q = sql();
+  let sources: Source[] = [];
+  try {
+    const dbSources = (await q`
+      SELECT id, name, carrier, enabled, start_url, search_url_template 
+      FROM scrape_sources 
+      WHERE enabled = true
+    `) as Source[];
+    if (dbSources.length) sources = dbSources;
+  } catch {
+    /* fallback */
+  }
+  if (!sources.length) {
+    try {
+      const cfg = JSON.parse(readFileSync(join(dataDir(), "scrape_sources.json"), "utf8")) as {
+        sources: Source[];
+      };
+      sources = cfg.sources.filter((s) => s.enabled);
+    } catch {
+      sources = DEFAULT_SCRAPE_SOURCES;
+    }
+  }
+
+  let routes: { origin: string; destination: string }[] = [];
+  try {
+    const dbRoutes = (await q`SELECT origin, destination FROM basket_routes`) as {
+      origin: string;
+      destination: string;
+    }[];
+    if (dbRoutes.length) routes = dbRoutes;
+  } catch {
+    /* fallback */
+  }
+  if (!routes.length) {
+    routes = loadPsdBasket();
+  }
+
+  const leads = [1, 7, 21];
+  const budget = 18;
   const events: CollectionEvent[] = [];
   let searches = 0;
   const ua = process.env.USER_AGENT || "OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)";
 
-  for (const source of cfg.sources.filter((s) => s.enabled)) {
+  for (const source of sources) {
     if (searches >= budget) break;
     const start = source.start_url || source.search_url_template || "";
     if (start && !(await robotsAllowed(start.split("?")[0]))) {

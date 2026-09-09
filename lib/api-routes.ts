@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { constructIndex } from "./apix";
+import { checkCredentials, isAdminAuthenticated, makeLoginCookie, makeLogoutCookie } from "./auth";
 import { computeBacktest } from "./backtest";
 import { bootstrap } from "./bootstrap";
 import { cleanQuotes } from "./cleaning";
 import { runPipeline } from "./collect";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
 import { ingestQuotes, parseCsvQuotes, type QuoteIn } from "./ingest";
+import { DEFAULT_CSV_TEMPLATE } from "./seeds";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
@@ -275,7 +277,12 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "ingest/template") {
-    const text = readFileSync(join(dataDir(), "quotes_manual.example.csv"), "utf8");
+    let text = DEFAULT_CSV_TEMPLATE;
+    try {
+      text = readFileSync(join(dataDir(), "quotes_manual.example.csv"), "utf8");
+    } catch {
+      /* fallback to DEFAULT_CSV_TEMPLATE */
+    }
     return new Response(text, { headers: { "Content-Type": "text/csv" } });
   }
 
@@ -283,6 +290,38 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const cleaned = await cleanQuotes(q);
     const indexed = await constructIndex(q);
     return json({ cleaned, index_rows: indexed });
+  }
+
+  if (req.method === "POST" && path === "admin/login") {
+    try {
+      const body = (await req.json()) as { username?: string; password?: string };
+      if (checkCredentials(body.username, body.password)) {
+        return new Response(JSON.stringify({ success: true, user: body.username }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Set-Cookie": makeLoginCookie(),
+          },
+        });
+      }
+      return json({ detail: "Invalid username or password" }, 401);
+    } catch {
+      return json({ detail: "Invalid request" }, 400);
+    }
+  }
+
+  if (req.method === "POST" && path === "admin/logout") {
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": makeLogoutCookie(),
+      },
+    });
+  }
+
+  if (req.method === "GET" && path === "admin/check") {
+    return json({ authenticated: isAdminAuthenticated(req) });
   }
 
   return json({ detail: `Not found: ${req.method} /v1/${path}` }, 404);

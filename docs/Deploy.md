@@ -10,8 +10,11 @@ OpusAirs is a full-stack Next.js application designed to run on Vercel, Docker, 
 # Database (PostgreSQL / Neon) - REQUIRED
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
 
-# Directory and Reference Parameters
-DATA_DIR=./data
+# Admin Authentication (Hidden Operator Suite at /admin)
+ADMIN_USER=admin
+ADMIN_PASSWORD=change_this_to_a_secure_password
+
+# Reference Parameters
 APIX_BASE_DATE=2026-08-01
 SCRAPE_ENABLED=false
 
@@ -33,9 +36,9 @@ npm run build
 npm run start
 ```
 
-- User App: `http://localhost:3000`
+- Public User App: `http://localhost:3000`
 - Flight Search: `http://localhost:3000/search`
-- Admin & Data Dump: `http://localhost:3000/admin`
+- Hidden Admin Suite: `http://localhost:3000/admin` (unlock with `ADMIN_USER` & `ADMIN_PASSWORD`)
 - REST API: `http://localhost:3000/v1/index`
 
 ---
@@ -51,5 +54,5 @@ docker compose up --build -d
 ## 4. Vercel Cloud Deployment
 
 1. Connect repository to Vercel.
-2. In Project Settings > Environment Variables, define `DATABASE_URL`, `DATA_DIR=./data`, and `APIX_BASE_DATE=2026-08-01`.
-3. Deploy. Schema migration runs automatically on the first `/v1` request.
+2. In Project Settings > Environment Variables, define `DATABASE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, and `APIX_BASE_DATE=2026-08-01`.
+3. Deploy. Schema migration and initial data seeding into DB run automatically on the first `/v1` request.

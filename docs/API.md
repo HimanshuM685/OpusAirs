@@ -226,3 +226,29 @@ Re-runs outlier cleaning (`quotes_clean`) and reconstructs daily/weekly/monthly 
 
 #### `GET /v1/backtest/dgca`
 Compares computed APIx against the DGCA TMU published 72-route benchmark (`data/dgca_benchmark.csv`).
+
+---
+
+### 5. Admin Authentication & Session
+
+#### `POST /v1/admin/login`
+Authenticates operator against `ADMIN_USER` and `ADMIN_PASSWORD` defined in the environment. Sets an HTTP-only session cookie (`opus_admin_session`).
+
+**Request Body:**
+```json
+{
+  "username": "admin",
+  "password": "your_password"
+}
+```
+
+#### `POST /v1/admin/logout`
+Terminates operator session by clearing the session cookie.
+
+#### `GET /v1/admin/check`
+Checks current operator session authentication status.
+```json
+{
+  "authenticated": true
+}
+```

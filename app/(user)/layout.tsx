@@ -32,9 +32,6 @@ export default function UserLayout({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </div>
-        <Link href="/admin" className="admin-link">
-          ⚙ Admin
-        </Link>
       </nav>
       <main className="user-main">{children}</main>
     </div>

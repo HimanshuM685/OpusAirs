@@ -15,9 +15,14 @@ Create `.env.local` for local deployment, or configure these environment variabl
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
 
 # ------------------------------------------------------------------------------
+# Admin Authentication (Hidden Operator Suite at /admin)
+# ------------------------------------------------------------------------------
+ADMIN_USER=admin
+ADMIN_PASSWORD=change_this_to_a_secure_password
+
+# ------------------------------------------------------------------------------
 # Data & Index Settings
 # ------------------------------------------------------------------------------
-DATA_DIR=./data
 APIX_BASE_DATE=2026-08-01
 SCRAPE_ENABLED=false
 
@@ -80,7 +85,8 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://..." opusairs
 2. **Import project** in [Vercel](https://vercel.com).
 3. **Configure Environment Variables** in Vercel Project Settings:
    - `DATABASE_URL`: Your Neon connection string (ensure `?sslmode=require` is appended).
-   - `DATA_DIR`: `./data` (the `data/` folder is committed to the repository and bundled into serverless functions).
+   - `ADMIN_USER`: Operator username (e.g. `admin`).
+   - `ADMIN_PASSWORD`: Secure operator password.
    - `APIX_BASE_DATE`: `2026-08-01`.
 4. **Deploy**:
    - Vercel automatically runs Next.js build.

@@ -102,10 +102,11 @@ Copy the example environment file:
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your Neon database connection string:
+Edit `.env.local` with your database connection string and operator credentials:
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
-DATA_DIR=./data
+ADMIN_USER=admin
+ADMIN_PASSWORD=change_this_to_a_secure_password
 SCRAPE_ENABLED=false
 APIX_BASE_DATE=2026-08-01
 ```
@@ -119,7 +120,7 @@ npm run dev
 - Public User Interface: [http://localhost:3000](http://localhost:3000)
 - User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
 - Flight Search & Compare: [http://localhost:3000/search](http://localhost:3000/search)
-- Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin)
+- Hidden Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (Sign in with `ADMIN_USER` & `ADMIN_PASSWORD`)
 - API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index)
 
 ---
