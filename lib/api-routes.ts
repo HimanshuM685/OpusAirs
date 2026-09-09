@@ -211,7 +211,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       ...r,
       dep_date: isoDate(r.dep_date),
       collected_on: isoDate(r.collected_on),
-    }));
+    })) as (Record<string, unknown> & { total_fare?: number })[];
     return json({
       origin,
       destination: dest,

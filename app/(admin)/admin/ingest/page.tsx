@@ -83,7 +83,7 @@ export default function IngestPage() {
     <>
       <h1>Feed quotes</h1>
       <p className="sub">
-        Two collection paths: live Playwright scrape of airline portals, and this manual feed.
+        Two collection paths: live portal scrape, and this manual feed.
         Paste JSON or upload the CSV schema. Same unique key upserts (correct a fare by sending it
         again). Only <code>total_fare</code> is required if you do not have the tax split.
       </p>

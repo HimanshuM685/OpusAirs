@@ -4,10 +4,9 @@ SIH 2026 [SIH26056](https://sih2026.vuce.in/ps/SIH26056). One **Next.js** app: d
 
 ## Run
 
-Copy `frontend/.env.example` to `frontend/.env.local` and set `DATABASE_URL`.
+Copy `.env.example` to `.env.local` and set `DATABASE_URL`.
 
 ```bash
-cd frontend
 npm install
 npm run dev
 ```
@@ -17,7 +16,7 @@ API: http://localhost:3000/v1/index
 
 ## Feed data
 
-- Dashboard **Feed quotes** (CSV / JSON)
+- Dashboard **/admin/ingest** (CSV / JSON)
 - `POST /v1/ingest/quotes`
 - `POST /v1/collect/run?scrape=true`
 

@@ -63,10 +63,10 @@ Drop a file at `data/quotes_manual.csv` and restart the API — it upserts on bo
 }
 ```
 
-Header: `X-API-Key`. Dashboard: **/ingest**.
+Header: `X-API-Key`. Dashboard: **/admin/ingest**.
 
 ## Scrape path
 
-`POST /v1/collect/run?scrape=true` (or `python -m app.collect --scrape`).
+`POST /v1/collect/run?scrape=true`.
 
 Sources and CSS selectors: [data/scrape_sources.json](../data/scrape_sources.json). Robots.txt is checked; CAPTCHA pages are stored as `blocked`, not solved.
