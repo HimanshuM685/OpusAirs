@@ -59,7 +59,7 @@ export default function DashboardPage() {
       
       {/* Jelly Animated Hero Header */}
       <JellyAnimatedHero
-        badgeText={`Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "100.00"}`}
+        badgeText={`Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "—"}`}
         title="Real-Time Airfare Price Index"
         subtitle="Official high-frequency aviation inflation tracking for MoSPI, NSO & RBI. Laspeyres APIx on DGCA-weighted city-pair basket."
         primaryCtaText="✈️ Search Flights"
