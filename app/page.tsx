@@ -64,7 +64,7 @@ export default function LandingPage() {
         enterLabel="Explore Index"
         style={{
           "--gp-paper": "#ffffff",
-          "--gp-ink": "#0c1212",
+          "--gp-ink": "#0b3b2a",
           "--gp-field": "#0b3b2a",
           "--gp-foreground": "#fbfbfa",
         }}
@@ -74,7 +74,7 @@ export default function LandingPage() {
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(ellipse 700px 500px at 20% 40%, rgba(11, 59, 42, 0.08) 0%, transparent 70%), linear-gradient(135deg, #ffffff 0%, #f4f8f6 50%, #ebf2ee 100%)",
+                "linear-gradient(135deg, #0b3b2a 0%, #14573f 50%, #093023 100%)",
             }}
           />
         }
@@ -82,8 +82,8 @@ export default function LandingPage() {
           <>
             {/* Header */}
             <div className="opus-header">
-              <span style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", color: "#0c1212" }}>
-                Opus<span style={{ color: "#0b3b2a" }}>Airs</span>
+              <span style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", color: "#0b3b2a" }}>
+                Opus<span style={{ color: "#14573f" }}>Airs</span>
               </span>
               <div
                 style={{
