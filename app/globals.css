@@ -381,7 +381,7 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
 tbody tr { transition: var(--transition); }
-tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+tbody tr:hover { background: rgba(11, 59, 42, 0.04); }
 
 /* Buttons */
 button, .btn {
@@ -399,21 +399,23 @@ button, .btn {
   cursor: pointer;
   transition: var(--transition);
 }
-button:hover, .btn:hover { border-color: var(--border-hover); background: var(--bg-glass); }
+button:hover, .btn:hover { border-color: var(--border-hover); background: #e1ebe5; }
 
 button.primary, .btn-primary {
-  background: var(--grad-blue);
-  border-color: var(--navy-light);
-  color: white;
+  background: #0b3b2a;
+  border-color: #0b3b2a;
+  color: #ffffff;
 }
 button.primary:hover, .btn-primary:hover {
-  box-shadow: var(--shadow-glow-blue);
+  background: #14573f;
+  border-color: #14573f;
+  box-shadow: 0 4px 12px rgba(11, 59, 42, 0.2);
 }
 
 button.accent, .btn-accent {
   background: var(--grad-accent);
   border-color: var(--accent-gold);
-  color: #0c1527;
+  color: #ffffff;
   font-weight: 700;
 }
 button.accent:hover, .btn-accent:hover {
@@ -433,8 +435,8 @@ select, input[type="text"], input[type="file"], textarea {
 }
 select:focus, input[type="text"]:focus, textarea:focus {
   outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px var(--accent-blue-dim);
+  border-color: #0b3b2a;
+  box-shadow: 0 0 0 3px rgba(11, 59, 42, 0.12);
 }
 textarea {
   width: 100%;
@@ -478,6 +480,7 @@ textarea {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   overflow: hidden;
+  background: var(--bg-surface);
 }
 .window-toggle button {
   border: none;
@@ -490,8 +493,8 @@ textarea {
 }
 .window-toggle button:hover { background: var(--bg-elevated); }
 .window-toggle button.active {
-  background: var(--accent-blue);
-  color: white;
+  background: #0b3b2a;
+  color: #ffffff;
 }
 
 /* Error */
