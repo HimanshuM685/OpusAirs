@@ -1,5 +1,5 @@
-source,origin,destination,carrier,flight_no,dep_date,fare_class,lead_time_days,collected_on,base_fare,taxes,udf,convenience,total_fare,status
-manual,DEL,BOM,6E,6E201,2026-09-17,ECONOMY,7,2026-09-10,4200,504,350,0,5054,ok
-manual,DEL,BOM,AI,AI801,2026-09-17,ECONOMY,7,2026-09-10,4550,546,350,99,5545,ok
-manual,DEL,BLR,6E,6E512,2026-09-11,ECONOMY,1,2026-09-10,,,,,8900,ok
-manual,BOM,BLR,QP,QP1122,2026-10-01,ECONOMY,21,2026-09-10,3100,372,350,0,3822,ok
+source,origin,destination,carrier,flight_no,dep_date,return_date,trip_type,lead_time_days,collected_on,base_fare,taxes,udf,convenience,total_fare,status
+manual,DEL,BOM,6E,6E201,2026-09-17,,one_way,7,2026-09-10,4200,504,350,0,5054,ok
+manual,DEL,BOM,AI,AI801,2026-09-17,,one_way,7,2026-09-10,4550,546,350,99,5545,ok
+manual,CCU,BOM,6E,6E401,2026-10-12,2026-10-19,round_trip,21,2026-09-10,8200,984,350,0,11200,ok
+manual,BOM,BLR,QP,QP1122,2026-10-01,,one_way,21,2026-09-10,3100,372,350,0,3822,ok

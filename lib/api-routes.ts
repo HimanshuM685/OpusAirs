@@ -1,12 +1,27 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { constructIndex } from "./apix";
+import {
+  authJson,
+  createUser,
+  findUserByEmail,
+  getUser,
+  isAuthResponse,
+  makeLogoutCookie,
+  makeSessionCookie,
+  normalizeLoginEmail,
+  requireAdmin,
+  verifyPassword,
+} from "./auth";
 import { computeBacktest } from "./backtest";
 import { bootstrap } from "./bootstrap";
 import { cleanQuotes } from "./cleaning";
 import { runPipeline } from "./collect";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
-import { ingestQuotes, parseCsvQuotes, type QuoteIn } from "./ingest";
+import { ingestQuotes, parseCsvQuotes, displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
+import { neededQuotes } from "./needed";
+import { parseDump } from "./parse-dump";
+import { DEFAULT_CSV_TEMPLATE } from "./seeds";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
@@ -15,6 +30,27 @@ function json(data: unknown, status = 200) {
 function qnum(sp: URLSearchParams, key: string): number | null {
   const v = sp.get(key);
   return v == null || v === "" ? null : Number(v);
+}
+
+function iata(value: string | null | undefined): string {
+  return (value || "").trim().toUpperCase();
+}
+
+function validIata(code: string): boolean {
+  return /^[A-Z]{3}$/.test(code);
+}
+
+async function loginResponse(emailRaw: string | undefined, password: string | undefined, adminOnly: boolean) {
+  const email = normalizeLoginEmail(emailRaw || "");
+  if (!email || !password) return json({ detail: "Email and password required" }, 400);
+  const user = await findUserByEmail(email);
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    return json({ detail: "Invalid email or password" }, 401);
+  }
+  if (adminOnly && user.role !== "admin") {
+    return json({ detail: "Admin required" }, 403);
+  }
+  return authJson({ success: true, user: { id: user.id, email: user.email, role: user.role } }, makeSessionCookie(user.id));
 }
 
 export async function handleV1(req: Request, parts: string[]): Promise<Response> {
@@ -59,7 +95,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const limit = Math.min(Number(sp.get("limit") || 200), 2000);
     const rows = await q`
       SELECT source, origin, destination, carrier, flight_no, dep_date, fare_class, lead_time_days,
-             collected_on, base_fare, taxes, udf, convenience, total_fare, is_outlier, is_imputed
+             collected_on, base_fare, taxes, udf, convenience, total_fare, is_outlier, is_imputed,
+             trip_type, return_date
       FROM quotes_clean
       WHERE (${origin}::text IS NULL OR origin = ${origin})
         AND (${dest}::text IS NULL OR destination = ${dest})
@@ -196,28 +233,68 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "search") {
-    const origin = (sp.get("origin") || "").toUpperCase();
-    const dest = (sp.get("dest") || "").toUpperCase();
+    const origin = iata(sp.get("origin"));
+    const dest = iata(sp.get("dest"));
+    const trip = normalizeTripType(sp.get("trip_type") || sp.get("trip"));
     const limit = Math.min(Number(sp.get("limit") || 50), 200);
-    const rows = (await q`
-      SELECT carrier, flight_no, dep_date, fare_class, lead_time_days, base_fare, taxes, udf,
-             convenience, total_fare, collected_on
-      FROM quotes_clean
-      WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0
-      ORDER BY total_fare ASC
-      LIMIT ${limit}
-    `) as Record<string, unknown>[];
-    const carriers = rows.map((r) => ({
-      ...r,
-      dep_date: isoDate(r.dep_date),
-      collected_on: isoDate(r.collected_on),
-    })) as (Record<string, unknown> & { total_fare?: number })[];
+    if (!validIata(origin) || !validIata(dest)) {
+      return json({ detail: "origin and dest must be 3-letter IATA codes" }, 400);
+    }
+
+    async function searchRows() {
+      const rows = (await q`
+        SELECT carrier, flight_no, dep_date, fare_class, lead_time_days, base_fare, taxes, udf,
+               convenience, total_fare, collected_on, trip_type, return_date
+        FROM quotes_clean
+        WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0
+          AND COALESCE(trip_type, 'one_way') = ${trip}
+        ORDER BY total_fare ASC
+        LIMIT ${limit}
+      `) as Record<string, unknown>[];
+      return rows.map((r) => ({
+        ...r,
+        flight_no: displayFlightNo(r.flight_no),
+        dep_date: isoDate(r.dep_date),
+        collected_on: isoDate(r.collected_on),
+        return_date: r.return_date ? isoDate(r.return_date) : null,
+        trip_type: r.trip_type || trip,
+      })) as (Record<string, unknown> & { total_fare?: number })[];
+    }
+
+    let carriers = await searchRows();
+    let fetched = false;
+    if (!carriers.length && trip === "one_way") {
+      const user = await getUser(req);
+      if (user) {
+        const like = `%origin=${origin} dest=${dest}%`;
+        const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const recent = (await q`
+          SELECT id FROM collection_runs
+          WHERE notes LIKE ${like}
+            AND finished_at IS NOT NULL
+            AND finished_at > ${since}
+          LIMIT 1
+        `) as { id: number }[];
+        if (!recent.length) {
+          await runPipeline({
+            scrape: true,
+            routes: [{ origin, destination: dest }],
+            budget: 15,
+          });
+          fetched = true;
+          carriers = await searchRows();
+        }
+      }
+    }
+
     return json({
       origin,
       destination: dest,
       cheapest: carriers[0]?.total_fare ?? null,
       carriers,
       quote_count: carriers.length,
+      fetched,
+      trip_type: trip,
     });
   }
 
@@ -254,17 +331,68 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "collect/run") {
-    const scrape = sp.get("scrape") !== "false";
-    return json(await runPipeline(scrape));
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    let body: { origin?: string; dest?: string; scrape?: boolean } = {};
+    try {
+      const text = await req.text();
+      if (text) body = JSON.parse(text) as typeof body;
+    } catch {
+      /* empty body ok */
+    }
+    const scrape = body.scrape !== false && sp.get("scrape") !== "false";
+    const origin = iata(body.origin || sp.get("origin"));
+    const dest = iata(body.dest || sp.get("dest"));
+    const routes =
+      validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
+    return json(await runPipeline({ scrape, routes, budget: routes ? 15 : 80 }));
+  }
+
+  if (req.method === "POST" && path === "ingest/dump") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const body = (await req.json()) as { text?: string; quotes?: QuoteIn[]; rebuild_index?: boolean };
+    let quotes = body.quotes;
+    if (!quotes?.length) {
+      try {
+        quotes = await parseDump(body.text || "");
+      } catch (err) {
+        return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
+    if (!quotes.length) return json({ detail: "No quotes parsed. Paste JSON, CSV, or prose with fares." }, 400);
+    return json(await ingestQuotes(q, quotes, body.rebuild_index !== false));
+  }
+
+  if (req.method === "GET" && path === "ingest/needed") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const needed = await neededQuotes(q);
+    return json({
+      needed,
+      count: needed.length,
+      fields: [
+        "origin",
+        "destination",
+        "dep_date",
+        "total_fare",
+        "trip_type (one_way|round_trip)",
+        "optional: carrier, flight_no, return_date, lead_time_days, collected_on, base_fare, taxes, udf, convenience",
+      ],
+    });
   }
 
   if (req.method === "POST" && path === "ingest/quotes") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
     const body = (await req.json()) as { quotes?: QuoteIn[]; rebuild_index?: boolean };
     if (!body.quotes?.length) return json({ detail: "quotes array is empty" }, 400);
     return json(await ingestQuotes(q, body.quotes, body.rebuild_index !== false));
   }
 
   if (req.method === "POST" && path === "ingest/csv") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json({ detail: "file required" }, 400);
@@ -275,14 +403,76 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "ingest/template") {
-    const text = readFileSync(join(dataDir(), "quotes_manual.example.csv"), "utf8");
+    let text = DEFAULT_CSV_TEMPLATE;
+    try {
+      text = readFileSync(join(dataDir(), "quotes_manual.example.csv"), "utf8");
+    } catch {
+      /* fallback to DEFAULT_CSV_TEMPLATE */
+    }
     return new Response(text, { headers: { "Content-Type": "text/csv" } });
   }
 
   if (req.method === "POST" && path === "index/rebuild") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
     const cleaned = await cleanQuotes(q);
     const indexed = await constructIndex(q);
     return json({ cleaned, index_rows: indexed });
+  }
+
+  if (req.method === "POST" && path === "auth/register") {
+    try {
+      const body = (await req.json()) as { email?: string; password?: string };
+      const email = (body.email || "").trim().toLowerCase();
+      const password = body.password || "";
+      if (!email.includes("@") || password.length < 6) {
+        return json({ detail: "Valid email and password (min 6 chars) required" }, 400);
+      }
+      if (await findUserByEmail(email)) {
+        return json({ detail: "Email already registered" }, 409);
+      }
+      const user = await createUser(email, password);
+      return authJson({ success: true, user }, makeSessionCookie(user.id), 201);
+    } catch {
+      return json({ detail: "Invalid request" }, 400);
+    }
+  }
+
+  if (req.method === "POST" && path === "auth/login") {
+    try {
+      const body = (await req.json()) as { email?: string; password?: string };
+      return await loginResponse(body.email, body.password, false);
+    } catch {
+      return json({ detail: "Invalid request" }, 400);
+    }
+  }
+
+  if (req.method === "POST" && path === "auth/logout") {
+    return authJson({ success: true }, makeLogoutCookie());
+  }
+
+  if (req.method === "GET" && path === "auth/me") {
+    const user = await getUser(req);
+    if (!user) return json({ authenticated: false }, 200);
+    return json({ authenticated: true, user });
+  }
+
+  if (req.method === "POST" && path === "admin/login") {
+    try {
+      const body = (await req.json()) as { email?: string; username?: string; password?: string };
+      return await loginResponse(body.email || body.username, body.password, true);
+    } catch {
+      return json({ detail: "Invalid request" }, 400);
+    }
+  }
+
+  if (req.method === "POST" && path === "admin/logout") {
+    return authJson({ success: true }, makeLogoutCookie());
+  }
+
+  if (req.method === "GET" && path === "admin/check") {
+    const user = await getUser(req);
+    return json({ authenticated: Boolean(user && user.role === "admin") });
   }
 
   return json({ detail: `Not found: ${req.method} /v1/${path}` }, 404);
@@ -300,7 +490,10 @@ function mapIndex(r: Record<string, unknown>) {
 function mapQuote(r: Record<string, unknown>) {
   return {
     ...r,
+    flight_no: displayFlightNo(r.flight_no),
     dep_date: isoDate(r.dep_date),
     collected_on: isoDate(r.collected_on),
+    return_date: r.return_date ? isoDate(r.return_date) : null,
+    trip_type: r.trip_type || "one_way",
   };
 }

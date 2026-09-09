@@ -47,21 +47,63 @@ function faresFromHtml(html: string): number[] {
   return found;
 }
 
-export async function scrapePortals(collectedOn?: string): Promise<CollectionEvent[]> {
-  const day = collectedOn || new Date().toISOString().slice(0, 10);
-  const cfg = JSON.parse(readFileSync(join(dataDir(), "scrape_sources.json"), "utf8")) as {
-    max_searches_per_run?: number;
-    lead_times?: number[];
-    sources: Source[];
-  };
-  const routes = loadPsdBasket();
-  const leads = cfg.lead_times?.length ? cfg.lead_times : [1, 7, 21];
-  const budget = cfg.max_searches_per_run ?? 18;
+import { DEFAULT_SCRAPE_SOURCES } from "./seeds";
+
+export async function scrapePortals(opts?: {
+  collectedOn?: string;
+  routes?: { origin: string; destination: string }[];
+  budget?: number;
+}): Promise<CollectionEvent[]> {
+  const day = opts?.collectedOn || new Date().toISOString().slice(0, 10);
+  const q = sql();
+  let sources: Source[] = [];
+  try {
+    const dbSources = (await q`
+      SELECT id, name, carrier, enabled, start_url, search_url_template 
+      FROM scrape_sources 
+      WHERE enabled = true
+    `) as Source[];
+    if (dbSources.length) sources = dbSources;
+  } catch {
+    /* fallback */
+  }
+  if (!sources.length) {
+    try {
+      const cfg = JSON.parse(readFileSync(join(dataDir(), "scrape_sources.json"), "utf8")) as {
+        sources: Source[];
+      };
+      sources = cfg.sources.filter((s) => s.enabled);
+    } catch {
+      sources = DEFAULT_SCRAPE_SOURCES;
+    }
+  }
+
+  let routes = opts?.routes?.map((r) => ({
+    origin: r.origin.toUpperCase(),
+    destination: r.destination.toUpperCase(),
+  })) ?? [];
+  if (!routes.length) {
+    try {
+      const dbRoutes = (await q`SELECT origin, destination FROM basket_routes`) as {
+        origin: string;
+        destination: string;
+      }[];
+      if (dbRoutes.length) routes = dbRoutes;
+    } catch {
+      /* fallback */
+    }
+  }
+  if (!routes.length) {
+    routes = loadPsdBasket();
+  }
+
+  const leads = [1, 7, 21];
+  const budget = opts?.budget ?? (opts?.routes?.length === 1 ? 15 : 80);
   const events: CollectionEvent[] = [];
   let searches = 0;
   const ua = process.env.USER_AGENT || "OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)";
 
-  for (const source of cfg.sources.filter((s) => s.enabled)) {
+  for (const source of sources) {
     if (searches >= budget) break;
     const start = source.start_url || source.search_url_template || "";
     if (start && !(await robotsAllowed(start.split("?")[0]))) {
@@ -108,6 +150,7 @@ export async function scrapePortals(collectedOn?: string): Promise<CollectionEve
             collected_at: new Date().toISOString(),
             status: "ok",
             total_fare: Math.min(...fares),
+            trip_type: "one_way",
           });
         } catch (err) {
           events.push(blocked(source, route.origin, route.destination, day, lt, String(err).slice(0, 200)));
@@ -146,15 +189,28 @@ function blocked(
     collected_on: collected,
     collected_at: new Date().toISOString(),
     status,
+    trip_type: "one_way",
     notes,
   } as CollectionEvent;
 }
 
-export async function runPipeline(useScrape: boolean) {
+export async function runPipeline(opts?: {
+  scrape?: boolean;
+  routes?: { origin: string; destination: string }[];
+  budget?: number;
+}) {
+  const useScrape = opts?.scrape !== false;
   const q = sql();
   const summary: Record<string, number> = {};
+  const pairNote =
+    opts?.routes?.length === 1
+      ? `origin=${opts.routes[0].origin.toUpperCase()} dest=${opts.routes[0].destination.toUpperCase()}`
+      : "origin=* dest=*";
   if (useScrape) {
-    const events = await scrapePortals();
+    const events = await scrapePortals({
+      routes: opts?.routes,
+      budget: opts?.budget,
+    });
     const bySrc = new Map<string, CollectionEvent[]>();
     for (const ev of events) {
       const list = bySrc.get(ev.source) ?? [];
@@ -165,14 +221,14 @@ export async function runPipeline(useScrape: boolean) {
       const started = new Date().toISOString();
       const run = await q`
         INSERT INTO collection_runs (started_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes)
-        VALUES (${started}, ${src}, 'running', 0, 0, 0, 0, '') RETURNING id
+        VALUES (${started}, ${src}, 'running', 0, 0, 0, 0, ${pairNote}) RETURNING id
       `;
       const counts = await upsertEvents(q, evs, Number(run[0].id));
       await q`
         UPDATE collection_runs SET finished_at = ${new Date().toISOString()}, status = 'ok',
           quotes_ok = ${counts.ok ?? 0}, quotes_missing = ${counts.missing ?? 0},
           quotes_sold_out = ${counts.sold_out ?? 0}, quotes_blocked = ${counts.blocked ?? 0},
-          notes = ${`inserted=${counts.inserted} updated=${counts.updated}`}
+          notes = ${`${pairNote} inserted=${counts.inserted} updated=${counts.updated}`}
         WHERE id = ${run[0].id}
       `;
     }

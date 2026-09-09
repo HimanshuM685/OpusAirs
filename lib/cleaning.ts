@@ -84,6 +84,8 @@ export type RawQuote = {
   udf: number | null;
   convenience: number | null;
   total_fare: number | null;
+  trip_type?: string | null;
+  return_date?: string | null;
 };
 
 export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Promise<number> {
@@ -105,17 +107,21 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
     const flags = madFlags(items.map((i) => i.parts.total_fare));
     for (let i = 0; i < items.length; i++) {
       const { raw: r, parts } = items[i];
-      const dedupe = [r.source, r.origin, r.destination, r.carrier, r.flight_no, r.dep_date, r.fare_class, r.collected_on, r.lead_time_days].join("|");
+      const dedupe = [r.source, r.origin, r.destination, r.carrier, r.flight_no, r.dep_date, r.fare_class, r.collected_on, r.lead_time_days, r.trip_type || "one_way"].join("|");
       if (seen.has(dedupe)) continue;
       seen.add(dedupe);
+      const trip = r.trip_type === "round_trip" ? "round_trip" : "one_way";
+      const ret = r.return_date ? isoDate(r.return_date) : null;
       await q`
         INSERT INTO quotes_clean (
           raw_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
-          lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, currency, is_outlier, is_imputed
+          lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, currency, is_outlier, is_imputed,
+          trip_type, return_date
         ) VALUES (
           ${r.id}, ${r.source}, ${r.origin}, ${r.destination}, ${r.carrier}, ${r.flight_no}, ${isoDate(r.dep_date)},
           ${r.fare_class}, ${r.lead_time_days}, ${isoDate(r.collected_on)}, ${parts.base_fare}, ${parts.taxes},
-          ${parts.udf}, ${parts.convenience}, ${parts.total_fare}, 'INR', ${flags[i] ? 1 : 0}, 0
+          ${parts.udf}, ${parts.convenience}, ${parts.total_fare}, 'INR', ${flags[i] ? 1 : 0}, 0,
+          ${trip}, ${ret}
         )
         ON CONFLICT (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
         DO UPDATE SET
@@ -124,7 +130,9 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
           udf = EXCLUDED.udf,
           convenience = EXCLUDED.convenience,
           total_fare = EXCLUDED.total_fare,
-          is_outlier = EXCLUDED.is_outlier
+          is_outlier = EXCLUDED.is_outlier,
+          trip_type = EXCLUDED.trip_type,
+          return_date = EXCLUDED.return_date
       `;
       written += 1;
     }
@@ -135,7 +143,7 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
 export async function lowestEconomyCells(
   q: ReturnType<typeof import("./db").sql>,
 ): Promise<Map<string, number>> {
-  const rows = (await q`SELECT origin, destination, collected_on, lead_time_days, total_fare FROM quotes_clean WHERE is_outlier = 0`) as {
+  const rows = (await q`SELECT origin, destination, collected_on, lead_time_days, total_fare FROM quotes_clean WHERE is_outlier = 0 AND COALESCE(trip_type, 'one_way') = 'one_way'`) as {
     origin: string;
     destination: string;
     collected_on: string;

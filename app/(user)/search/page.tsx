@@ -23,24 +23,18 @@ const TREND_WINDOWS = [
 
 export default function SearchPage() {
   const [routes, setRoutes] = useState<RouteOut[]>([]);
-  const [origin, setOrigin] = useState("");
-  const [dest, setDest] = useState("");
+  const [origin, setOrigin] = useState("CCU");
+  const [dest, setDest] = useState("BOM");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [trendWindow, setTrendWindow] = useState("30d");
+  const [tripType, setTripType] = useState<"one_way" | "round_trip">("one_way");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Load available routes for dropdowns
   useEffect(() => {
     api<RouteOut[]>("/v1/routes")
-      .then((r) => {
-        setRoutes(r);
-        if (r.length >= 1) {
-          setOrigin(r[0].origin);
-          setDest(r[0].destination);
-        }
-      })
+      .then(setRoutes)
       .catch(() => {});
   }, []);
 
@@ -55,17 +49,19 @@ export default function SearchPage() {
   }, [routes]);
 
   async function handleSearch() {
-    if (!origin || !dest) return;
+    const o = origin.trim().toUpperCase();
+    const d = dest.trim().toUpperCase();
+    if (o.length !== 3 || d.length !== 3) return;
     setLoading(true);
     setErr(null);
     try {
-      const [searchRes, trendRes] = await Promise.all([
-        api<SearchResult>(`/v1/search?origin=${origin}&dest=${dest}`),
-        api<TrendPoint[]>(
-          `/v1/trends/${origin}/${dest}?window=${trendWindow}`,
-        ),
-      ]);
+      const searchRes = await api<SearchResult>(
+        `/v1/search?origin=${o}&dest=${d}&trip_type=${tripType}`,
+      );
       setResult(searchRes);
+      const trendRes = await api<TrendPoint[]>(
+        `/v1/trends/${o}/${d}?window=${trendWindow}`,
+      );
       setTrends(trendRes);
     } catch (e) {
       setErr(String(e));
@@ -119,54 +115,70 @@ export default function SearchPage() {
         secondaryCtaHref="/heatmap"
       />
       {err && <p className="err">{err}</p>}
+      {loading && <p className="sub">Fetching live fares… this can take a few minutes.</p>}
 
       {/* Search Box */}
       <div className="search-box fade-in fade-in-delay-1">
         <div className="search-fields">
           <div className="field">
             <label>Origin</label>
-            <select
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
+            <input
               id="search-origin"
-            >
-              <option value="">Select</option>
-              {airports.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+              value={origin}
+              maxLength={3}
+              list="airport-codes"
+              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+            />
           </div>
           <div className="field">
             <label>Destination</label>
-            <select
-              value={dest}
-              onChange={(e) => setDest(e.target.value)}
+            <input
               id="search-dest"
+              value={dest}
+              maxLength={3}
+              list="airport-codes"
+              onChange={(e) => setDest(e.target.value.toUpperCase())}
+            />
+          </div>
+          <datalist id="airport-codes">
+            {airports.map((a) => (
+              <option key={a} value={a} />
+            ))}
+          </datalist>
+          <div className="field">
+            <label>Trip</label>
+            <select
+              id="search-trip"
+              value={tripType}
+              onChange={(e) => setTripType(e.target.value as "one_way" | "round_trip")}
             >
-              <option value="">Select</option>
-              {airports.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
+              <option value="one_way">One way</option>
+              <option value="round_trip">Round trip</option>
             </select>
           </div>
           <button
             className="primary"
             type="button"
             onClick={() => void handleSearch()}
-            disabled={loading || !origin || !dest}
+            disabled={loading || origin.trim().length !== 3 || dest.trim().length !== 3}
             id="search-btn"
           >
-            {loading ? "Searching…" : "🔍 Search"}
+            {loading ? "Fetching live fares…" : "Search"}
           </button>
         </div>
       </div>
 
       {result && (
         <>
+          {result.fetched && (
+            <p className="sub">Live fetch just ran for this pair. Warehouse updated.</p>
+          )}
+          {result.quote_count === 0 && !result.fetched && (
+            <p className="sub">
+              No {tripType === "round_trip" ? "round-trip" : "one-way"} quotes. Sign in to
+              fetch one-way live, or dump fares on Admin → Data Dump (needed list shows gaps).
+            </p>
+          )}
           {/* Summary stats */}
           <div className="stat-row fade-in">
             <div className="stat-card">
@@ -252,7 +264,9 @@ export default function SearchPage() {
                   <tr>
                     <th>Carrier</th>
                     <th>Flight</th>
+                    <th>Trip</th>
                     <th>Dep Date</th>
+                    <th>Return</th>
                     <th>Lead</th>
                     <th>Base</th>
                     <th>Taxes</th>
@@ -269,7 +283,9 @@ export default function SearchPage() {
                         <span className="badge badge-ok">{c.carrier}</span>
                       </td>
                       <td>{c.flight_no}</td>
+                      <td>{(c.trip_type || "one_way").replace("_", " ")}</td>
                       <td>{c.dep_date}</td>
+                      <td>{c.return_date || "—"}</td>
                       <td>T+{c.lead_time_days}</td>
                       <td>₹{c.base_fare.toLocaleString("en-IN")}</td>
                       <td>₹{c.taxes.toLocaleString("en-IN")}</td>

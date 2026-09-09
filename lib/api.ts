@@ -1,10 +1,5 @@
-export const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY || process.env.BACKEND_API_KEY || "";
-
 export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
-    headers: API_KEY ? { "X-API-Key": API_KEY } : undefined,
-    cache: "no-store",
-  });
+  const res = await fetch(path, { cache: "no-store", credentials: "include" });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} for ${path}`);
   }
@@ -14,12 +9,10 @@ export async function api<T>(path: string): Promise<T> {
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
+    credentials: "include",
   });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} for ${path}`);
@@ -102,6 +95,8 @@ export type QuoteOut = {
   fare_class: string;
   lead_time_days: number;
   collected_on: string;
+  return_date?: string | null;
+  trip_type?: string;
   base_fare: number;
   taxes: number;
   udf: number;
@@ -123,6 +118,8 @@ export type CarrierFare = {
   convenience: number;
   total_fare: number;
   collected_on: string;
+  return_date?: string | null;
+  trip_type?: string;
 };
 
 export type SearchResult = {
@@ -131,6 +128,8 @@ export type SearchResult = {
   cheapest?: number | null;
   carriers: CarrierFare[];
   quote_count: number;
+  fetched?: boolean;
+  trip_type?: string;
 };
 
 export type TrendPoint = {

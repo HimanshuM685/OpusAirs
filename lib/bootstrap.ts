@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ensureSeedAdmin } from "./auth";
 import { dataDir, sql } from "./db";
+import {
+  DEFAULT_BASKET_ROUTES,
+  DEFAULT_DGCA_BENCHMARK,
+  DEFAULT_SCRAPE_SOURCES,
+} from "./seeds";
 
 export const LEAD_TIMES = [1, 7, 15, 21, 30, 45] as const;
 export const FARE_CLASS = "ECONOMY";
@@ -15,24 +21,42 @@ export type RouteSpec = {
 };
 
 export function loadPsdBasket(): RouteSpec[] {
-  const text = readFileSync(join(dataDir(), "psd_basket.csv"), "utf8");
-  const lines = text.trim().split(/\r?\n/);
-  const rows: { origin: string; destination: string; raw_passengers: number; note: string }[] = [];
-  for (const line of lines.slice(1)) {
-    if (!line.trim()) continue;
-    const [origin, destination, raw, ...rest] = line.split(",");
-    rows.push({
-      origin: origin.trim().toUpperCase(),
-      destination: destination.trim().toUpperCase(),
-      raw_passengers: Number(raw),
-      note: rest.join(",").replace(/^"|"$/g, "").trim(),
-    });
+  try {
+    const text = readFileSync(join(dataDir(), "psd_basket.csv"), "utf8");
+    const lines = text.trim().split(/\r?\n/);
+    const rows: { origin: string; destination: string; raw_passengers: number; note: string }[] = [];
+    for (const line of lines.slice(1)) {
+      if (!line.trim()) continue;
+      const [origin, destination, raw, ...rest] = line.split(",");
+      rows.push({
+        origin: origin.trim().toUpperCase(),
+        destination: destination.trim().toUpperCase(),
+        raw_passengers: Number(raw),
+        note: rest.join(",").replace(/^"|"$/g, "").trim(),
+      });
+    }
+    const total = rows.reduce((s, r) => s + r.raw_passengers, 0) || 1;
+    return rows.map((r) => ({ ...r, weight: r.raw_passengers / total }));
+  } catch {
+    const total = DEFAULT_BASKET_ROUTES.reduce((s, r) => s + r.raw_passengers, 0) || 1;
+    return DEFAULT_BASKET_ROUTES.map((r) => ({
+      origin: r.origin,
+      destination: r.destination,
+      raw_passengers: r.raw_passengers,
+      note: r.note,
+      weight: r.raw_passengers / total,
+    }));
   }
-  const total = rows.reduce((s, r) => s + r.raw_passengers, 0) || 1;
-  return rows.map((r) => ({ ...r, weight: r.raw_passengers / total }));
 }
 
 const DDL = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(16) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
   `CREATE TABLE IF NOT EXISTS basket_routes (
     id SERIAL PRIMARY KEY,
     origin VARCHAR(3) NOT NULL,
@@ -40,6 +64,14 @@ const DDL = [
     raw_passengers DOUBLE PRECISION NOT NULL,
     weight DOUBLE PRECISION NOT NULL,
     note VARCHAR(500) NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS scrape_sources (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    carrier VARCHAR(8),
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    start_url TEXT,
+    search_url_template TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS collection_runs (
     id SERIAL PRIMARY KEY,
@@ -75,6 +107,8 @@ const DDL = [
     currency VARCHAR(8) NOT NULL DEFAULT 'INR',
     UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
   )`,
+  `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way'`,
+  `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS return_date DATE`,
   `CREATE TABLE IF NOT EXISTS quotes_clean (
     id SERIAL PRIMARY KEY,
     raw_id INTEGER REFERENCES quotes_raw(id),
@@ -97,6 +131,8 @@ const DDL = [
     is_imputed INTEGER NOT NULL DEFAULT 0,
     UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
   )`,
+  `ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way'`,
+  `ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS return_date DATE`,
   `CREATE TABLE IF NOT EXISTS index_values (
     id SERIAL PRIMARY KEY,
     series VARCHAR(64) NOT NULL,
@@ -127,44 +163,65 @@ export async function bootstrap(): Promise<void> {
     const strings = Object.assign([stmt], { raw: [stmt] }) as unknown as TemplateStringsArray;
     await q(strings);
   }
+
   const basket = loadPsdBasket();
   for (const r of basket) {
     const existing = await q`
       SELECT id FROM basket_routes WHERE origin = ${r.origin} AND destination = ${r.destination} LIMIT 1
     `;
-    if (existing.length) {
-      await q`
-        UPDATE basket_routes
-        SET raw_passengers = ${r.raw_passengers}, weight = ${r.weight}, note = ${r.note}
-        WHERE origin = ${r.origin} AND destination = ${r.destination}
-      `;
-    } else {
+    if (!existing.length) {
       await q`
         INSERT INTO basket_routes (origin, destination, raw_passengers, weight, note)
         VALUES (${r.origin}, ${r.destination}, ${r.raw_passengers}, ${r.weight}, ${r.note})
       `;
     }
   }
-  const dgcaPath = join(dataDir(), "dgca_benchmark.csv");
-  try {
-    const text = readFileSync(dgcaPath, "utf8");
-    await q`DELETE FROM dgca_benchmark`;
-    for (const line of text.trim().split(/\r?\n/).slice(1)) {
-      if (!line.trim()) continue;
-      const parts = line.split(",");
-      const month = parts[0].trim();
-      const origin = parts[1].trim() || null;
-      const dest = parts[2].trim() || null;
-      const metric = parts[3].trim();
-      const value = Number(parts[4]);
-      const note = parts.slice(5).join(",").replace(/^"|"$/g, "").trim();
+
+  await ensureSeedAdmin();
+
+  // 2. Scrape sources seed
+  const sourcesCount = (await q`SELECT COUNT(*) as count FROM scrape_sources`) as { count: string | number }[];
+  if (Number(sourcesCount[0]?.count || 0) === 0) {
+    for (const s of DEFAULT_SCRAPE_SOURCES) {
       await q`
-        INSERT INTO dgca_benchmark (month, origin, destination, metric, value, note)
-        VALUES (${month}, ${origin}, ${dest}, ${metric}, ${value}, ${note})
+        INSERT INTO scrape_sources (id, name, carrier, enabled, start_url, search_url_template)
+        VALUES (${s.id}, ${s.name}, ${s.carrier}, ${s.enabled}, ${s.start_url}, ${s.search_url_template})
       `;
     }
-  } catch {
-    /* optional file */
   }
+
+  // 3. DGCA Benchmark seed
+  const dgcaCount = (await q`SELECT COUNT(*) as count FROM dgca_benchmark`) as { count: string | number }[];
+  if (Number(dgcaCount[0]?.count || 0) === 0) {
+    let benchmarks = DEFAULT_DGCA_BENCHMARK;
+    try {
+      const dgcaPath = join(dataDir(), "dgca_benchmark.csv");
+      const text = readFileSync(dgcaPath, "utf8");
+      const parsed: typeof DEFAULT_DGCA_BENCHMARK = [];
+      for (const line of text.trim().split(/\r?\n/).slice(1)) {
+        if (!line.trim()) continue;
+        const parts = line.split(",");
+        parsed.push({
+          month: parts[0].trim(),
+          origin: parts[1].trim() || null,
+          destination: parts[2].trim() || null,
+          metric: parts[3].trim(),
+          value: Number(parts[4]),
+          note: parts.slice(5).join(",").replace(/^"|"$/g, "").trim(),
+        });
+      }
+      if (parsed.length) benchmarks = parsed;
+    } catch {
+      /* fallback to DEFAULT_DGCA_BENCHMARK */
+    }
+
+    for (const b of benchmarks) {
+      await q`
+        INSERT INTO dgca_benchmark (month, origin, destination, metric, value, note)
+        VALUES (${b.month}, ${b.origin}, ${b.destination}, ${b.metric}, ${b.value}, ${b.note})
+      `;
+    }
+  }
+
   bootstrapped = true;
 }

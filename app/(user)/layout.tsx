@@ -13,8 +13,29 @@ const navLinks = [
   ["/elasticity", "Elasticity"],
 ];
 
+type Me = { authenticated: boolean; user?: { email: string; role: string } };
+
 export default function UserLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [me, setMe] = useState<Me | null>(null);
+
+  function loadMe() {
+    fetch("/v1/auth/me", { credentials: "include", cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: Me) => setMe(data))
+      .catch(() => setMe({ authenticated: false }));
+  }
+
+  useEffect(() => {
+    loadMe();
+    window.addEventListener("auth-changed", loadMe);
+    return () => window.removeEventListener("auth-changed", loadMe);
+  }, [pathname]);
+
+  async function logout() {
+    await fetch("/v1/auth/logout", { method: "POST", credentials: "include" });
+    setMe({ authenticated: false });
+  }
 
   return (
     <div className="user-shell" style={{ position: "relative", minHeight: "100vh" }}>
