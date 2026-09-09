@@ -19,7 +19,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base, #ffffff)", color: "var(--text-primary, #0c1212)" }}>
+    <div className="page-open-animate" style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base, #ffffff)", color: "var(--text-primary, #0c1212)" }}>
       <style>{`
         .opus-header {
           position: absolute;
@@ -154,7 +154,7 @@ export default function LandingPage() {
                     boxShadow: "0 4px 14px rgba(11, 59, 42, 0.25)",
                   }}
                 >
-                  📊 View Dashboard
+                  View Dashboard
                 </Link>
                 <Link
                   href="/search"
@@ -173,7 +173,7 @@ export default function LandingPage() {
                     backdropFilter: "blur(10px)",
                   }}
                 >
-                  ✈️ Search Flights
+                  Search Flights
                 </Link>
               </div>
             </div>
@@ -223,7 +223,6 @@ export default function LandingPage() {
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "24px" }}>
               <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
-                <div style={{ fontSize: "24px", marginBottom: "12px" }}>📈</div>
                 <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Laspeyres Price Index</h3>
                 <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Computes daily, weekly, and monthly airfare index weighted by DGCA passenger volume statistics across primary routes.
@@ -231,7 +230,6 @@ export default function LandingPage() {
               </div>
 
               <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
-                <div style={{ fontSize: "24px", marginBottom: "12px" }}>🔍</div>
                 <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Route Search &amp; Compare</h3>
                 <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Search any domestic city-pair to instantly compare baseline vs tax breakdown across IndiGo, Air India, SpiceJet, and Akasa.
@@ -239,7 +237,6 @@ export default function LandingPage() {
               </div>
 
               <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
-                <div style={{ fontSize: "24px", marginBottom: "12px" }}>📉</div>
                 <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Trend & Corridor Analysis</h3>
                 <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Track 30-day, 90-day, and 180-day price corridors with min/max bounds and carrier market share shifts.
@@ -247,7 +244,6 @@ export default function LandingPage() {
               </div>
 
               <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
-                <div style={{ fontSize: "24px", marginBottom: "12px" }}>🗺️</div>
                 <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Sector Heatmap</h3>
                 <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Interactive geographic heatmaps highlighting price spikes across trunk, regional, and seasonal flight sectors.

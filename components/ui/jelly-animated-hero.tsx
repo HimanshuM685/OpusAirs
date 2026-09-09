@@ -18,9 +18,9 @@ export default function JellyAnimatedHero({
   badgeText = "Live Telemetry · Base 100.00",
   title,
   subtitle = "High-frequency aviation price index for NSO, MoSPI & RBI.",
-  primaryCtaText = "📊 View Dashboard",
+  primaryCtaText = "View Dashboard",
   primaryCtaHref = "/dashboard",
-  secondaryCtaText = "✈️ Search Flights",
+  secondaryCtaText = "Search Flights",
   secondaryCtaHref = "/search",
   children,
 }: JellyAnimatedHeroProps) {
