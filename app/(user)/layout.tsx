@@ -19,7 +19,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
 
   function loadMe() {
-    fetch("/v1/auth/me")
+    fetch("/v1/auth/me", { credentials: "include", cache: "no-store" })
       .then((r) => r.json())
       .then((data: Me) => setMe(data))
       .catch(() => setMe({ authenticated: false }));
@@ -30,7 +30,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   async function logout() {
-    await fetch("/v1/auth/logout", { method: "POST" });
+    await fetch("/v1/auth/logout", { method: "POST", credentials: "include" });
     setMe({ authenticated: false });
   }
 

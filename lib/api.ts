@@ -1,5 +1,5 @@
 export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(path, { cache: "no-store" });
+  const res = await fetch(path, { cache: "no-store", credentials: "include" });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} for ${path}`);
   }
@@ -12,6 +12,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
+    credentials: "include",
   });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} for ${path}`);

@@ -18,6 +18,7 @@ export default function LoginPage() {
     try {
       const res = await fetch("/v1/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -45,7 +46,9 @@ export default function LoginPage() {
           <label htmlFor="login-email">Email</label>
           <input
             id="login-email"
-            type="email"
+            type="text"
+            inputMode="email"
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

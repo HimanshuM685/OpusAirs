@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { adminSeedEmail, adminSeedPassword, hashPassword } from "./auth";
+import { ensureSeedAdmin } from "./auth";
 import { dataDir, sql } from "./db";
 import {
   DEFAULT_BASKET_ROUTES,
@@ -173,16 +173,7 @@ export async function bootstrap(): Promise<void> {
     }
   }
 
-  const adminCount = (await q`SELECT COUNT(*) as count FROM users WHERE role = 'admin'`) as {
-    count: string | number;
-  }[];
-  if (Number(adminCount[0]?.count || 0) === 0) {
-    const email = adminSeedEmail();
-    const hash = hashPassword(adminSeedPassword());
-    await q`
-      INSERT INTO users (email, password_hash, role) VALUES (${email}, ${hash}, 'admin')
-    `;
-  }
+  await ensureSeedAdmin();
 
   // 2. Scrape sources seed
   const sourcesCount = (await q`SELECT COUNT(*) as count FROM scrape_sources`) as { count: string | number }[];

@@ -107,11 +107,35 @@ export function isAuthResponse(value: AuthUser | Response): value is Response {
 export function adminSeedEmail(): string {
   const email = (process.env.ADMIN_EMAIL || process.env.ADMIN_USER || "").trim();
   if (email.includes("@")) return email.toLowerCase();
+  if (email) return `${email.toLowerCase()}@local`;
   return "admin@local";
 }
 
 export function adminSeedPassword(): string {
   return process.env.ADMIN_PASSWORD || "admin";
+}
+
+export function normalizeLoginEmail(raw: string): string {
+  const email = raw.trim().toLowerCase();
+  if (!email) return email;
+  if (!email.includes("@")) return adminSeedEmail();
+  return email;
+}
+
+export async function ensureSeedAdmin(): Promise<void> {
+  const q = sql();
+  const email = adminSeedEmail();
+  const hash = hashPassword(adminSeedPassword());
+  const existing = await q`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
+  if (!existing.length) {
+    await q`
+      INSERT INTO users (email, password_hash, role) VALUES (${email}, ${hash}, 'admin')
+    `;
+    return;
+  }
+  await q`
+    UPDATE users SET password_hash = ${hash}, role = 'admin' WHERE email = ${email}
+  `;
 }
 
 export function authJson(data: unknown, cookie: string, status = 200): Response {

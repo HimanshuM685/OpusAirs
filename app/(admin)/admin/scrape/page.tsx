@@ -27,6 +27,7 @@ export default function ScrapePage() {
     setMsg("Running collect against live airline portals…");
     const res = await fetch(`/v1/collect/run?scrape=true`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

@@ -36,6 +36,7 @@ export default function IngestPage() {
     try {
       const res = await fetch(`/v1/ingest/quotes`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: jsonText,
       });
@@ -56,6 +57,7 @@ export default function IngestPage() {
     try {
       const res = await fetch(`/v1/ingest/csv`, {
         method: "POST",
+        credentials: "include",
         body: fd,
       });
       const body = await res.text();
@@ -68,7 +70,7 @@ export default function IngestPage() {
   }
 
   async function downloadTemplate() {
-    const res = await fetch(`/v1/ingest/template`);
+    const res = await fetch(`/v1/ingest/template`, { credentials: "include" });
     const text = await res.text();
     const blob = new Blob([text], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

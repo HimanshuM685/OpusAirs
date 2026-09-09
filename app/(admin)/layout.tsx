@@ -20,7 +20,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch("/v1/admin/check")
+    fetch("/v1/admin/check", { credentials: "include", cache: "no-store" })
       .then((res) => res.json())
       .then((data: { authenticated?: boolean }) => {
         setIsAuthenticated(Boolean(data.authenticated));
@@ -37,6 +37,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/v1/admin/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -56,7 +57,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   async function handleLogout() {
     try {
-      await fetch("/v1/admin/logout", { method: "POST" });
+      await fetch("/v1/admin/logout", { method: "POST", credentials: "include" });
     } finally {
       setIsAuthenticated(false);
     }
@@ -132,7 +133,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               color: "var(--text-muted)",
               lineHeight: 1.5,
             }}>
-              Restricted operator suite. Sign in with an admin user email.
+              Restricted operator suite. Email from <code>ADMIN_EMAIL</code> in
+              <code>.env</code>.
             </p>
           </div>
 
@@ -168,12 +170,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 Email
               </label>
               <input
-                type="email"
+                type="text"
+                inputMode="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
-                placeholder="admin@local"
+                placeholder="admin@admin"
                 style={{
                   width: "100%",
                   padding: "12px 14px",

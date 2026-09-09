@@ -9,6 +9,7 @@ import {
   isAuthResponse,
   makeLogoutCookie,
   makeSessionCookie,
+  normalizeLoginEmail,
   requireAdmin,
   verifyPassword,
 } from "./auth";
@@ -38,7 +39,7 @@ function validIata(code: string): boolean {
 }
 
 async function loginResponse(emailRaw: string | undefined, password: string | undefined, adminOnly: boolean) {
-  const email = (emailRaw || "").trim().toLowerCase();
+  const email = normalizeLoginEmail(emailRaw || "");
   if (!email || !password) return json({ detail: "Email and password required" }, 400);
   const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.password_hash)) {
