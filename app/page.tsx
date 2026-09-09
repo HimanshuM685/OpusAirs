@@ -15,11 +15,11 @@ export default function LandingPage() {
       .then((rows) => {
         if (rows.length) setLatestIdx(rows[rows.length - 1].value);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", background: "#ffffff", color: "#0c1212" }}>
+    <div style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base, #ffffff)", color: "var(--text-primary, #0c1212)" }}>
       <style>{`
         .opus-header {
           position: absolute;
@@ -74,7 +74,7 @@ export default function LandingPage() {
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(circle at 18% 8%, rgba(68,125,98,.72), transparent 34%), radial-gradient(circle at 82% 20%, rgba(251,251,250,.12), transparent 28%), radial-gradient(circle at 48% 78%, rgba(9,48,35,.5), transparent 44%), linear-gradient(135deg,#0b3b2a 0%,#14573f 48%,#082d22 100%)",
+                "radial-gradient(ellipse 700px 500px at 20% 40%, rgba(11, 59, 42, 0.08) 0%, transparent 70%), linear-gradient(135deg, #ffffff 0%, #f4f8f6 50%, #ebf2ee 100%)",
             }}
           />
         }
@@ -90,22 +90,22 @@ export default function LandingPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "8px",
-                  padding: "6px 14px",
+                  padding: "6px 16px",
                   borderRadius: "100px",
-                  background: "#f0f5f2",
-                  border: "1px solid #d0dfd7",
+                  background: "rgba(11, 59, 42, 0.08)",
+                  border: "1px solid rgba(11, 59, 42, 0.2)",
                   color: "#0b3b2a",
-                  fontSize: "12px",
+                  fontSize: "13px",
                   fontWeight: 600,
                 }}
               >
                 <span
                   style={{
-                    width: "7px",
-                    height: "7px",
+                    width: "8px",
+                    height: "8px",
                     borderRadius: "50%",
                     background: "#0b3b2a",
-                    boxShadow: "0 0 6px #0b3b2a",
+                    boxShadow: "0 0 8px #0b3b2a",
                   }}
                 />
                 Live Index: {latestIdx != null ? latestIdx.toFixed(2) : "100.00"}
@@ -137,21 +137,21 @@ export default function LandingPage() {
                 High-frequency aviation price index for NSO, MoSPI &amp; RBI
               </p>
 
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <div style={{ display: "flex", gap: "14px", justifyContent: "center" }}>
                 <Link
                   href="/dashboard"
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
-                    padding: "10px 20px",
+                    padding: "11px 22px",
                     borderRadius: "10px",
-                    background: "#0b3b2a",
+                    background: "linear-gradient(135deg, #0b3b2a, #14573f)",
                     color: "#ffffff",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     fontWeight: 600,
                     textDecoration: "none",
-                    boxShadow: "0 2px 8px rgba(11,59,42,0.25)",
+                    boxShadow: "0 4px 14px rgba(11, 59, 42, 0.25)",
                   }}
                 >
                   📊 View Dashboard
@@ -162,14 +162,15 @@ export default function LandingPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
-                    padding: "10px 20px",
+                    padding: "11px 22px",
                     borderRadius: "10px",
                     background: "#ffffff",
                     border: "1px solid #d8deda",
                     color: "#0c1212",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     fontWeight: 600,
                     textDecoration: "none",
+                    backdropFilter: "blur(10px)",
                   }}
                 >
                   ✈️ Search Flights
@@ -181,74 +182,74 @@ export default function LandingPage() {
       >
         {/* Revealed Portal Content */}
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 20px 80px", color: "#fbfbfa" }}>
-          
+
           {/* Section 1: Project Overview */}
           <section style={{ marginBottom: "64px" }}>
-            <div style={{ display: "inline-block", fontSize: "12px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(251,251,250,0.6)", marginBottom: "12px" }}>
+            <div style={{ display: "inline-block", fontSize: "12px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#34d399", marginBottom: "12px" }}>
               About The Project
             </div>
-            <h2 style={{ fontSize: "clamp(26px, 4vw, 42px)", fontWeight: 700, margin: "0 0 20px", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+            <h2 style={{ fontSize: "clamp(26px, 4vw, 42px)", fontWeight: 700, margin: "0 0 20px", lineHeight: 1.2, letterSpacing: "-0.02em", color: "#ffffff" }}>
               Official High-Frequency Aviation Inflation Intelligence
             </h2>
-            <p style={{ fontSize: "17px", lineHeight: 1.7, color: "rgba(251, 251, 250, 0.85)", maxWidth: "800px" }}>
-              OpusAirs (SIH 2026 · SIH26056) is a next-generation analytical platform built for the <strong>Ministry of Statistics &amp; Programme Implementation (MoSPI)</strong> and the <strong>Reserve Bank of India (RBI)</strong>. It automates daily fare collection across all domestic carriers to compute a real-time Laspeyres Airfare Price Index (APIx).
+            <p style={{ fontSize: "17px", lineHeight: 1.7, color: "#d8deda", maxWidth: "800px" }}>
+              OpusAirs (SIH 2026 · SIH26056) is a next-generation analytical platform built for the <strong style={{ color: "#ffffff" }}>Ministry of Statistics &amp; Programme Implementation (MoSPI)</strong> and the <strong style={{ color: "#ffffff" }}>Reserve Bank of India (RBI)</strong>. It automates daily fare collection across all domestic carriers to compute a real-time Laspeyres Airfare Price Index (APIx).
             </p>
           </section>
 
           {/* Section 2: Key Operational Metrics */}
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "64px" }}>
-            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "14px", padding: "22px 24px", backdropFilter: "blur(10px)" }}>
               <div style={{ fontSize: "32px", fontWeight: 800, color: "#34d399", marginBottom: "4px" }}>100+</div>
-              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>City-Pair Sectors</div>
+              <div style={{ fontSize: "14px", color: "#d8deda" }}>City-Pair Sectors</div>
             </div>
-            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
-              <div style={{ fontSize: "32px", fontWeight: 800, color: "#e8a54b", marginBottom: "4px" }}>4</div>
-              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Major Airlines Tracked</div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "14px", padding: "22px 24px", backdropFilter: "blur(10px)" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#6ee7b7", marginBottom: "4px" }}>4</div>
+              <div style={{ fontSize: "14px", color: "#d8deda" }}>Major Airlines Tracked</div>
             </div>
-            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
-              <div style={{ fontSize: "32px", fontWeight: 800, color: "#3b82f6", marginBottom: "4px" }}>24h</div>
-              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Collection Frequency</div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "14px", padding: "22px 24px", backdropFilter: "blur(10px)" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#a7f3d0", marginBottom: "4px" }}>24h</div>
+              <div style={{ fontSize: "14px", color: "#d8deda" }}>Collection Frequency</div>
             </div>
-            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
-              <div style={{ fontSize: "32px", fontWeight: 800, color: "#f07178", marginBottom: "4px" }}>100.0</div>
-              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Base Normalized Index</div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "14px", padding: "22px 24px", backdropFilter: "blur(10px)" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#ffffff", marginBottom: "4px" }}>100.0</div>
+              <div style={{ fontSize: "14px", color: "#d8deda" }}>Base Normalized Index</div>
             </div>
           </section>
 
           {/* Section 3: Core Features */}
           <section style={{ marginBottom: "64px" }}>
-            <h2 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "32px" }}>
+            <h2 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "32px", color: "#ffffff" }}>
               Platform Capabilities
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "24px" }}>
-              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
                 <div style={{ fontSize: "24px", marginBottom: "12px" }}>📈</div>
-                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Laspeyres Price Index</h3>
-                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Laspeyres Price Index</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Computes daily, weekly, and monthly airfare index weighted by DGCA passenger volume statistics across primary routes.
                 </p>
               </div>
 
-              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
                 <div style={{ fontSize: "24px", marginBottom: "12px" }}>🔍</div>
-                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Route Search &amp; Compare</h3>
-                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Route Search &amp; Compare</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Search any domestic city-pair to instantly compare baseline vs tax breakdown across IndiGo, Air India, SpiceJet, and Akasa.
                 </p>
               </div>
 
-              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
                 <div style={{ fontSize: "24px", marginBottom: "12px" }}>📉</div>
-                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Trend & Corridor Analysis</h3>
-                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Trend & Corridor Analysis</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Track 30-day, 90-day, and 180-day price corridors with min/max bounds and carrier market share shifts.
                 </p>
               </div>
 
-              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "24px", backdropFilter: "blur(10px)" }}>
                 <div style={{ fontSize: "24px", marginBottom: "12px" }}>🗺️</div>
-                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Sector Heatmap</h3>
-                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px", color: "#ffffff" }}>Sector Heatmap</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
                   Interactive geographic heatmaps highlighting price spikes across trunk, regional, and seasonal flight sectors.
                 </p>
               </div>
@@ -256,21 +257,21 @@ export default function LandingPage() {
           </section>
 
           {/* Section 4: Statistical Methodology */}
-          <section style={{ background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(251, 251, 250, 0.12)", borderRadius: "16px", padding: "32px", marginBottom: "64px" }}>
-            <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "0 0 12px" }}>Methodology &amp; Standards</h2>
-            <p style={{ fontSize: "15px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.85)", margin: 0 }}>
+          <section style={{ background: "rgba(255, 255, 255, 0.06)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "16px", padding: "32px", marginBottom: "64px" }}>
+            <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "0 0 12px", color: "#ffffff" }}>Methodology &amp; Standards</h2>
+            <p style={{ fontSize: "15px", lineHeight: 1.6, color: "#d8deda", margin: 0 }}>
               The index follows standard NSO Consumer Price Index (CPI) methodology with fixed-base Laspeyres weighting:
             </p>
-            <div style={{ fontFamily: "monospace", background: "rgba(0,0,0,0.3)", padding: "16px", borderRadius: "8px", margin: "16px 0", fontSize: "14px", color: "#34d399" }}>
+            <div style={{ fontFamily: "monospace", background: "rgba(0, 0, 0, 0.2)", border: "1px solid rgba(255, 255, 255, 0.2)", padding: "16px", borderRadius: "8px", margin: "16px 0", fontSize: "14px", color: "#34d399" }}>
               APIx_t = ( Σ (P_it * Q_i0) / Σ (P_i0 * Q_i0) ) × 100
             </div>
-            <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.75)", margin: 0 }}>
-              Where <em>P_it</em> represents advance purchase fares collected at 7, 15, and 30-day windows, and <em>Q_i0</em> denotes DGCA annual passenger weighting.
+            <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#a7f3d0", margin: 0 }}>
+              Where <em style={{ color: "#ffffff" }}>P_it</em> represents advance purchase fares collected at 7, 15, and 30-day windows, and <em style={{ color: "#ffffff" }}>Q_i0</em> denotes DGCA annual passenger weighting.
             </p>
           </section>
 
           {/* Footer */}
-          <footer style={{ borderTop: "1px solid rgba(251, 251, 250, 0.2)", paddingTop: "32px", textAlign: "center", fontSize: "13px", color: "rgba(251, 251, 250, 0.6)" }}>
+          <footer style={{ borderTop: "1px solid rgba(255, 255, 255, 0.15)", paddingTop: "32px", textAlign: "center", fontSize: "13px", color: "#a7f3d0" }}>
             <p style={{ margin: 0 }}>
               OpusAirs APIx · Smart India Hackathon 2026 (SIH26056) · Ministry of Statistics &amp; Programme Implementation / DIID
             </p>

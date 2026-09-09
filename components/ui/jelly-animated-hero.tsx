@@ -46,10 +46,10 @@ export default function JellyAnimatedHero({
         position: "relative",
         overflow: "hidden",
         borderRadius: "24px",
-        background: "linear-gradient(135deg, #0a0f1e 0%, #0f1b38 60%, #162244 100%)",
-        border: "1px solid rgba(62, 88, 140, 0.3)",
+        background: "linear-gradient(135deg, #ffffff 0%, #f4f8f6 60%, #ebf2ee 100%)",
+        border: "1px solid #d8deda",
         padding: "clamp(32px, 6vw, 64px) clamp(24px, 5vw, 48px)",
-        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
+        boxShadow: "0 10px 30px rgba(11, 59, 42, 0.08)",
         marginBottom: "36px",
       }}
     >
@@ -93,7 +93,7 @@ export default function JellyAnimatedHero({
           left: "-60px",
           width: "280px",
           height: "280px",
-          background: "radial-gradient(circle, rgba(52, 211, 153, 0.18) 0%, rgba(11, 59, 42, 0.05) 70%, transparent 100%)",
+          background: "radial-gradient(circle, rgba(11, 59, 42, 0.12) 0%, rgba(20, 87, 63, 0.04) 70%, transparent 100%)",
           animation: "jellyMorph1 12s ease-in-out infinite",
           transform: `translate(${mousePos.x * 1.5}px, ${mousePos.y * 1.5}px)`,
           transition: isHovered ? "transform 0.1s ease-out" : "transform 0.8s ease-out",
@@ -107,7 +107,7 @@ export default function JellyAnimatedHero({
           right: "-80px",
           width: "340px",
           height: "340px",
-          background: "radial-gradient(circle, rgba(11, 59, 42, 0.12) 0%, rgba(20, 87, 63, 0.04) 70%, transparent 100%)",
+          background: "radial-gradient(circle, rgba(20, 87, 63, 0.1) 0%, rgba(11, 59, 42, 0.03) 70%, transparent 100%)",
           animation: "jellyMorph2 16s ease-in-out infinite",
           transform: `translate(${-mousePos.x * 1.2}px, ${-mousePos.y * 1.2}px)`,
           transition: isHovered ? "transform 0.1s ease-out" : "transform 0.8s ease-out",
@@ -116,7 +116,7 @@ export default function JellyAnimatedHero({
       />
 
       {/* Hero Content Layer */}
-      <div style={{ position: "relative", zIndex: 2, textContent: "center", textAlign: "center", maxWidth: "840px", margin: "0 auto" }}>
+      <div style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "840px", margin: "0 auto" }}>
         
         {/* Jelly Badge */}
         {badgeText && (
@@ -127,12 +127,12 @@ export default function JellyAnimatedHero({
               gap: "8px",
               padding: "6px 18px",
               borderRadius: "100px",
-              background: "rgba(232, 165, 75, 0.15)",
-              border: "1px solid rgba(232, 165, 75, 0.3)",
-              color: "#e8a54b",
+              background: "rgba(11, 59, 42, 0.08)",
+              border: "1px solid rgba(11, 59, 42, 0.2)",
+              color: "#0b3b2a",
               fontSize: "13px",
               fontWeight: 700,
-              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+              boxShadow: "0 2px 10px rgba(11, 59, 42, 0.05)",
               marginBottom: "20px",
               transition: "transform 0.3s cubic-bezier(0.68, -0.6, 0.32, 1.6)",
             }}
@@ -142,8 +142,8 @@ export default function JellyAnimatedHero({
                 width: "8px",
                 height: "8px",
                 borderRadius: "50%",
-                background: "#e8a54b",
-                boxShadow: "0 0 10px #e8a54b",
+                background: "#0b3b2a",
+                boxShadow: "0 0 10px #0b3b2a",
                 animation: "jellyPulse 2s infinite ease-in-out",
               }}
             />
@@ -158,7 +158,7 @@ export default function JellyAnimatedHero({
             fontWeight: 800,
             lineHeight: 1.1,
             letterSpacing: "-0.035em",
-            color: "#e8edf8",
+            color: "#0c1212",
             margin: "0 0 16px",
           }}
         >
@@ -167,7 +167,7 @@ export default function JellyAnimatedHero({
               Airfare Price Index{" "}
               <span
                 style={{
-                  background: "linear-gradient(135deg, #e8a54b 0%, #f0c27f 100%)",
+                  background: "linear-gradient(135deg, #0b3b2a 0%, #14573f 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
@@ -184,7 +184,7 @@ export default function JellyAnimatedHero({
             style={{
               fontSize: "clamp(14px, 1.8vw, 17px)",
               lineHeight: 1.6,
-              color: "#8a9bbd",
+              color: "#525854",
               maxWidth: "600px",
               margin: "0 auto 28px",
               fontWeight: 500,
@@ -206,12 +206,12 @@ export default function JellyAnimatedHero({
                 gap: "8px",
                 padding: "12px 26px",
                 borderRadius: "12px",
-                background: "linear-gradient(135deg, #2563eb, #3b82f6)",
+                background: "linear-gradient(135deg, #0b3b2a, #14573f)",
                 color: "#ffffff",
                 fontSize: "14px",
                 fontWeight: 700,
                 textDecoration: "none",
-                boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+                boxShadow: "0 4px 14px rgba(11, 59, 42, 0.25)",
               }}
             >
               {primaryCtaText}
@@ -228,13 +228,13 @@ export default function JellyAnimatedHero({
                 gap: "8px",
                 padding: "12px 26px",
                 borderRadius: "12px",
-                background: "rgba(17, 29, 54, 0.8)",
-                border: "1px solid rgba(62, 88, 140, 0.4)",
-                color: "#e8edf8",
+                background: "#ffffff",
+                border: "1px solid #d8deda",
+                color: "#0c1212",
                 fontSize: "14px",
                 fontWeight: 700,
                 textDecoration: "none",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
               }}
             >
               {secondaryCtaText}
