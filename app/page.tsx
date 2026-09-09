@@ -79,30 +79,65 @@ export default function LandingPage() {
               <span style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", color: "#0b3b2a" }}>
                 Opus<span style={{ color: "#14573f" }}>Airs</span>
               </span>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "6px 16px",
-                  borderRadius: "100px",
-                  background: "rgba(11, 59, 42, 0.08)",
-                  border: "1px solid rgba(11, 59, 42, 0.2)",
-                  color: "#0b3b2a",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                }}
-              >
-                <span
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
                   style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    background: "#0b3b2a",
-                    boxShadow: "0 0 8px #0b3b2a",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 16px",
+                    borderRadius: "100px",
+                    background: "rgba(11, 59, 42, 0.08)",
+                    border: "1px solid rgba(11, 59, 42, 0.2)",
+                    color: "#0b3b2a",
+                    fontSize: "13px",
+                    fontWeight: 600,
                   }}
-                />
-                Live Index: {latestIdx != null ? latestIdx.toFixed(2) : "100.00"}
+                >
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#0b3b2a",
+                      boxShadow: "0 0 8px #0b3b2a",
+                    }}
+                  />
+                  Live Index: {latestIdx != null ? latestIdx.toFixed(2) : "100.00"}
+                </div>
+                <Link
+                  href="/login"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(11, 59, 42, 0.2)",
+                    background: "#ffffff",
+                    color: "#0b3b2a",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    background: "#0b3b2a",
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  Register
+                </Link>
               </div>
             </div>
 

@@ -32,6 +32,29 @@ export function normalizeTripType(raw?: string | null): TripType {
   return "one_way";
 }
 
+const CARRIER_CODES: Record<string, string> = {
+  indigo: "6E",
+  airindia: "AI",
+  airindiaexpress: "IX",
+  vistara: "UK",
+  spicejet: "SG",
+  akasa: "QP",
+  akasaair: "QP",
+  allianceair: "9I",
+  goair: "G8",
+  gofirst: "G8",
+  starair: "S5",
+  flybig: "S9",
+};
+
+export function normalizeCarrier(raw?: string | null): string {
+  const t = (raw || "").trim();
+  if (!t) return "NA";
+  const key = t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (CARRIER_CODES[key]) return CARRIER_CODES[key];
+  return t.toUpperCase().slice(0, 8);
+}
+
 export function uniqueFlightNo(flightNo: string | undefined, trip: TripType): string {
   const fn = ((flightNo || "NA").trim() || "NA").replace(/^RT\//, "");
   if (trip === "round_trip") return `RT/${fn}`.slice(0, 16);
@@ -64,16 +87,17 @@ function toEvent(q: QuoteIn): CollectionEvent {
   const trip_type = normalizeTripType(q.trip_type);
   return {
     ...q,
-    source: (q.source || "manual").trim() || "manual",
-    origin: q.origin.trim().toUpperCase(),
-    destination: q.destination.trim().toUpperCase(),
-    carrier: q.carrier.trim().toUpperCase(),
+    source: ((q.source || "manual").trim() || "manual").slice(0, 64),
+    origin: q.origin.trim().toUpperCase().slice(0, 3),
+    destination: q.destination.trim().toUpperCase().slice(0, 3),
+    carrier: normalizeCarrier(q.carrier),
     flight_no: uniqueFlightNo(q.flight_no, trip_type),
-    fare_class: (q.fare_class || FARE_CLASS).replace(/_RT$/i, "").trim() || FARE_CLASS,
+    fare_class:
+      (q.fare_class || FARE_CLASS).replace(/_RT$/i, "").trim().slice(0, 32) || FARE_CLASS,
     lead_time_days: Number(lead),
     collected_on,
     collected_at: new Date().toISOString(),
-    status: (q.status || "ok").trim() || "ok",
+    status: ((q.status || "ok").trim() || "ok").slice(0, 32),
     trip_type,
     return_date: q.return_date ? isoDate(q.return_date) : null,
   };

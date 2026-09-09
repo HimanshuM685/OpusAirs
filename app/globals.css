@@ -241,20 +241,51 @@ h3 { font-size: 18px; }
 .topnav-links a:hover { background: var(--bg-elevated); color: var(--text-primary); }
 .topnav-links a.active { background: var(--accent-gold-dim); color: var(--accent-gold); }
 
-.topnav .admin-link {
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: var(--transition);
-}
-.topnav .admin-link:hover { border-color: var(--border-hover); color: var(--text-primary); }
-
 .topnav-user { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
 .topnav-email { font-size: 13px; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.topnav-user button { font-family: inherit; background: transparent; cursor: pointer; }
+.btn-nav-auth {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  transition: var(--transition);
+  text-decoration: none;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.btn-nav-login {
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.btn-nav-login:hover, .btn-nav-login.active {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+.btn-nav-register {
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: 1px solid var(--brand-primary);
+}
+.btn-nav-register:hover, .btn-nav-register.active {
+  background: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+  color: #ffffff;
+}
+.btn-nav-logout {
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: transparent;
+}
+.btn-nav-logout:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 /* Auth Pages (Register / Login) */
 .auth-page { max-width: 440px; margin: 40px auto; padding: 0 var(--sp-md); }
 .auth-card {
@@ -667,7 +698,7 @@ textarea {
 .search-box .search-fields {
   display: flex;
   gap: var(--sp-md);
-  align-items: end;
+  align-items: flex-end;
   flex-wrap: wrap;
 }
 .search-box .field label {
@@ -762,7 +793,6 @@ textarea {
 @media (max-width: 768px) {
   .topnav { padding: 0 var(--sp-md); gap: var(--sp-md); }
   .topnav-links { display: none; }
-  .topnav .admin-link { display: none; }
   .user-main { padding: var(--sp-md); }
   .admin-shell { grid-template-columns: 1fr; }
   .admin-nav { display: none; }
