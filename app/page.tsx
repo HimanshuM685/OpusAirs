@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, type IndexPoint } from "@/lib/api";
+import GlyphPortal from "@/components/ui/glyph-portal";
+
+const family = '"Outfit", "Inter", sans-serif';
 
 export default function LandingPage() {
   const [latestIdx, setLatestIdx] = useState<number | null>(null);
@@ -16,110 +19,264 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <>
-      {/* ---- Hero ---- */}
-      <section className="landing-hero">
-        <div className="hero-badge">
-          <span className="pulse" />
-          Live Index
-          {latestIdx != null && (
-            <span style={{ marginLeft: 4, fontWeight: 700 }}>
-              {latestIdx.toFixed(2)}
-            </span>
-          )}
+    <div style={{ width: "100%", minHeight: "100vh", background: "#ffffff", color: "#0c1212" }}>
+      <style>{`
+        .opus-header {
+          position: absolute;
+          inset: clamp(20px, 3.5vw, 40px) clamp(24px, 4vw, 48px) auto;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          z-index: 10;
+        }
+        .opus-eyebrow {
+          position: absolute;
+          inset: auto 24px calc(100% - var(--gp-word-top, 38%) + 18px);
+          margin: 0;
+          text-align: center;
+        }
+        .opus-support {
+          position: absolute;
+          inset: calc(var(--gp-word-bottom, 54%) + 24px) 24px auto;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          margin: 0;
+          text-align: center;
+        }
+        @media (max-width: 640px) {
+          .opus-eyebrow {
+            bottom: calc(100% - var(--gp-word-top, 38%) + 10px);
+          }
+          .opus-support {
+            top: calc(var(--gp-word-bottom, 54%) + 14px);
+          }
+        }
+      `}</style>
+      <GlyphPortal
+        word="OPUSAIRS"
+        fontFamily={family}
+        fontWeight={900}
+        scrollLength={2.4}
+        interactive={true}
+        annotations={false}
+        enterLabel="Explore Index"
+        style={{
+          "--gp-paper": "#ffffff",
+          "--gp-ink": "#0c1212",
+          "--gp-field": "#0b3b2a",
+          "--gp-foreground": "#fbfbfa",
+        }}
+        background={
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "radial-gradient(circle at 18% 8%, rgba(68,125,98,.72), transparent 34%), radial-gradient(circle at 82% 20%, rgba(251,251,250,.12), transparent 28%), radial-gradient(circle at 48% 78%, rgba(9,48,35,.5), transparent 44%), linear-gradient(135deg,#0b3b2a 0%,#14573f 48%,#082d22 100%)",
+            }}
+          />
+        }
+        front={
+          <>
+            {/* Header */}
+            <div className="opus-header">
+              <span style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", color: "#0c1212" }}>
+                Opus<span style={{ color: "#0b3b2a" }}>Airs</span>
+              </span>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 14px",
+                  borderRadius: "100px",
+                  background: "#f0f5f2",
+                  border: "1px solid #d0dfd7",
+                  color: "#0b3b2a",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  style={{
+                    width: "7px",
+                    height: "7px",
+                    borderRadius: "50%",
+                    background: "#0b3b2a",
+                    boxShadow: "0 0 6px #0b3b2a",
+                  }}
+                />
+                Live Index: {latestIdx != null ? latestIdx.toFixed(2) : "100.00"}
+              </div>
+            </div>
+
+            {/* Headline ABOVE Giant Word */}
+            <div className="opus-eyebrow">
+              <h1
+                style={{
+                  fontSize: "clamp(1.6rem, 3.8vw, 3rem)",
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.03em",
+                  color: "#0c1212",
+                  margin: 0,
+                }}
+              >
+                Airfare Price Index{" "}
+                <span style={{ background: "linear-gradient(135deg, #0b3b2a 0%, #14573f 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  in Real Time
+                </span>
+              </h1>
+            </div>
+
+            {/* Subtitle & Actions BELOW Giant Word */}
+            <div className="opus-support">
+              <p style={{ fontSize: "clamp(13px, 1.5vw, 16px)", color: "#525854", margin: 0, fontWeight: 500 }}>
+                High-frequency aviation price index for NSO, MoSPI &amp; RBI
+              </p>
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                <Link
+                  href="/dashboard"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    borderRadius: "10px",
+                    background: "#0b3b2a",
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    boxShadow: "0 2px 8px rgba(11,59,42,0.25)",
+                  }}
+                >
+                  📊 View Dashboard
+                </Link>
+                <Link
+                  href="/search"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    borderRadius: "10px",
+                    background: "#ffffff",
+                    border: "1px solid #d8deda",
+                    color: "#0c1212",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  ✈️ Search Flights
+                </Link>
+              </div>
+            </div>
+          </>
+        }
+      >
+        {/* Revealed Portal Content */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 20px 80px", color: "#fbfbfa" }}>
+          
+          {/* Section 1: Project Overview */}
+          <section style={{ marginBottom: "64px" }}>
+            <div style={{ display: "inline-block", fontSize: "12px", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(251,251,250,0.6)", marginBottom: "12px" }}>
+              About The Project
+            </div>
+            <h2 style={{ fontSize: "clamp(26px, 4vw, 42px)", fontWeight: 700, margin: "0 0 20px", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+              Official High-Frequency Aviation Inflation Intelligence
+            </h2>
+            <p style={{ fontSize: "17px", lineHeight: 1.7, color: "rgba(251, 251, 250, 0.85)", maxWidth: "800px" }}>
+              OpusAirs (SIH 2026 · SIH26056) is a next-generation analytical platform built for the <strong>Ministry of Statistics &amp; Programme Implementation (MoSPI)</strong> and the <strong>Reserve Bank of India (RBI)</strong>. It automates daily fare collection across all domestic carriers to compute a real-time Laspeyres Airfare Price Index (APIx).
+            </p>
+          </section>
+
+          {/* Section 2: Key Operational Metrics */}
+          <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "64px" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#34d399", marginBottom: "4px" }}>100+</div>
+              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>City-Pair Sectors</div>
+            </div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#e8a54b", marginBottom: "4px" }}>4</div>
+              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Major Airlines Tracked</div>
+            </div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#3b82f6", marginBottom: "4px" }}>24h</div>
+              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Collection Frequency</div>
+            </div>
+            <div style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "14px", padding: "20px 24px" }}>
+              <div style={{ fontSize: "32px", fontWeight: 800, color: "#f07178", marginBottom: "4px" }}>100.0</div>
+              <div style={{ fontSize: "14px", color: "rgba(251, 251, 250, 0.7)" }}>Base Normalized Index</div>
+            </div>
+          </section>
+
+          {/* Section 3: Core Features */}
+          <section style={{ marginBottom: "64px" }}>
+            <h2 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "32px" }}>
+              Platform Capabilities
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "24px" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+                <div style={{ fontSize: "24px", marginBottom: "12px" }}>📈</div>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Laspeyres Price Index</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                  Computes daily, weekly, and monthly airfare index weighted by DGCA passenger volume statistics across primary routes.
+                </p>
+              </div>
+
+              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+                <div style={{ fontSize: "24px", marginBottom: "12px" }}>🔍</div>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Route Search &amp; Compare</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                  Search any domestic city-pair to instantly compare baseline vs tax breakdown across IndiGo, Air India, SpiceJet, and Akasa.
+                </p>
+              </div>
+
+              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+                <div style={{ fontSize: "24px", marginBottom: "12px" }}>📉</div>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Trend & Corridor Analysis</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                  Track 30-day, 90-day, and 180-day price corridors with min/max bounds and carrier market share shifts.
+                </p>
+              </div>
+
+              <div style={{ background: "rgba(255, 255, 255, 0.07)", border: "1px solid rgba(251, 251, 250, 0.15)", borderRadius: "16px", padding: "24px" }}>
+                <div style={{ fontSize: "24px", marginBottom: "12px" }}>🗺️</div>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: "0 0 8px" }}>Sector Heatmap</h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
+                  Interactive geographic heatmaps highlighting price spikes across trunk, regional, and seasonal flight sectors.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 4: Statistical Methodology */}
+          <section style={{ background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(251, 251, 250, 0.12)", borderRadius: "16px", padding: "32px", marginBottom: "64px" }}>
+            <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "0 0 12px" }}>Methodology &amp; Standards</h2>
+            <p style={{ fontSize: "15px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.85)", margin: 0 }}>
+              The index follows standard NSO Consumer Price Index (CPI) methodology with fixed-base Laspeyres weighting:
+            </p>
+            <div style={{ fontFamily: "monospace", background: "rgba(0,0,0,0.3)", padding: "16px", borderRadius: "8px", margin: "16px 0", fontSize: "14px", color: "#34d399" }}>
+              APIx_t = ( Σ (P_it * Q_i0) / Σ (P_i0 * Q_i0) ) × 100
+            </div>
+            <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.75)", margin: 0 }}>
+              Where <em>P_it</em> represents advance purchase fares collected at 7, 15, and 30-day windows, and <em>Q_i0</em> denotes DGCA annual passenger weighting.
+            </p>
+          </section>
+
+          {/* Footer */}
+          <footer style={{ borderTop: "1px solid rgba(251, 251, 250, 0.2)", paddingTop: "32px", textAlign: "center", fontSize: "13px", color: "rgba(251, 251, 250, 0.6)" }}>
+            <p style={{ margin: 0 }}>
+              OpusAirs APIx · Smart India Hackathon 2026 (SIH26056) · Ministry of Statistics &amp; Programme Implementation / DIID
+            </p>
+          </footer>
         </div>
-
-        <h1>
-          India&rsquo;s <span className="highlight">Airfare Price Index</span>
-          <br />
-          in Real Time
-        </h1>
-
-        <p className="hero-sub">
-          High-frequency fare collection across domestic carriers, powering a
-          Laspeyres-weighted price index for NSO, MoSPI and RBI. Compare fares,
-          track trends, and explore sector-level analytics.
-        </p>
-
-        <div className="hero-actions">
-          <Link href="/dashboard" className="btn-primary btn" id="hero-cta-dashboard">
-            📊 View Dashboard
-          </Link>
-          <Link href="/search" className="btn" id="hero-cta-search">
-            ✈️ Search Flights
-          </Link>
-        </div>
-      </section>
-
-      {/* ---- Features ---- */}
-      <section className="landing-features">
-        <h2>Built for Statistical Precision</h2>
-        <div className="features-grid">
-          <div className="feature-card fade-in">
-            <div
-              className="icon"
-              style={{ background: "var(--accent-gold-dim)", color: "var(--accent-gold)" }}
-            >
-              📈
-            </div>
-            <h3>Real-time Price Index</h3>
-            <p>
-              Daily, weekly and monthly Laspeyres index on a DGCA-weighted
-              city-pair basket. Base period normalised to 100.
-            </p>
-          </div>
-
-          <div className="feature-card fade-in fade-in-delay-1">
-            <div
-              className="icon"
-              style={{ background: "var(--accent-blue-dim)", color: "var(--accent-blue)" }}
-            >
-              🔍
-            </div>
-            <h3>Route Search & Compare</h3>
-            <p>
-              Search any city pair and instantly compare fares across IndiGo, Air
-              India, SpiceJet and Akasa with full tax breakdowns.
-            </p>
-          </div>
-
-          <div className="feature-card fade-in fade-in-delay-2">
-            <div
-              className="icon"
-              style={{ background: "var(--accent-green-dim)", color: "var(--accent-green)" }}
-            >
-              📉
-            </div>
-            <h3>Price Trend Analysis</h3>
-            <p>
-              Track fare movements over 30 days, 3 months and 6 months with
-              min/max/average corridors and carrier-level breakdowns.
-            </p>
-          </div>
-
-          <div className="feature-card fade-in fade-in-delay-3">
-            <div
-              className="icon"
-              style={{ background: "var(--accent-red-dim)", color: "var(--accent-red)" }}
-            >
-              🗺️
-            </div>
-            <h3>Sector Heatmap</h3>
-            <p>
-              Visual heatmap of route-level index values across all basket
-              sectors. Instantly spot expensive corridors.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ---- Footer ---- */}
-      <footer className="landing-footer">
-        <p>
-          OpusAirs APIx · SIH 2026 (SIH26056) · Ministry of Statistics &amp;
-          Programme Implementation / DIID
-        </p>
-      </footer>
-    </>
+      </GlyphPortal>
+    </div>
   );
 }
