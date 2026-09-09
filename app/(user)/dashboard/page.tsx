@@ -115,36 +115,38 @@ export default function DashboardPage() {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
-              <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#e8a54b" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#e8a54b" stopOpacity={0} />
+              <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#0b3b2a" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#0b3b2a" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(62,88,140,0.2)" />
+            <CartesianGrid stroke="#e1ebe5" />
             <XAxis
               dataKey="date"
-              stroke="#5a6d8e"
-              tick={{ fontSize: 12, fill: "#8a9bbd" }}
+              stroke="#7c817b"
+              tick={{ fontSize: 12, fill: "#525854" }}
             />
             <YAxis
-              stroke="#5a6d8e"
+              stroke="#7c817b"
               domain={["auto", "auto"]}
-              tick={{ fontSize: 12, fill: "#8a9bbd" }}
+              tick={{ fontSize: 12, fill: "#525854" }}
             />
             <Tooltip
               contentStyle={{
-                background: "#111d36",
-                border: "1px solid rgba(62,88,140,0.3)",
+                background: "#ffffff",
+                border: "1px solid #d8deda",
                 borderRadius: 8,
                 fontSize: 13,
+                color: "#0c1212",
+                boxShadow: "0 4px 12px rgba(11,59,42,0.1)",
               }}
             />
             <Area
               type="monotone"
               dataKey="value"
-              stroke="#e8a54b"
-              fill="url(#goldGrad)"
-              strokeWidth={2}
+              stroke="#0b3b2a"
+              fill="url(#emeraldGrad)"
+              strokeWidth={2.5}
             />
           </AreaChart>
         </ResponsiveContainer>
