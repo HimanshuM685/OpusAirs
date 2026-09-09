@@ -108,7 +108,8 @@ export default function IngestPage() {
       <h1>Feed quotes</h1>
       <p className="sub">
         Dump natural language, JSON, or CSV. One-way and round-trip both store as quotes.
-        Prose uses <code>OPENAI_API_KEY</code> if set. Red rows below are gaps to collect.
+        Prose uses Groq or OpenRouter if <code>GROQ_API_KEY</code> or{" "}
+        <code>OPENROUTER_API_KEY</code> is set. JSON/CSV work without a key.
       </p>
       {err && <p className="err">{err}</p>}
       {msg && <p className="sub">{msg}</p>}
