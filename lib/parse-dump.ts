@@ -89,8 +89,14 @@ async function chatJson(cfg: LlmCfg, text: string, jsonMode: boolean): Promise<R
       messages: [
         {
           role: "system",
-          content:
-            'Extract Indian domestic airfare quotes. Return JSON {"quotes":[...]}. Each quote: origin, destination (IATA), carrier, flight_no, dep_date (YYYY-MM-DD), optional return_date, trip_type (one_way|round_trip), lead_time_days, collected_on, total_fare (INR number), optional base_fare taxes udf convenience status source. Skip rows missing origin, destination, dep_date, and a fare.',
+          content: [
+            'Extract Indian domestic airfare quotes from any messy input (prose, tables, broken CSV, half-JSON, scraped text). Return JSON {"quotes":[...]}.',
+            "Each quote: origin, destination (3-letter IATA), carrier, flight_no, dep_date (YYYY-MM-DD), optional return_date, trip_type (one_way|round_trip), lead_time_days, collected_on, total_fare (INR number), optional base_fare taxes udf convenience status source.",
+            `Today is ${new Date().toISOString().slice(0, 10)}. Resolve relative or partial dates ("17 Sep", "next Friday") against it; a bare clock time is a departure time, not a date.`,
+            "Normalize city names to IATA. Strip currency symbols and thousands separators from fares.",
+            "Default trip_type to one_way; set round_trip when a return leg is mentioned and put its date in return_date.",
+            "Skip a row only when origin, destination, or total_fare cannot be determined. If the departure date is genuinely absent, omit dep_date rather than inventing one.",
+          ].join(" "),
         },
         { role: "user", content: text.slice(0, 12000) },
       ],
@@ -117,15 +123,45 @@ async function parseWithLlm(text: string): Promise<QuoteIn[]> {
   return quotesFromJson(JSON.parse(match ? match[0] : content));
 }
 
+function tryStrict(text: string): QuoteIn[] {
+  if (text.startsWith("{") || text.startsWith("[")) {
+    return quotesFromJson(JSON.parse(text));
+  }
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  if (first.includes(",") && /origin|from/i.test(first)) {
+    return parseCsvQuotes(text);
+  }
+  return [];
+}
+
+function usable(q: QuoteIn): boolean {
+  return Boolean(q?.origin && q?.destination && q?.dep_date && q?.total_fare != null);
+}
+
 export async function parseDump(text: string): Promise<QuoteIn[]> {
   const t = text.replace(/^\uFEFF/, "").trim();
   if (!t) return [];
-  if (t.startsWith("{") || t.startsWith("[")) {
-    return quotesFromJson(JSON.parse(t));
+
+  let strict: QuoteIn[] = [];
+  let strictErr: unknown = null;
+  try {
+    strict = tryStrict(t);
+  } catch (err) {
+    strictErr = err;
   }
-  const first = t.split(/\r?\n/, 1)[0] || "";
-  if (first.includes(",") && /origin|from/i.test(first)) {
-    return parseCsvQuotes(t);
+  if (strict.length && strict.every(usable)) return strict;
+
+  // Malformed or incomplete input: let the LLM normalize it, keeping the strict
+  // rows as the answer if no LLM key is configured.
+  try {
+    const fixed = await parseWithLlm(t);
+    if (fixed.length) return fixed;
+  } catch (err) {
+    if (strict.length) return strict;
+    if (strictErr) throw strictErr;
+    throw err;
   }
-  return parseWithLlm(t);
+  if (strict.length) return strict;
+  if (strictErr) throw strictErr;
+  return [];
 }

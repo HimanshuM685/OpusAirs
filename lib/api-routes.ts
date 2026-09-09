@@ -361,7 +361,11 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       }
     }
     if (!quotes.length) return json({ detail: "No quotes parsed. Paste JSON, CSV, or prose with fares." }, 400);
-    return json(await ingestQuotes(q, quotes, body.rebuild_index !== false));
+    try {
+      return json(await ingestQuotes(q, quotes, body.rebuild_index !== false));
+    } catch (err) {
+      return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
+    }
   }
 
   if (req.method === "GET" && path === "ingest/needed") {
@@ -396,7 +400,12 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json({ detail: "file required" }, 400);
-    const quotes = parseCsvQuotes(await file.text());
+    let quotes: QuoteIn[];
+    try {
+      quotes = parseCsvQuotes(await file.text());
+    } catch (err) {
+      return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
+    }
     if (!quotes.length) return json({ detail: "No valid quote rows in CSV" }, 400);
     const rebuild = sp.get("rebuild_index") !== "false";
     return json(await ingestQuotes(q, quotes, rebuild));

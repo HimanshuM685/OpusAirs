@@ -144,7 +144,16 @@ export async function ingestQuotes(
   quotes: QuoteIn[],
   rebuildIndex = true,
 ): Promise<Record<string, unknown>> {
-  const events = quotes.map(toEvent);
+  const usable = quotes.filter(
+    (x) => x?.origin && x?.destination && /^\d{4}-\d{2}-\d{2}/.test(isoDate(x.dep_date)),
+  );
+  const skipped = quotes.length - usable.length;
+  if (!usable.length) {
+    throw new Error(
+      `No row had origin, destination and a departure date (${skipped} row(s) skipped). Add a dep_date like 2026-09-11.`,
+    );
+  }
+  const events = usable.map(toEvent);
   const started = new Date().toISOString();
   const run = await q`
     INSERT INTO collection_runs (started_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes)
@@ -171,7 +180,14 @@ export async function ingestQuotes(
       notes = ${`inserted=${counts.inserted} updated=${counts.updated}`}
     WHERE id = ${runId}
   `;
-  return { source: "manual", received: events.length, ...counts, cleaned, index_rows: indexed };
+  return {
+    source: "manual",
+    received: events.length,
+    skipped,
+    ...counts,
+    cleaned,
+    index_rows: indexed,
+  };
 }
 
 function cell(row: Record<string, string>, ...names: string[]): string {
@@ -185,6 +201,14 @@ function cell(row: Record<string, string>, ...names: string[]): string {
   return "";
 }
 
+function asDate(text: string): string {
+  const t = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const dmy = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  return "";
+}
+
 function optFloat(text: string): number | null {
   if (!text.trim()) return null;
   return Number(text.replace(/,/g, "").replace(/₹/g, "").trim());
@@ -195,6 +219,7 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
   if (lines.length < 2) return [];
   const headers = lines[0].split(",").map((h) => h.trim());
   const out: QuoteIn[] = [];
+  let noDate = 0;
   for (const line of lines.slice(1)) {
     if (!line.trim()) continue;
     const cols = line.split(",");
@@ -205,8 +230,11 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
     const origin = cell(row, "origin", "from").toUpperCase();
     const dest = cell(row, "destination", "dest", "to").toUpperCase();
     if (!origin || !dest) continue;
-    const dep = cell(row, "dep_date", "departure", "travel_date");
-    if (!dep) continue;
+    const dep = asDate(cell(row, "dep_date", "departure_date", "travel_date", "date", "departure"));
+    if (!dep) {
+      noDate += 1;
+      continue;
+    }
     const leadRaw = cell(row, "lead_time_days", "lead_time", "tplus");
     const trip = normalizeTripType(cell(row, "trip_type", "trip", "journey"));
     const q: QuoteIn = {
@@ -216,19 +244,26 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
       carrier: (cell(row, "carrier", "airline") || "NA").toUpperCase(),
       flight_no: cell(row, "flight_no", "flight") || "NA",
       dep_date: dep,
-      return_date: cell(row, "return_date", "return") || null,
+      return_date: asDate(cell(row, "return_date", "return")) || null,
       trip_type: trip,
       fare_class: cell(row, "fare_class", "cabin") || FARE_CLASS,
-      collected_on: cell(row, "collected_on", "collected", "quote_date") || new Date().toISOString().slice(0, 10),
+      collected_on:
+        asDate(cell(row, "collected_on", "collected", "quote_date")) ||
+        new Date().toISOString().slice(0, 10),
       base_fare: optFloat(cell(row, "base_fare", "base")),
       taxes: optFloat(cell(row, "taxes", "tax")),
       udf: optFloat(cell(row, "udf")),
       convenience: optFloat(cell(row, "convenience", "conv_fee")),
-      total_fare: optFloat(cell(row, "total_fare", "total", "fare")),
+      total_fare: optFloat(cell(row, "total_fare", "total", "fare", "price")),
       status: cell(row, "status") || "ok",
     };
     if (leadRaw) q.lead_time_days = Number(leadRaw);
     out.push(q);
+  }
+  if (!out.length && noDate) {
+    throw new Error(
+      `CSV has ${noDate} row(s) with no departure date. Add a dep_date column (YYYY-MM-DD or DD/MM/YYYY); clock times like "10:30" are not dates.`,
+    );
   }
   return out;
 }
