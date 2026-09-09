@@ -53,10 +53,10 @@ CREATE TABLE IF NOT EXISTS quotes_raw (
   convenience DOUBLE PRECISION,
   total_fare DOUBLE PRECISION,          -- what the traveller pays (INR)
   currency VARCHAR(8) NOT NULL DEFAULT 'INR',
+  trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way',  -- one_way | round_trip
+  return_date DATE,
   UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
 );
-
-CREATE TABLE IF NOT EXISTS quotes_clean (
   id SERIAL PRIMARY KEY,
   raw_id INTEGER REFERENCES quotes_raw(id),
   source VARCHAR(64) NOT NULL,
@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS quotes_clean (
   currency VARCHAR(8) NOT NULL DEFAULT 'INR',
   is_outlier INTEGER NOT NULL DEFAULT 0,
   is_imputed INTEGER NOT NULL DEFAULT 0,
+  trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way',
+  return_date DATE,
   UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
 );
 

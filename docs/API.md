@@ -190,6 +190,12 @@ Returns status of recent collection and scraper executions per source.
 #### `POST /v1/collect/run`
 Admin cookie required. Body `{ "origin": "CCU", "dest": "BOM" }` scrapes that pair; omit O/D to scrape the full basket. `scrape=true|false` query still works.
 
+#### `POST /v1/ingest/dump`
+Admin cookie. Body `{ "text": "...", "rebuild_index": true }`. Accepts JSON, CSV, or prose (prose needs `OPENAI_API_KEY`).
+
+#### `GET /v1/ingest/needed`
+Admin cookie. Basket × one_way/round_trip × T+1/7/21 gaps (missing or older than 7 days), plus copy-paste CSV lines.
+
 #### `POST /v1/ingest/quotes`
 Ingests an array of raw quote objects.
 

@@ -95,6 +95,8 @@ export type QuoteOut = {
   fare_class: string;
   lead_time_days: number;
   collected_on: string;
+  return_date?: string | null;
+  trip_type?: string;
   base_fare: number;
   taxes: number;
   udf: number;
@@ -116,6 +118,8 @@ export type CarrierFare = {
   convenience: number;
   total_fare: number;
   collected_on: string;
+  return_date?: string | null;
+  trip_type?: string;
 };
 
 export type SearchResult = {
@@ -125,6 +129,7 @@ export type SearchResult = {
   carriers: CarrierFare[];
   quote_count: number;
   fetched?: boolean;
+  trip_type?: string;
 };
 
 export type TrendPoint = {

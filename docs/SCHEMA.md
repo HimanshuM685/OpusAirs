@@ -50,7 +50,9 @@ Header row is required. Download template via `GET /v1/ingest/template` or [data
 | `destination` | **Yes** | `BOM` | 3-letter IATA destination airport code |
 | `carrier` | **Yes** | `6E` | 2-letter IATA airline code (`6E`, `AI`, `QP`, `SG`, `IX`) |
 | `flight_no` | No | `6E201` | Flight number (defaults to `NA`) |
-| `dep_date` | **Yes** | `2026-09-20` | Scheduled flight departure date (`YYYY-MM-DD`) |
+| `dep_date` | **Yes** | `2026-09-20` | Scheduled outbound departure (`YYYY-MM-DD`) |
+| `return_date` | Round trip | `2026-09-27` | Return date for `trip_type=round_trip` |
+| `trip_type` | No | `one_way` | `one_way` or `round_trip` (APIx uses one-way only) |
 | `fare_class` | No | `ECONOMY` | Cabin class (defaults to `ECONOMY`) |
 | `lead_time_days` | No | `7` | Advance purchase days ($dep\_date - collected\_on$ if omitted) |
 | `collected_on` | No | `2026-09-13` | Date fare was observed (defaults to current date) |

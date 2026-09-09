@@ -381,6 +381,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       ],
     });
   }
+
+  if (req.method === "POST" && path === "ingest/quotes") {
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
     const body = (await req.json()) as { quotes?: QuoteIn[]; rebuild_index?: boolean };

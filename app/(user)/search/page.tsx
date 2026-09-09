@@ -27,6 +27,7 @@ export default function SearchPage() {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [trendWindow, setTrendWindow] = useState("30d");
+  const [tripType, setTripType] = useState<"one_way" | "round_trip">("one_way");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -53,7 +54,9 @@ export default function SearchPage() {
     setLoading(true);
     setErr(null);
     try {
-      const searchRes = await api<SearchResult>(`/v1/search?origin=${o}&dest=${d}`);
+      const searchRes = await api<SearchResult>(
+        `/v1/search?origin=${o}&dest=${d}&trip_type=${tripType}`,
+      );
       setResult(searchRes);
       const trendRes = await api<TrendPoint[]>(
         `/v1/trends/${o}/${d}?window=${trendWindow}`,
@@ -137,6 +140,17 @@ export default function SearchPage() {
               <option key={a} value={a} />
             ))}
           </datalist>
+          <div className="field">
+            <label>Trip</label>
+            <select
+              id="search-trip"
+              value={tripType}
+              onChange={(e) => setTripType(e.target.value as "one_way" | "round_trip")}
+            >
+              <option value="one_way">One way</option>
+              <option value="round_trip">Round trip</option>
+            </select>
+          </div>
           <button
             className="primary"
             type="button"
@@ -156,7 +170,8 @@ export default function SearchPage() {
           )}
           {result.quote_count === 0 && !result.fetched && (
             <p className="sub">
-              No quotes yet. Sign in and search again to fetch live fares, or scrape from admin.
+              No {tripType === "round_trip" ? "round-trip" : "one-way"} quotes. Sign in to
+              fetch one-way live, or dump fares on Admin → Data Dump (needed list shows gaps).
             </p>
           )}
           {/* Summary stats */}
@@ -242,7 +257,9 @@ export default function SearchPage() {
                   <tr>
                     <th>Carrier</th>
                     <th>Flight</th>
+                    <th>Trip</th>
                     <th>Dep Date</th>
+                    <th>Return</th>
                     <th>Lead</th>
                     <th>Base</th>
                     <th>Taxes</th>
@@ -259,7 +276,9 @@ export default function SearchPage() {
                         <span className="badge badge-ok">{c.carrier}</span>
                       </td>
                       <td>{c.flight_no}</td>
+                      <td>{(c.trip_type || "one_way").replace("_", " ")}</td>
                       <td>{c.dep_date}</td>
+                      <td>{c.return_date || "—"}</td>
                       <td>T+{c.lead_time_days}</td>
                       <td>₹{c.base_fare.toLocaleString("en-IN")}</td>
                       <td>₹{c.taxes.toLocaleString("en-IN")}</td>

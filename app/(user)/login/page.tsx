@@ -8,6 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -20,17 +21,22 @@ export default function LoginPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const data = (await res.json()) as { detail?: string; success?: boolean };
       if (!res.ok || !data.success) {
         setErr(data.detail || "Invalid email or password");
         return;
       }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth-changed"));
+      }
+
       router.push("/search");
       router.refresh();
     } catch {
-      setErr("Network error");
+      setErr("Network or server connection error. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -38,43 +44,76 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <h1>Sign in</h1>
-      <p className="sub">Email and password. Same cookie as admin session.</p>
-      {err && <p className="err">{err}</p>}
-      <form className="panel" onSubmit={onSubmit}>
-        <div className="field">
-          <label htmlFor="login-email">Email</label>
-          <input
-            id="login-email"
-            type="text"
-            inputMode="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-          />
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-icon">
+            👤
+          </div>
+          <h1>Welcome Back</h1>
+          <p>Sign in to access search analytics, saved preferences, and index data.</p>
         </div>
-        <div className="field">
-          <label htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-          />
-        </div>
-        <p>
-          <button className="primary" type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+
+        {err && (
+          <div className="auth-error" role="alert">
+            <span>⚠️</span>
+            <span>{err}</span>
+          </div>
+        )}
+
+        <form className="auth-form" onSubmit={onSubmit}>
+          <div className="auth-field">
+            <label htmlFor="login-email">Email Address</label>
+            <input
+              id="login-email"
+              type="text"
+              inputMode="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="auth-field">
+            <label htmlFor="login-password">Password</label>
+            <div className="auth-password-wrap">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                required
+              />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-primary auth-btn"
+            type="submit"
+            disabled={submitting}
+          >
+            {submitting ? "Signing in..." : "Sign In →"}
           </button>
-        </p>
-        <p className="sub">
-          No account? <Link href="/register">Register</Link>
-        </p>
-      </form>
+        </form>
+
+        <div className="auth-footer">
+          <p>
+            No account yet? <Link href="/register">Create an account</Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -31,6 +31,8 @@ export async function neededQuotes(q: ReturnType<typeof sqlFn>): Promise<NeededC
     last_on: string;
   }[];
 
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
   const lastMap = new Map<string, string>();
   for (const r of rows) {
     const trip = r.trip_type === "round_trip" ? "round_trip" : "one_way";

@@ -27,6 +27,8 @@ export default function UserLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadMe();
+    window.addEventListener("auth-changed", loadMe);
+    return () => window.removeEventListener("auth-changed", loadMe);
   }, [pathname]);
 
   async function logout() {
