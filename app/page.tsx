@@ -19,20 +19,20 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
+    <div style={{ width: "100%", minHeight: "100vh", background: "#ffffff", color: "#0c1212" }}>
       <GlyphPortal
         word="OPUSAIRS"
         fontFamily={family}
         fontWeight={900}
-        scrollLength={2.5}
+        scrollLength={2.4}
         interactive={true}
         annotations={false}
         enterLabel="Explore Index"
         style={{
-          "--gp-paper": "#060b18",
-          "--gp-ink": "#e8edf8",
-          "--gp-field": "#0c1527",
-          "--gp-foreground": "#e8edf8",
+          "--gp-paper": "#ffffff",
+          "--gp-ink": "#0c1212",
+          "--gp-field": "#0b3b2a",
+          "--gp-foreground": "#fbfbfa",
         }}
         background={
           <div
@@ -40,39 +40,129 @@ export default function LandingPage() {
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(circle at 50% 30%, rgba(37, 99, 235, 0.25) 0%, transparent 60%), radial-gradient(circle at 80% 70%, rgba(232, 165, 75, 0.15) 0%, transparent 50%), linear-gradient(135deg, #060b18 0%, #0c1527 50%, #111d36 100%)",
+                "radial-gradient(circle at 18% 8%, rgba(68,125,98,.72), transparent 34%), radial-gradient(circle at 82% 20%, rgba(251,251,250,.12), transparent 28%), radial-gradient(circle at 48% 78%, rgba(9,48,35,.5), transparent 44%), linear-gradient(135deg,#0b3b2a 0%,#14573f 48%,#082d22 100%)",
             }}
           />
         }
         front={
-          <div className="landing-hero" style={{ minHeight: "100%", background: "transparent" }}>
-            <div className="hero-badge">
-              <span className="pulse" />
+          <div
+            className="landing-hero"
+            style={{
+              minHeight: "100%",
+              background: "transparent",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "2rem",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "6px 16px",
+                borderRadius: "100px",
+                background: "#f0f5f2",
+                border: "1px solid #d0dfd7",
+                color: "#0b3b2a",
+                fontSize: "13px",
+                fontWeight: 600,
+                marginBottom: "24px",
+              }}
+            >
+              <span
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "#0b3b2a",
+                  boxShadow: "0 0 8px #0b3b2a",
+                }}
+              />
               Live Index
               {latestIdx != null && (
-                <span style={{ marginLeft: 6, fontWeight: 700 }}>
+                <span style={{ marginLeft: "4px", fontWeight: 700 }}>
                   {latestIdx.toFixed(2)}
                 </span>
               )}
             </div>
 
-            <h1 style={{ fontSize: "clamp(2rem, 5vw, 4.2rem)", maxWidth: "22ch" }}>
-              India&rsquo;s <span className="highlight">Airfare Price Index</span>
+            <h1
+              style={{
+                color: "#0c1212",
+                fontSize: "clamp(2.2rem, 5.5vw, 4.4rem)",
+                fontWeight: 800,
+                lineHeight: 1.1,
+                letterSpacing: "-0.03em",
+                maxWidth: "22ch",
+                margin: 0,
+              }}
+            >
+              India&rsquo;s{" "}
+              <span style={{ color: "#0b3b2a", background: "linear-gradient(135deg, #0b3b2a, #14573f)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                Airfare Price Index
+              </span>
               <br />
               in Real Time
             </h1>
 
-            <p className="hero-sub" style={{ maxWidth: "54ch", margin: "16px auto 28px" }}>
+            <p
+              style={{
+                color: "#525854",
+                fontSize: "clamp(14px, 1.8vw, 17px)",
+                lineHeight: 1.6,
+                maxWidth: "54ch",
+                margin: "18px auto 32px",
+              }}
+            >
               High-frequency fare collection across domestic carriers, powering a
               Laspeyres-weighted price index for NSO, MoSPI and RBI. Compare fares,
               track trends, and explore sector-level analytics.
             </p>
 
-            <div className="hero-actions" style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
-              <Link href="/dashboard" className="btn-primary btn" id="hero-cta-dashboard">
+            <div style={{ display: "flex", gap: "14px", justifyContent: "center", flexWrap: "wrap" }}>
+              <Link
+                href="/dashboard"
+                id="hero-cta-dashboard"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "12px 24px",
+                  borderRadius: "10px",
+                  background: "#0b3b2a",
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  boxShadow: "0 2px 8px rgba(11, 59, 42, 0.25)",
+                  transition: "all 0.18s ease",
+                  textDecoration: "none",
+                }}
+              >
                 📊 View Dashboard
               </Link>
-              <Link href="/search" className="btn" id="hero-cta-search">
+              <Link
+                href="/search"
+                id="hero-cta-search"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "12px 24px",
+                  borderRadius: "10px",
+                  background: "#ffffff",
+                  border: "1px solid #d8deda",
+                  color: "#0c1212",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                  transition: "all 0.18s ease",
+                  textDecoration: "none",
+                }}
+              >
                 ✈️ Search Flights
               </Link>
             </div>
@@ -81,62 +171,157 @@ export default function LandingPage() {
       >
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 20px" }}>
           {/* ---- Features ---- */}
-          <section className="landing-features" style={{ padding: "0 0 60px" }}>
-            <h2 style={{ textAlign: "center", marginBottom: "40px", fontSize: "28px" }}>
+          <section style={{ padding: "20px 0 60px" }}>
+            <h2
+              style={{
+                textAlign: "center",
+                marginBottom: "48px",
+                fontSize: "clamp(24px, 3.5vw, 36px)",
+                fontWeight: 700,
+                color: "#fbfbfa",
+                letterSpacing: "-0.02em",
+              }}
+            >
               Built for Statistical Precision
             </h2>
-            <div className="features-grid">
-              <div className="feature-card fade-in">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: "24px",
+              }}
+            >
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(251, 251, 250, 0.18)",
+                  borderRadius: "16px",
+                  padding: "28px 24px",
+                  transition: "transform 0.2s ease, border-color 0.2s ease",
+                }}
+              >
                 <div
-                  className="icon"
-                  style={{ background: "var(--accent-gold-dim)", color: "var(--accent-gold)" }}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(251, 251, 250, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                    marginBottom: "16px",
+                  }}
                 >
                   📈
                 </div>
-                <h3>Real-time Price Index</h3>
-                <p>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fbfbfa", margin: "0 0 8px" }}>
+                  Real-time Price Index
+                </h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
                   Daily, weekly and monthly Laspeyres index on a DGCA-weighted
                   city-pair basket. Base period normalised to 100.
                 </p>
               </div>
 
-              <div className="feature-card fade-in fade-in-delay-1">
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(251, 251, 250, 0.18)",
+                  borderRadius: "16px",
+                  padding: "28px 24px",
+                  transition: "transform 0.2s ease, border-color 0.2s ease",
+                }}
+              >
                 <div
-                  className="icon"
-                  style={{ background: "var(--accent-blue-dim)", color: "var(--accent-blue)" }}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(251, 251, 250, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                    marginBottom: "16px",
+                  }}
                 >
                   🔍
                 </div>
-                <h3>Route Search & Compare</h3>
-                <p>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fbfbfa", margin: "0 0 8px" }}>
+                  Route Search & Compare
+                </h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
                   Search any city pair and instantly compare fares across IndiGo, Air
                   India, SpiceJet and Akasa with full tax breakdowns.
                 </p>
               </div>
 
-              <div className="feature-card fade-in fade-in-delay-2">
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(251, 251, 250, 0.18)",
+                  borderRadius: "16px",
+                  padding: "28px 24px",
+                  transition: "transform 0.2s ease, border-color 0.2s ease",
+                }}
+              >
                 <div
-                  className="icon"
-                  style={{ background: "var(--accent-green-dim)", color: "var(--accent-green)" }}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(251, 251, 250, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                    marginBottom: "16px",
+                  }}
                 >
                   📉
                 </div>
-                <h3>Price Trend Analysis</h3>
-                <p>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fbfbfa", margin: "0 0 8px" }}>
+                  Price Trend Analysis
+                </h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
                   Track fare movements over 30 days, 3 months and 6 months with
                   min/max/average corridors and carrier-level breakdowns.
                 </p>
               </div>
 
-              <div className="feature-card fade-in fade-in-delay-3">
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(251, 251, 250, 0.18)",
+                  borderRadius: "16px",
+                  padding: "28px 24px",
+                  transition: "transform 0.2s ease, border-color 0.2s ease",
+                }}
+              >
                 <div
-                  className="icon"
-                  style={{ background: "var(--accent-red-dim)", color: "var(--accent-red)" }}
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(251, 251, 250, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                    marginBottom: "16px",
+                  }}
                 >
                   🗺️
                 </div>
-                <h3>Sector Heatmap</h3>
-                <p>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fbfbfa", margin: "0 0 8px" }}>
+                  Sector Heatmap
+                </h3>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "rgba(251, 251, 250, 0.8)", margin: 0 }}>
                   Visual heatmap of route-level index values across all basket
                   sectors. Instantly spot expensive corridors.
                 </p>
@@ -145,8 +330,16 @@ export default function LandingPage() {
           </section>
 
           {/* ---- Footer ---- */}
-          <footer className="landing-footer" style={{ borderTop: "1px solid var(--border)", paddingTop: "32px" }}>
-            <p>
+          <footer
+            style={{
+              borderTop: "1px solid rgba(251, 251, 250, 0.2)",
+              paddingTop: "32px",
+              textAlign: "center",
+              fontSize: "13px",
+              color: "rgba(251, 251, 250, 0.7)",
+            }}
+          >
+            <p style={{ margin: 0 }}>
               OpusAirs APIx · SIH 2026 (SIH26056) · Ministry of Statistics &amp;
               Programme Implementation / DIID
             </p>
