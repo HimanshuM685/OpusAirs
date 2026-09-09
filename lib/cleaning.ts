@@ -1,3 +1,5 @@
+import { isoDate } from "./db";
+
 export function parseAmount(value: unknown): number | null {
   if (value == null || value === "") return null;
   if (typeof value === "number") return Number.isNaN(value) ? null : value;
@@ -109,11 +111,11 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
       await q`
         INSERT INTO quotes_clean (
           raw_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
-          lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, is_outlier, is_imputed
+          lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, currency, is_outlier, is_imputed
         ) VALUES (
-          ${r.id}, ${r.source}, ${r.origin}, ${r.destination}, ${r.carrier}, ${r.flight_no}, ${r.dep_date},
-          ${r.fare_class}, ${r.lead_time_days}, ${r.collected_on}, ${parts.base_fare}, ${parts.taxes},
-          ${parts.udf}, ${parts.convenience}, ${parts.total_fare}, ${flags[i] ? 1 : 0}, 0
+          ${r.id}, ${r.source}, ${r.origin}, ${r.destination}, ${r.carrier}, ${r.flight_no}, ${isoDate(r.dep_date)},
+          ${r.fare_class}, ${r.lead_time_days}, ${isoDate(r.collected_on)}, ${parts.base_fare}, ${parts.taxes},
+          ${parts.udf}, ${parts.convenience}, ${parts.total_fare}, 'INR', ${flags[i] ? 1 : 0}, 0
         )
         ON CONFLICT (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
         DO UPDATE SET
@@ -142,7 +144,7 @@ export async function lowestEconomyCells(
   }[];
   const cells = new Map<string, number>();
   for (const r of rows) {
-    const key = `${r.origin}|${r.destination}|${String(r.collected_on).slice(0, 10)}|${r.lead_time_days}`;
+    const key = `${r.origin}|${r.destination}|${isoDate(r.collected_on)}|${r.lead_time_days}`;
     const prev = cells.get(key);
     if (prev == null || r.total_fare < prev) cells.set(key, r.total_fare);
   }

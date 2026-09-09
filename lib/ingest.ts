@@ -2,6 +2,7 @@ import { constructIndex } from "./apix";
 import { FARE_CLASS } from "./bootstrap";
 import { cleanQuotes } from "./cleaning";
 import type { sql as sqlFn } from "./db";
+import { isoDate } from "./db";
 
 export type QuoteIn = {
   source?: string;
@@ -73,8 +74,8 @@ export async function upsertEvents(
     const existing = await q`
       SELECT id FROM quotes_raw
       WHERE source = ${ev.source} AND origin = ${ev.origin} AND destination = ${ev.destination}
-        AND carrier = ${ev.carrier} AND flight_no = ${ev.flight_no} AND dep_date = ${ev.dep_date}
-        AND fare_class = ${ev.fare_class} AND collected_on = ${ev.collected_on}
+        AND carrier = ${ev.carrier} AND flight_no = ${ev.flight_no} AND dep_date = ${isoDate(ev.dep_date)}
+        AND fare_class = ${ev.fare_class} AND collected_on = ${isoDate(ev.collected_on)}
         AND lead_time_days = ${ev.lead_time_days}
       LIMIT 1
     `;
@@ -82,12 +83,12 @@ export async function upsertEvents(
       await q`
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
-          lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare
+          lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
-          ${ev.dep_date}, ${ev.fare_class}, ${ev.lead_time_days}, ${ev.collected_on}, ${ev.collected_at},
+          ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
-          ${ev.convenience ?? null}, ${ev.total_fare ?? null}
+          ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR'
         )
       `;
       counts.inserted += 1;
@@ -118,8 +119,8 @@ export async function ingestQuotes(
   const events = quotes.map(toEvent);
   const started = new Date().toISOString();
   const run = await q`
-    INSERT INTO collection_runs (started_at, source, status)
-    VALUES (${started}, 'manual', 'running')
+    INSERT INTO collection_runs (started_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes)
+    VALUES (${started}, 'manual', 'running', 0, 0, 0, 0, '')
     RETURNING id
   `;
   const runId = Number(run[0].id);

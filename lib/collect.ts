@@ -164,7 +164,8 @@ export async function runPipeline(useScrape: boolean) {
     for (const [src, evs] of bySrc) {
       const started = new Date().toISOString();
       const run = await q`
-        INSERT INTO collection_runs (started_at, source, status) VALUES (${started}, ${src}, 'running') RETURNING id
+        INSERT INTO collection_runs (started_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes)
+        VALUES (${started}, ${src}, 'running', 0, 0, 0, 0, '') RETURNING id
       `;
       const counts = await upsertEvents(q, evs, Number(run[0].id));
       await q`
