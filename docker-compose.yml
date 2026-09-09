@@ -8,6 +8,5 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon postgres URI}
       DATA_DIR: /app/data
-      BACKEND_API_KEY: ${BACKEND_API_KEY:-nso-demo-key}
     ports:
       - "3000:3000"

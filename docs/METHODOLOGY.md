@@ -1,66 +1,77 @@
-# APIx methodology
+# OpusAirs APIx Methodology & Economic Specification
 
-OpusAirs constructs a Real-time Airfare Price Index (APIx) aligned with CPI elementary-aggregate practice (Jevons) and Laspeyres aggregation, and with BLS airline-fare pricing (fixed trip specification; taxes included).
+OpusAirs constructs the **Real-time Airfare Price Index (APIx)** aligned with international CPI best practices (elementary Jevons aggregation, Laspeyres upper-level synthesis) and guidelines from the **MoSPI Expert Group on CPI (2024)** and the **U.S. Bureau of Labor Statistics (BLS)**.
 
-## Quote specification
+---
 
-- One-way economy, 1 adult
-- Same collected-on weekday mapped to a departure date at a fixed lead time
-- Lead times: **T+1, T+7, T+15, T+21, T+30, T+45**
-- T+21 is included because the MoSPI Expert Group on CPI 2024 recommended a 21-day advance-purchase window for domestic airfares
-- Price is the **total fare paid** (base + taxes + user development fee + convenience), stored as separate components
+## 1. Quote Specification
 
-## Basket and weights
+To maintain a consistent, constant-quality pricing target over time:
+- **Product Definition**: Standard one-way economy airfare for a single adult passenger.
+- **Components Included**: Total purchaser price (base fare + fuel surcharge + airport user development fee / UDF + applicable taxes).
+- **Advance Booking Schedule**: Fixed lead times relative to observation date:
+  $$\ell \in \{1, 7, 15, 21, 30, 45\}\text{ days}$$
+- **T+21 Inclusion**: Specifically tracks the 21-day advance purchase window recommended by the MoSPI Expert Group on CPI (2024) for representative domestic travel pricing.
 
-Routes and raw passenger counts live in `data/psd_basket.csv`. Weights are \(w_i = p_i / \sum p_j\).
+---
 
-NSO Price Statistics Division can replace this file with official routes and weights without code changes (`sync_basket` on startup).
+## 2. Market Basket & City-Pair Weights
 
-Default pairs (DGCA-style 2023–24 city-pair volumes, leisure mix via DEL-GOI):
+Routes and passenger weights are configured in `data/psd_basket.csv`. The default basket reflects major domestic passenger routes published by DGCA (Delhi, Mumbai, Bengaluru, Hyderabad, Kolkata, Chennai, Pune, Ahmedabad, Goa):
 
-DEL-BOM, DEL-BLR, BOM-BLR, DEL-HYD, DEL-CCU, DEL-PNQ, BOM-MAA, DEL-AMD, MAA-DEL, BOM-HYD, BLR-HYD, DEL-GOI.
+$$w_i = \frac{p_i}{\sum_{j=1}^{N} p_j}$$
 
-## Elementary price
+Where $p_i$ is the annual passenger volume for city pair $i$. NSO / MoSPI can update basket weights dynamically without code redeployment.
 
-For each route \(i\), collected-on day \(t\), and lead time \(\ell\), take the **lowest non-outlier economy total** \(P_{i\ell t}\).
+---
 
-Missing \(\ell\) are carried forward from the last observed cell and flagged (`imputed_share`).
+## 3. Elementary Price Index (Jevons Formulation)
 
-Route elementary price is the **Jevons** mean across observed lead times:
+For each route $i$, collection date $t$, and advance purchase window $\ell$, the system selects the lowest non-outlier total fare $P_{i\ell t}$.
 
-\[
-P_{it} = \exp\left(\frac{1}{L_{it}}\sum_{\ell}\ln P_{i\ell t}\right)
-\]
+Missing cells $\ell$ are carried forward from the most recent valid observation and tracked via `imputed_share`.
 
-## Base period
+The elementary price $P_{it}$ for route $i$ on day $t$ is calculated as the unweighted geometric mean (**Jevons Index**) across lead times:
 
-`APIX_BASE_DATE` (default 2026-08-01). \(P_{i0}\) is the Jevons mean of \(P_{it}\) over the first seven dates at or after the base date. Index = 100 in that window when prices are flat.
+$$P_{it} = \left(\prod_{\ell \in L} P_{i\ell t}\right)^{1 / |L|} = \exp\left(\frac{1}{|L|}\sum_{\ell \in L}\ln P_{i\ell t}\right)$$
 
-## Laspeyres APIx
+---
 
-\[
-I_t = 100 \times \sum_i w_i \frac{P_{it}}{P_{i0}}
-\]
+## 4. Aggregate Laspeyres APIx
 
-Also published:
+Base period prices $P_{i0}$ are computed as the geometric mean over the initial base period starting at `APIX_BASE_DATE` (default: `2026-08-01`).
 
-- `apix_jevons` — unweighted Jevons of route relatives
-- `apix_t21` — Laspeyres using T+21 fares only (CPI 2024 comparable)
-- `apix_route` — route relatives × 100
+The aggregate Laspeyres Airfare Price Index at time $t$ is:
 
-## Frequency
+$$I_t = 100 \times \sum_{i=1}^{N} w_i \frac{P_{it}}{P_{i0}}$$
 
-- Daily: \(I_t\)
-- Weekly: mean of daily \(I_t\) in the week ending Wednesday
-- Monthly: calendar-month mean of daily \(I_t\)
+### Additional Published Series
+- **`apix_laspeyres`**: Primary headline index with passenger weights.
+- **`apix_jevons`**: Unweighted geometric relative index across routes.
+- **`apix_t21`**: Laspeyres index restricted solely to $T+21$ bookings (MoSPI CPI 2024 comparable).
+- **`apix_route`**: Route-specific relatives normalized to $100.0$ at base date.
 
-## Cleaning
+---
 
-- Drop sold-out / cancelled / blocked / missing
-- Deduplicate on source, OD, carrier, flight, departure date, fare class, collected-on, lead time
-- Split fare components; if only total is present, apply a documented residual split
-- MAD (fallback IQR) outlier flags by route × lead time; outliers excluded from elementary prices
+## 5. Aggregation Frequencies
 
-## Backtest
+- **Daily**: Computed directly for every observation day $t$.
+- **Weekly**: Arithmetic average of daily indices for weeks ending Wednesday (harmonized with WPI reporting).
+- **Monthly**: Calendar-month mean of daily index values (harmonized with headline CPI reporting).
 
-See `/v1/backtest/dgca`. Monthly APIx (from Neon quotes) is compared with the published DGCA TMU 72-route composite stored in `data/dgca_benchmark.csv` (+20.5% June 2026 vs March 2025, parliamentary reply). There is no reconstructed fare seed.
+---
+
+## 6. Outlier Detection & Cleaning
+
+Before index compilation or flight search aggregation:
+1. **Deduplication**: Exact keys on source, route, carrier, flight, dates, and lead time are deduplicated.
+2. **Component Residuals**: If an external feed provides only `total_fare`, component shares (base, tax, UDF, convenience) are estimated using empirical airline proportions.
+3. **Robust Outlier Filtering**: Median Absolute Deviation (MAD) is applied within each route $\times$ lead time window:
+   $$\text{MAD} = \text{median}(|P_k - \text{median}(P)|)$$
+   Fares deviating beyond $3.5 \times \text{MAD}$ (or fallback $1.5 \times \text{IQR}$) are flagged as `is_outlier = 1` and excluded from elementary price computation.
+
+---
+
+## 7. DGCA Benchmark Backtesting
+
+To validate real-world tracking, the computed monthly APIx is backtested against the published DGCA Tariff Monitoring Unit (TMU) 72-route composite index (`data/dgca_benchmark.csv`). Results and delta percentages are reported via `/admin/backtest` and `GET /v1/backtest/dgca`.

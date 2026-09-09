@@ -1,42 +1,67 @@
-# Quote data schema
+# Data Warehouse Schema & Ingest Formats
 
-Scrapers and manual feeds write the **same** row into `quotes_raw`. Cleaning then fills `quotes_clean` and rebuilds APIx.
+OpusAirs stores airfare observations in PostgreSQL (Neon serverless). Both automated scrapers and manual data dumps feed into `quotes_raw`, which is then processed through cleaning stages into `quotes_clean` and summarized into `index_values`.
 
-SQL (Neon / Postgres): [data/schema.sql](../data/schema.sql)
+SQL Reference: [data/schema.sql](../data/schema.sql)
 
-## Unique key (upsert)
+---
 
-`(source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)`
+## 1. Relational Tables
 
-Send the same key again to correct a fare.
+### `quotes_raw`
+Raw observations collected from airline sites, OTAs, or manual uploads.
+- Unique Upsert Constraint:
+  ```sql
+  UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
+  ```
+- Submitting an identical key updates the existing record with the latest fare.
 
-## CSV (`POST /v1/ingest/csv` or `data/quotes_manual.csv`)
+### `quotes_clean`
+Cleaned fares used for index compilation and search comparison:
+- Excludes status `sold_out`, `missing`, `blocked`, and `cancelled`.
+- Imputes missing fare components (base, taxes, UDF, convenience) using standardized airline proportions.
+- Flags and filters outliers (`is_outlier = 1`) using Median Absolute Deviation (MAD), falling back to Interquartile Range (IQR).
 
-Header row required. Template: [data/quotes_manual.example.csv](../data/quotes_manual.example.csv)
+### `index_values`
+Computed Airfare Price Index time series:
+- `series`: `apix_laspeyres` (weighted basket), `apix_jevons` (unweighted), `apix_t21` (21-day advance), or `apix_route` (route relatives).
+- `frequency`: `daily`, `weekly`, `monthly`.
+- `period_date`: Reference date.
+- `value`: Normalized index value ($100.0$ at base date `APIX_BASE_DATE`).
+- `imputed_share`: Proportion of route cells carried forward due to missing observations.
 
-| Column | Required | Example | Notes |
+### `basket_routes`
+Fixed market basket populated from `data/psd_basket.csv` containing city pairs (e.g. `DEL-BOM`, `DEL-BLR`) and passenger traffic weights.
+
+### `collection_runs`
+Audit log recording every scraper execution and manual ingest batch.
+
+---
+
+## 2. Ingest Formats
+
+### CSV Format (`POST /v1/ingest/csv` and Admin File Upload)
+Header row is required. Download template via `GET /v1/ingest/template` or [data/quotes_manual.example.csv](../data/quotes_manual.example.csv).
+
+| Column | Required | Example | Description |
 |---|---|---|---|
-| source | no | `manual` | Also `indigo`, `airindia`, `spicejet`, … |
-| origin | yes | `DEL` | IATA |
-| destination | yes | `BOM` | IATA |
-| carrier | yes | `6E` | 6E AI IX QP SG |
-| flight_no | no | `6E201` | `NA` if unknown |
-| dep_date | yes | `2026-09-17` | Travel date |
-| fare_class | no | `ECONOMY` | |
-| lead_time_days | no | `7` | T+k; if omitted, `dep_date - collected_on` |
-| collected_on | no | `2026-09-10` | Observation date (today if omitted) |
-| base_fare | no | `4200` | INR |
-| taxes | no | `504` | |
-| udf | no | `350` | User development fee |
-| convenience | no | `0` | OTA convenience |
-| total_fare | if no base | `5054` | What the traveller pays |
-| status | no | `ok` | `ok` \| `sold_out` \| `missing` \| `blocked` \| `cancelled` |
+| `source` | No | `manual` | Source identifier (`indigo`, `airindia`, `manual`, `makemytrip`, etc.) |
+| `origin` | **Yes** | `DEL` | 3-letter IATA origin airport code |
+| `destination` | **Yes** | `BOM` | 3-letter IATA destination airport code |
+| `carrier` | **Yes** | `6E` | 2-letter IATA airline code (`6E`, `AI`, `QP`, `SG`, `IX`) |
+| `flight_no` | No | `6E201` | Flight number (defaults to `NA`) |
+| `dep_date` | **Yes** | `2026-09-20` | Scheduled flight departure date (`YYYY-MM-DD`) |
+| `fare_class` | No | `ECONOMY` | Cabin class (defaults to `ECONOMY`) |
+| `lead_time_days` | No | `7` | Advance purchase days ($dep\_date - collected\_on$ if omitted) |
+| `collected_on` | No | `2026-09-13` | Date fare was observed (defaults to current date) |
+| `base_fare` | No | `3800` | Base fare in INR |
+| `taxes` | No | `450` | Government and airport taxes in INR |
+| `udf` | No | `250` | User Development Fee in INR |
+| `convenience` | No | `0` | Booking convenience fee in INR |
+| `total_fare` | Conditional | `4500` | Total traveller fare (required if `base_fare` is absent) |
+| `status` | No | `ok` | `ok` \| `sold_out` \| `missing` \| `blocked` \| `cancelled` |
 
-If only `total_fare` is set, the cleaner splits an approximate base / tax / UDF / convenience.
-
-Drop a file at `data/quotes_manual.csv` and restart the API — it upserts on boot.
-
-## JSON (`POST /v1/ingest/quotes`)
+### JSON Format (`POST /v1/ingest/quotes` and Admin JSON Dump)
 
 ```json
 {
@@ -48,25 +73,33 @@ Drop a file at `data/quotes_manual.csv` and restart the API — it upserts on bo
       "destination": "BOM",
       "carrier": "6E",
       "flight_no": "6E201",
-      "dep_date": "2026-09-17",
+      "dep_date": "2026-09-20",
       "fare_class": "ECONOMY",
       "lead_time_days": 7,
-      "collected_on": "2026-09-10",
-      "base_fare": 4200,
-      "taxes": 504,
-      "udf": 350,
+      "collected_on": "2026-09-13",
+      "base_fare": 3800,
+      "taxes": 450,
+      "udf": 250,
       "convenience": 0,
-      "total_fare": 5054,
+      "total_fare": 4500,
       "status": "ok"
     }
   ]
 }
 ```
 
-Header: `X-API-Key`. Dashboard: **/admin/ingest**.
+---
 
-## Scrape path
+## 3. Data Flow to Consumer Features
 
-`POST /v1/collect/run?scrape=true`.
-
-Sources and CSS selectors: [data/scrape_sources.json](../data/scrape_sources.json). Robots.txt is checked; CAPTCHA pages are stored as `blocked`, not solved.
+```
+quotes_raw
+    │
+    ▼ (cleanQuotes: dedup, split components, MAD filter)
+quotes_clean
+    ├─────────────────────────────┬─────────────────────────────┐
+    ▼                             ▼                             ▼
+GET /v1/search               GET /v1/trends              constructIndex()
+(Cheapest fare by carrier    (Historical fare movement    (Jevons elementary →
+ on selected city pair)       & 30d/3m/6m price gain)     Laspeyres index_values)
+```

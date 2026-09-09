@@ -1,10 +1,5 @@
-export const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY || process.env.BACKEND_API_KEY || "";
-
 export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
-    headers: API_KEY ? { "X-API-Key": API_KEY } : undefined,
-    cache: "no-store",
-  });
+  const res = await fetch(path, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText} for ${path}`);
   }
@@ -14,10 +9,7 @@ export async function api<T>(path: string): Promise<T> {
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
   });
