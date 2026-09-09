@@ -115,33 +115,119 @@ h3 { font-size: 18px; }
 .sub { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
 
 /* ============================================================
-   USER LAYOUT — Top Navbar
+   USER LAYOUT — Floating Glass Pill Navbar
    ============================================================ */
 .user-shell { min-height: 100vh; display: flex; flex-direction: column; }
 
-.topnav {
+.topnav-container {
   position: sticky;
-  top: 0;
+  top: 16px;
   z-index: 100;
   display: flex;
-  align-items: center;
-  gap: var(--sp-lg);
-  padding: 0 var(--sp-xl);
-  height: 64px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border-bottom: 1px solid var(--border);
+  justify-content: center;
+  width: 100%;
+  padding: 0 16px;
+  pointer-events: none;
 }
 
-.topnav .brand {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: 0.02em;
-  margin-right: auto;
+.floating-pill-nav {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 8px 6px 18px;
+  background: rgba(11, 59, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 100px;
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25), 0 0 24px rgba(11, 59, 42, 0.35);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.topnav .brand span { color: var(--accent-gold); }
+
+.floating-pill-nav .brand-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 16px;
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+
+.floating-pill-nav .brand-glyph:hover {
+  transform: rotate(45deg);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.floating-pill-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.floating-pill-links a {
+  padding: 8px 16px;
+  border-radius: 100px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.floating-pill-links a:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.floating-pill-links a.active {
+  color: #ffffff;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.floating-pill-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+}
+
+.nav-btn-outline {
+  padding: 7px 18px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-btn-outline:hover {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nav-btn-solid {
+  padding: 8px 22px;
+  border-radius: 100px;
+  background: #ffffff;
+  color: #0b3b2a;
+  font-size: 13px;
+  font-weight: 800;
+  border: none;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.45);
+  transition: all 0.2s ease;
+}
+
+.nav-btn-solid:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.7);
+}
 
 .topnav-links { display: flex; gap: var(--sp-xs); }
 .topnav-links a {

@@ -43,25 +43,35 @@ export default function UserLayout({ children }: { children: ReactNode }) {
         <GradientWave colors={["#ffffff", "#0b3b2a", "#ffffff", "#14573f", "#ffffff", "#0b3b2a"]} />
       </div>
       <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <nav className="topnav">
-          <Link href="/" className="brand">
-            Opus<span>Airs</span>
-          </Link>
-          <div className="topnav-links">
-            {navLinks.map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                className={pathname === href ? "active" : ""}
-              >
-                {label}
+        <header className="topnav-container">
+          <nav className="floating-pill-nav">
+            <Link href="/" className="brand-glyph" title="OpusAirs Home">
+              ❖
+            </Link>
+
+            <div className="floating-pill-links">
+              {navLinks.map(([href, label]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={pathname === href ? "active" : ""}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="floating-pill-actions">
+              <Link href="/admin" className="nav-btn-outline">
+                Admin
               </Link>
-            ))}
-          </div>
-          <Link href="/admin" className="admin-link">
-            ⚙ Admin
-          </Link>
-        </nav>
+              <Link href="/dashboard" className="nav-btn-solid">
+                Dashboard
+              </Link>
+            </div>
+          </nav>
+        </header>
+
         <main className="user-main">{children}</main>
       </div>
     </div>
