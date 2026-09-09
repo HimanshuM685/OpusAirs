@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,8 @@ from app.schemas import (
     ElasticityPoint,
     HeatmapCell,
     IndexPoint,
+    IngestResult,
+    QuoteBatchIn,
     QuoteOut,
     RouteOut,
 )
@@ -247,10 +249,56 @@ def backtest_dgca(
 
 @router.post("/collect/run")
 def trigger_collect(
+    scrape: bool = True,
     mock: bool = False,
     session: Session = Depends(get_session),
     _: str = Depends(require_api_key),
 ) -> dict:
     from app.collect import run_pipeline
 
-    return run_pipeline(session, use_fixtures=False, use_mock=mock, replace_raw=False)
+    return run_pipeline(
+        session,
+        use_fixtures=False,
+        use_scrape=scrape,
+        use_mock=mock,
+        replace_raw=False,
+    )
+
+
+@router.post("/ingest/quotes", response_model=IngestResult)
+def ingest_quotes_json(
+    batch: QuoteBatchIn,
+    session: Session = Depends(get_session),
+    _: str = Depends(require_api_key),
+) -> dict:
+    from app.ingest import ingest_quotes
+
+    if not batch.quotes:
+        raise HTTPException(status_code=400, detail="quotes array is empty")
+    return ingest_quotes(session, batch.quotes, rebuild_index=batch.rebuild_index)
+
+
+@router.post("/ingest/csv", response_model=IngestResult)
+async def ingest_quotes_csv(
+    file: UploadFile = File(...),
+    rebuild_index: bool = True,
+    session: Session = Depends(get_session),
+    _: str = Depends(require_api_key),
+) -> dict:
+    from app.ingest import ingest_quotes, parse_csv_quotes
+
+    raw = (await file.read()).decode("utf-8-sig")
+    quotes = parse_csv_quotes(raw)
+    if not quotes:
+        raise HTTPException(status_code=400, detail="No valid quote rows in CSV")
+    return ingest_quotes(session, quotes, rebuild_index=rebuild_index)
+
+
+@router.get("/ingest/template")
+def ingest_template(_: str = Depends(require_api_key)):
+    from fastapi.responses import PlainTextResponse
+
+    from app.config import get_settings
+
+    path = get_settings().data_dir / "quotes_manual.example.csv"
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/csv")

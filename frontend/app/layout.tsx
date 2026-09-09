@@ -12,6 +12,7 @@ const links = [
   ["/heatmap", "Sector heatmap"],
   ["/elasticity", "Lead-time elasticity"],
   ["/routes", "Routes"],
+  ["/ingest", "Feed quotes"],
   ["/health", "Collection health"],
   ["/backtest", "DGCA backtest"],
 ];

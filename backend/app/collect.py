@@ -2,21 +2,17 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.cleaning.pipeline import clean_quotes
 from app.collectors.amadeus import AmadeusLive
 from app.collectors.dgca import DgcaBenchmarkIngest
 from app.collectors.fixtures import FixtureIngest
-from app.collectors.mock_airline import PlaywrightMockAirline
+from app.collectors.portals import PlaywrightPortalCollector
 from app.collectors.safeguards import CollectionEvent
 from app.index.construct import construct_index
-from app.models import CollectionRun, QuoteRaw
-
-
-def _raw_key(source: str, origin: str, dest: str, carrier: str, flight_no: str, dep, fare_class: str, collected_on, lead: int) -> tuple:
-    return (source, origin, dest, carrier, flight_no, dep, fare_class, collected_on, lead)
+from app.ingest import upsert_events
+from app.models import CollectionRun
 
 
 def persist_events(session: Session, source: str, events: list[CollectionEvent]) -> CollectionRun:
@@ -27,53 +23,15 @@ def persist_events(session: Session, source: str, events: list[CollectionEvent])
     )
     session.add(run)
     session.flush()
-    existing = {
-        _raw_key(
-            q.source, q.origin, q.destination, q.carrier, q.flight_no,
-            q.dep_date, q.fare_class, q.collected_on, q.lead_time_days,
-        )
-        for q in session.scalars(select(QuoteRaw)).all()
-    }
-    counts = {"ok": 0, "missing": 0, "sold_out": 0, "blocked": 0, "cancelled": 0}
-    for ev in events:
-        counts[ev.status] = counts.get(ev.status, 0) + 1
-        carrier = ev.carrier or "NA"
-        flight_no = ev.flight_no or "NA"
-        key = _raw_key(
-            ev.source, ev.origin, ev.destination, carrier, flight_no,
-            ev.dep_date, ev.fare_class, ev.collected_on, ev.lead_time_days,
-        )
-        if key in existing:
-            continue
-        existing.add(key)
-        session.add(
-            QuoteRaw(
-                run_id=run.id,
-                source=ev.source,
-                origin=ev.origin,
-                destination=ev.destination,
-                carrier=carrier,
-                flight_no=flight_no,
-                dep_date=ev.dep_date,
-                fare_class=ev.fare_class,
-                lead_time_days=ev.lead_time_days,
-                collected_on=ev.collected_on,
-                collected_at=ev.collected_at,
-                status=ev.status,
-                base_fare=ev.base_fare,
-                taxes=ev.taxes,
-                udf=ev.udf,
-                convenience=ev.convenience,
-                total_fare=ev.total_fare,
-            )
-        )
+    counts = upsert_events(session, source, events, run_id=run.id)
     run.finished_at = datetime.utcnow()
     run.status = "ok"
     run.quotes_ok = counts.get("ok", 0)
     run.quotes_missing = counts.get("missing", 0)
     run.quotes_sold_out = counts.get("sold_out", 0)
     run.quotes_blocked = counts.get("blocked", 0)
-    run.notes = f"cancelled={counts.get('cancelled', 0)}"
+    blocked_notes = "; ".join(sorted({e.notes for e in events if e.notes}))[:900]
+    run.notes = f"inserted={counts['inserted']} updated={counts['updated']} {blocked_notes}".strip()
     session.flush()
     return run
 
@@ -82,12 +40,15 @@ def run_pipeline(
     session: Session,
     *,
     use_fixtures: bool = True,
+    use_scrape: bool = False,
     use_mock: bool = False,
     use_amadeus: bool = True,
     collected_on: date | None = None,
     replace_raw: bool = False,
 ) -> dict:
     from sqlalchemy import delete
+
+    from app.models import QuoteRaw
 
     if replace_raw:
         session.execute(delete(QuoteRaw))
@@ -98,7 +59,17 @@ def run_pipeline(
         events = FixtureIngest().collect(collected_on=None if collected_on is None else collected_on)
         persist_events(session, "fixture", events)
         summary["fixture"] = len(events)
+    if use_scrape:
+        events = PlaywrightPortalCollector().collect(collected_on=collected_on)
+        by_src: dict[str, list[CollectionEvent]] = {}
+        for ev in events:
+            by_src.setdefault(ev.source, []).append(ev)
+        for src, evs in by_src.items():
+            persist_events(session, src, evs)
+        summary["portals"] = len(events)
     if use_mock:
+        from app.collectors.mock_airline import PlaywrightMockAirline
+
         events = PlaywrightMockAirline().collect(collected_on=collected_on)
         persist_events(session, "mock_airline", events)
         summary["mock_airline"] = len(events)
@@ -121,7 +92,8 @@ def main() -> None:
     from app.db import get_session_factory, init_db
 
     parser = argparse.ArgumentParser(description="Run OpusAirs collection + index pipeline")
-    parser.add_argument("--mock", action="store_true", help="Scrape local mock airline with Playwright")
+    parser.add_argument("--scrape", action="store_true", help="Playwright live airline portals (robots.txt, abort on CAPTCHA)")
+    parser.add_argument("--mock", action="store_true", help="Scrape local mock airline (tests only)")
     parser.add_argument("--no-fixtures", action="store_true")
     parser.add_argument("--date", type=str, default=None, help="collected_on YYYY-MM-DD")
     args = parser.parse_args()
@@ -133,9 +105,10 @@ def main() -> None:
         result = run_pipeline(
             session,
             use_fixtures=not args.no_fixtures,
+            use_scrape=args.scrape,
             use_mock=args.mock,
-            collected_on=collected_on if args.mock else None,
-            replace_raw=not args.no_fixtures and not args.mock,
+            collected_on=collected_on if (args.scrape or args.mock) else None,
+            replace_raw=not args.no_fixtures and not args.scrape and not args.mock,
         )
         print(result)
     finally:

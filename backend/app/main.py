@@ -12,7 +12,7 @@ from app.db import get_session_factory, init_db
 
 def _start_scheduler() -> None:
     settings = get_settings()
-    if not settings.collect_enabled:
+    if not settings.collect_enabled or not settings.scrape_enabled:
         return
     from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -26,7 +26,8 @@ def _start_scheduler() -> None:
             run_pipeline(
                 session,
                 use_fixtures=False,
-                use_mock=True,
+                use_scrape=settings.scrape_enabled,
+                use_mock=False,
                 collected_on=date.today(),
                 replace_raw=False,
             )

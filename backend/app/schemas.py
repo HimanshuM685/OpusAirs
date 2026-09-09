@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class IndexPoint(BaseModel):
@@ -86,3 +86,45 @@ class RouteOut(BaseModel):
     raw_passengers: float
     latest_index: Optional[float] = None
     latest_fare: Optional[float] = None
+
+
+class QuoteIn(BaseModel):
+    source: str = "manual"
+    origin: str
+    destination: str
+    carrier: str
+    flight_no: str = "NA"
+    dep_date: date
+    fare_class: str = "ECONOMY"
+    lead_time_days: Optional[int] = None
+    collected_on: Optional[date] = None
+    base_fare: Optional[float] = None
+    taxes: Optional[float] = None
+    udf: Optional[float] = None
+    convenience: Optional[float] = None
+    total_fare: Optional[float] = None
+    status: str = "ok"
+
+    @model_validator(mode="after")
+    def require_price(self) -> "QuoteIn":
+        if self.status in {"ok"} and self.total_fare is None and self.base_fare is None:
+            raise ValueError("Provide total_fare or base_fare (or set status to sold_out/missing/blocked)")
+        return self
+
+
+class QuoteBatchIn(BaseModel):
+    quotes: list[QuoteIn]
+    rebuild_index: bool = True
+
+
+class IngestResult(BaseModel):
+    source: str
+    received: int
+    inserted: int = 0
+    updated: int = 0
+    ok: int = 0
+    missing: int = 0
+    sold_out: int = 0
+    blocked: int = 0
+    cleaned: int = 0
+    index_rows: int = 0

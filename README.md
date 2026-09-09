@@ -1,25 +1,19 @@
 # OpusAirs — Real-time Airfare Price Index (APIx)
 
-SIH 2026 problem [SIH26056](https://sih2026.vuce.in/ps/SIH26056) (MoSPI / DIID). Automated, high-frequency airfare collection and a daily **Airfare Price Index** that NSO and RBI can consume.
+SIH 2026 [SIH26056](https://sih2026.vuce.in/ps/SIH26056) (MoSPI / DIID). High-frequency airfare collection and a daily **Airfare Price Index** for NSO / RBI.
 
-## What this prototype does
+## Collection (both exist)
 
-- Collects quotes for a **PSD-replaceable city-pair basket** at lead times T+1, T+7, T+15, T+21, T+30, T+45
-- Cleans, de-duplicates, splits base / taxes / UDF / convenience, flags outliers
-- Builds **Jevons** elementary prices and a **Laspeyres APIx** (daily / weekly / monthly)
-- Serves a FastAPI `/v1` API and a Next.js dashboard (trends, heatmap, elasticity, DGCA backtest)
-- Ships **35 days** of reconstructed quotes plus a DGCA TMU-style backtest
+1. **Scrape** — Playwright against Indian airline portals (`data/scrape_sources.json`). robots.txt, rate limits, abort on CAPTCHA. No IP rotation.
+2. **Manual feed** — same row schema via CSV / JSON. Dashboard **Feed quotes**, or `data/quotes_manual.csv`.
 
-## What it does not do
+Schema: [docs/SCHEMA.md](docs/SCHEMA.md) · SQL: [data/schema.sql](data/schema.sql) · Deploy (Neon): [docs/Deploy.md](docs/Deploy.md)
 
-It does **not** bypass CAPTCHAs, rotate IPs, or scrape airline/OTA sites in violation of their terms. See [docs/COLLECTION.md](docs/COLLECTION.md). Live extraction is demonstrated against a local JS-rendered mock airline with Playwright. Optional licensed GDS (Amadeus) is env-gated.
-
-## Quick start (local)
+## Quick start (local SQLite)
 
 Requires Python 3.11+ and Node 20+.
 
 ```bash
-# 1. Backend
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
@@ -27,17 +21,9 @@ pip install -e ".[dev]"
 python -m playwright install chromium
 python -m app.seed
 uvicorn app.main:app --reload --port 8000
+```
 
-# 2. Mock airline (optional, for Playwright demo)
-cd mock_airline
-pip install fastapi uvicorn
-uvicorn server:app --port 8090
-
-# 3. Collect from mock (optional)
-cd backend
-python -m app.collect --mock --no-fixtures --date 2026-09-09
-
-# 4. Dashboard
+```bash
 cd frontend
 npm install
 echo 'NEXT_PUBLIC_API_URL=http://127.0.0.1:8000' > .env.local
@@ -45,36 +31,41 @@ echo 'NEXT_PUBLIC_API_KEY=nso-demo-key' >> .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. API docs: http://127.0.0.1:8000/docs  
-Header: `X-API-Key: nso-demo-key`
+Open http://localhost:3000. API: http://127.0.0.1:8000/docs (`X-API-Key: nso-demo-key`).
 
-## Docker
+## Neon
 
 ```bash
-docker compose up --build
+export DATABASE_URL='postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require'
+# then start uvicorn as above
 ```
 
-Dashboard at http://localhost:3000, API at http://localhost:8000.
+See [docs/Deploy.md](docs/Deploy.md).
+
+## Scrape vs feed
+
+```bash
+# Live portals (polite; many hosts will return blocked — then use ingest)
+cd backend && python -m app.collect --scrape --no-fixtures
+
+# Or POST /v1/collect/run?scrape=true
+# Manual: POST /v1/ingest/csv  or  /v1/ingest/quotes
+```
 
 ## Tests
 
 ```bash
-cd backend
-pytest -q
+cd backend && pytest -q
 ```
 
 ## Layout
 
 | Path | Role |
 |---|---|
-| `backend/` | FastAPI, collectors, cleaning, APIx |
-| `frontend/` | Next.js 15 App Router dashboard |
-| `mock_airline/` | JS-rendered search UI for ethical Playwright demos |
-| `data/psd_basket.csv` | Drop-in NSO/PSD routes and passenger weights |
-| `docs/` | Methodology, collection policy, API |
-
-## Demo for judges
-
-1. Start stack; dashboard shows 35-day APIx and DGCA comparison.
-2. On **Collection health**, run mock collect (Playwright extracts JS-rendered fares).
-3. `curl -H 'X-API-Key: nso-demo-key' http://127.0.0.1:8000/v1/index?frequency=daily`
+| `backend/` | FastAPI, scrapers, ingest, APIx |
+| `frontend/` | Next.js 15 App Router |
+| `data/psd_basket.csv` | PSD routes and weights |
+| `data/schema.sql` | Warehouse DDL |
+| `data/scrape_sources.json` | Portal URLs / selectors |
+| `data/quotes_manual.example.csv` | Manual feed template |
+| `docs/` | Methodology, schema, collection, deploy |

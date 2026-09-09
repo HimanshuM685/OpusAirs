@@ -54,12 +54,19 @@ h1 { font-size: 28px; margin: 0 0 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 600; }
-select, button {
+select, button, textarea, input[type="file"], input[type="text"] {
   background: #0c1222;
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 12px;
+}
+textarea {
+  width: 100%;
+  min-height: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.45;
 }
 button { cursor: pointer; }
 button.primary { background: var(--navy); border-color: #2a6bb8; }

@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
 COPY backend/pyproject.toml /app/pyproject.toml
-RUN pip install --no-cache-dir fastapi uvicorn[standard] sqlalchemy pydantic-settings httpx playwright apscheduler python-dotenv \
+RUN pip install --no-cache-dir fastapi uvicorn[standard] sqlalchemy pydantic-settings httpx playwright apscheduler python-dotenv 'psycopg[binary]' python-multipart \
     && playwright install --with-deps chromium
 COPY backend /app
 COPY data /data

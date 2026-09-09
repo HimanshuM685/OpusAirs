@@ -1,5 +1,0 @@
-/Users/fusion/Code/GitRepos/OpusAirs/README.md
-/Users/fusion/Code/GitRepos/OpusAirs/docker-compose.yml
-/Users/fusion/Code/GitRepos/OpusAirs/docs/API.md
-/Users/fusion/Code/GitRepos/OpusAirs/docs/COLLECTION.md
-/Users/fusion/Code/GitRepos/OpusAirs/docs/METHODOLOGY.md

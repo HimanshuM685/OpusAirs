@@ -4,10 +4,10 @@ __pycache__/
 backend/opusairs.db
 backend/*.db
 data/*.db
-.venv/
 node_modules/
 frontend/.next/
 frontend/out/
+frontend/.env.local
 .DS_Store
 .env
 *.egg-info/

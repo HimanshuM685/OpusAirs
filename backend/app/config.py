@@ -32,6 +32,9 @@ class Settings(BaseSettings):
         "OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in; ethical-cpi-research)"
     )
     rate_limit_seconds: float = 0.4
+    live_rate_limit_seconds: float = 8.0
+    scrape_max_searches: int = 18
+    scrape_enabled: bool = False
     collect_enabled: bool = True
 
     @property

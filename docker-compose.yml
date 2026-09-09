@@ -1,27 +1,18 @@
 services:
-  mock-airline:
-    build:
-      context: .
-      dockerfile: mock_airline/Dockerfile
-    ports:
-      - "8090:8090"
-
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      DATABASE_URL: sqlite:////data/opusairs.db
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/opusairs.db}
       DATA_DIR: /data
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
-      MOCK_AIRLINE_URL: http://mock-airline:8090
-      API_KEY: nso-demo-key
+      API_KEY: ${API_KEY:-nso-demo-key}
+      SCRAPE_ENABLED: ${SCRAPE_ENABLED:-false}
     volumes:
       - ./data:/data
     ports:
       - "8000:8000"
-    depends_on:
-      - mock-airline
 
   web:
     build:
@@ -29,7 +20,7 @@ services:
       dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_API_KEY: nso-demo-key
+      NEXT_PUBLIC_API_KEY: ${API_KEY:-nso-demo-key}
     ports:
       - "3000:3000"
     depends_on:
