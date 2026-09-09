@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_KEY, API_URL, api, type CollectionHealth } from "@/lib/api";
+import { api, type CollectionHealth } from "@/lib/api";
 
 export default function HealthPage() {
   const [rows, setRows] = useState<CollectionHealth[]>([]);
@@ -20,9 +20,8 @@ export default function HealthPage() {
 
   async function runScrape() {
     setMsg("Running Playwright collect against live airline portals…");
-    const res = await fetch(`${API_URL}/v1/collect/run?scrape=true`, {
+    const res = await fetch(`/v1/collect/run?scrape=true`, {
       method: "POST",
-      headers: { "X-API-Key": API_KEY },
     });
     setMsg(res.ok ? JSON.stringify(await res.json()) : `Failed ${res.status}`);
     load();

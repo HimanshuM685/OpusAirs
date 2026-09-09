@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { API_KEY, API_URL } from "@/lib/api";
 
 const SAMPLE = `{
   "rebuild_index": true,
@@ -35,9 +34,9 @@ export default function IngestPage() {
     setErr(null);
     setMsg("Uploading JSON…");
     try {
-      const res = await fetch(`${API_URL}/v1/ingest/quotes`, {
+      const res = await fetch(`/v1/ingest/quotes`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: jsonText,
       });
       const body = await res.text();
@@ -55,9 +54,8 @@ export default function IngestPage() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await fetch(`${API_URL}/v1/ingest/csv`, {
+      const res = await fetch(`/v1/ingest/csv`, {
         method: "POST",
-        headers: { "X-API-Key": API_KEY },
         body: fd,
       });
       const body = await res.text();
@@ -70,9 +68,7 @@ export default function IngestPage() {
   }
 
   async function downloadTemplate() {
-    const res = await fetch(`${API_URL}/v1/ingest/template`, {
-      headers: { "X-API-Key": API_KEY },
-    });
+    const res = await fetch(`/v1/ingest/template`);
     const text = await res.text();
     const blob = new Blob([text], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

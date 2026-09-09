@@ -1,85 +1,125 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { api, type IndexPoint } from "@/lib/api";
 
-export default function HomePage() {
-  const [freq, setFreq] = useState("daily");
-  const [series, setSeries] = useState("apix_laspeyres");
-  const [rows, setRows] = useState<IndexPoint[]>([]);
-  const [err, setErr] = useState<string | null>(null);
+export default function LandingPage() {
+  const [latestIdx, setLatestIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    api<IndexPoint[]>(`/v1/index?frequency=${freq}&series=${series}`)
-      .then(setRows)
-      .catch((e) => setErr(String(e)));
-  }, [freq, series]);
-
-  const latest = rows.at(-1);
-  const first = rows[0];
-  const change = latest && first ? ((latest.value - first.value) / first.value) * 100 : null;
-
-  const data = useMemo(
-    () => rows.map((r) => ({ date: r.period_date, value: r.value })),
-    [rows],
-  );
+    api<IndexPoint[]>("/v1/index?frequency=daily&series=apix_laspeyres")
+      .then((rows) => {
+        if (rows.length) setLatestIdx(rows[rows.length - 1].value);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <>
-      <h1>Real-time Airfare Price Index</h1>
-      <p className="sub">
-        Laspeyres APIx on a DGCA-weighted city-pair basket. Base period = 100. Taxes, UDF and
-        convenience are included in the consumer-facing total.
-      </p>
-      {err && <p className="err">{err}</p>}
-      <div className="row">
-        <div className="card">
-          <div className="k">Latest APIx</div>
-          <div className="v">{latest ? latest.value.toFixed(2) : "—"}</div>
+      {/* ---- Hero ---- */}
+      <section className="landing-hero">
+        <div className="hero-badge">
+          <span className="pulse" />
+          Live Index
+          {latestIdx != null && (
+            <span style={{ marginLeft: 4, fontWeight: 700 }}>
+              {latestIdx.toFixed(2)}
+            </span>
+          )}
         </div>
-        <div className="card">
-          <div className="k">Change vs base window</div>
-          <div className={`v ${change != null && change > 0 ? "up" : "down"}`}>
-            {change == null ? "—" : `${change.toFixed(2)}%`}
+
+        <h1>
+          India&rsquo;s <span className="highlight">Airfare Price Index</span>
+          <br />
+          in Real Time
+        </h1>
+
+        <p className="hero-sub">
+          High-frequency fare collection across domestic carriers, powering a
+          Laspeyres-weighted price index for NSO, MoSPI and RBI. Compare fares,
+          track trends, and explore sector-level analytics.
+        </p>
+
+        <div className="hero-actions">
+          <Link href="/dashboard" className="btn-primary btn" id="hero-cta-dashboard">
+            📊 View Dashboard
+          </Link>
+          <Link href="/search" className="btn" id="hero-cta-search">
+            ✈️ Search Flights
+          </Link>
+        </div>
+      </section>
+
+      {/* ---- Features ---- */}
+      <section className="landing-features">
+        <h2>Built for Statistical Precision</h2>
+        <div className="features-grid">
+          <div className="feature-card fade-in">
+            <div
+              className="icon"
+              style={{ background: "var(--accent-gold-dim)", color: "var(--accent-gold)" }}
+            >
+              📈
+            </div>
+            <h3>Real-time Price Index</h3>
+            <p>
+              Daily, weekly and monthly Laspeyres index on a DGCA-weighted
+              city-pair basket. Base period normalised to 100.
+            </p>
+          </div>
+
+          <div className="feature-card fade-in fade-in-delay-1">
+            <div
+              className="icon"
+              style={{ background: "var(--accent-blue-dim)", color: "var(--accent-blue)" }}
+            >
+              🔍
+            </div>
+            <h3>Route Search & Compare</h3>
+            <p>
+              Search any city pair and instantly compare fares across IndiGo, Air
+              India, SpiceJet and Akasa with full tax breakdowns.
+            </p>
+          </div>
+
+          <div className="feature-card fade-in fade-in-delay-2">
+            <div
+              className="icon"
+              style={{ background: "var(--accent-green-dim)", color: "var(--accent-green)" }}
+            >
+              📉
+            </div>
+            <h3>Price Trend Analysis</h3>
+            <p>
+              Track fare movements over 30 days, 3 months and 6 months with
+              min/max/average corridors and carrier-level breakdowns.
+            </p>
+          </div>
+
+          <div className="feature-card fade-in fade-in-delay-3">
+            <div
+              className="icon"
+              style={{ background: "var(--accent-red-dim)", color: "var(--accent-red)" }}
+            >
+              🗺️
+            </div>
+            <h3>Sector Heatmap</h3>
+            <p>
+              Visual heatmap of route-level index values across all basket
+              sectors. Instantly spot expensive corridors.
+            </p>
           </div>
         </div>
-        <div className="card">
-          <div className="k">Observations</div>
-          <div className="v">{rows.length}</div>
-        </div>
-      </div>
-      <div className="row">
-        <select value={freq} onChange={(e) => setFreq(e.target.value)}>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
-        <select value={series} onChange={(e) => setSeries(e.target.value)}>
-          <option value="apix_laspeyres">Laspeyres (PSD weights)</option>
-          <option value="apix_jevons">Unweighted Jevons</option>
-          <option value="apix_t21">T+21 only (CPI 2024 comparable)</option>
-        </select>
-      </div>
-      <div className="panel" style={{ height: 380 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid stroke="#243049" />
-            <XAxis dataKey="date" stroke="#93a0bd" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#93a0bd" domain={["auto", "auto"]} />
-            <Tooltip />
-            <Line type="monotone" dataKey="value" stroke="#e8a54b" dot={false} strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      </section>
+
+      {/* ---- Footer ---- */}
+      <footer className="landing-footer">
+        <p>
+          OpusAirs APIx · SIH 2026 (SIH26056) · Ministry of Statistics &amp;
+          Programme Implementation / DIID
+        </p>
+      </footer>
     </>
   );
 }

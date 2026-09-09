@@ -1,0 +1,12 @@
+/Users/fusion/Code/GitRepos/OpusAirs/.clinerules/caveman.md
+/Users/fusion/Code/GitRepos/OpusAirs/.github/copilot-instructions.md
+/Users/fusion/Code/GitRepos/OpusAirs/.opencode/AGENTS.md
+/Users/fusion/Code/GitRepos/OpusAirs/.windsurf/rules/caveman.md
+/Users/fusion/Code/GitRepos/OpusAirs/AGENTS.md
+/Users/fusion/Code/GitRepos/OpusAirs/Deploy.md
+/Users/fusion/Code/GitRepos/OpusAirs/README.md
+/Users/fusion/Code/GitRepos/OpusAirs/docker-compose.yml
+/Users/fusion/Code/GitRepos/OpusAirs/docs/COLLECTION.md
+/Users/fusion/Code/GitRepos/OpusAirs/docs/Deploy.md
+/Users/fusion/Code/GitRepos/OpusAirs/docs/METHODOLOGY.md
+/Users/fusion/Code/GitRepos/OpusAirs/docs/SCHEMA.md
