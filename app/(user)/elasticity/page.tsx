@@ -122,7 +122,7 @@ export default function ElasticityPage() {
             <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: 0 }}>
               Lead-Time Fare Curve
             </h2>
-            <span style={{ fontSize: "12px", color: "#7c817b" }}>T+1 (Right) to T+45 (Left)</span>
+            <span style={{ fontSize: "12px", color: "#7c817b" }}>T+1 (Left) to T+45 (Right)</span>
           </div>
 
           <div style={{ height: "340px" }}>
