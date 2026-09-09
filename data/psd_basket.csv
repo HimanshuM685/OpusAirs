@@ -1,0 +1,13 @@
+origin,destination,raw_passengers,note
+DEL,BOM,6466940,DGCA-style 2023-24 city-pair passengers; replace with official PSD weights
+DEL,BLR,4779347,DGCA-style 2023-24 city-pair passengers
+BOM,BLR,4433746,DGCA-style 2023-24 city-pair passengers
+DEL,HYD,2916911,DGCA-style 2023-24 city-pair passengers
+DEL,CCU,2821077,DGCA-style 2023-24 city-pair passengers
+DEL,PNQ,2805587,DGCA-style 2023-24 city-pair passengers
+BOM,MAA,2486921,DGCA-style 2023-24 city-pair passengers
+DEL,AMD,2402170,DGCA-style 2023-24 city-pair passengers
+MAA,DEL,2317258,Delhi-Chennai reverse direction listed in SIH examples
+BOM,HYD,2248905,DGCA-style 2023-24 city-pair passengers
+BLR,HYD,2140533,DGCA-style 2023-24 city-pair passengers
+DEL,GOI,1800000,Leisure mix; estimated recent volume pending official PSD

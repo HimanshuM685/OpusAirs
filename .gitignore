@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+backend/opusairs.db
+backend/*.db
+data/*.db
+.venv/
+node_modules/
+frontend/.next/
+frontend/out/
+.DS_Store
+.env
+*.egg-info/
+.pytest_cache/
