@@ -20,17 +20,51 @@ export default function LandingPage() {
 
   return (
     <div style={{ width: "100%", minHeight: "100vh", background: "#ffffff", color: "#0c1212" }}>
+      <style>{`
+        .opus-header {
+          position: absolute;
+          inset: clamp(20px, 3.5vw, 40px) clamp(24px, 4vw, 48px) auto;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          z-index: 10;
+        }
+        .opus-eyebrow {
+          position: absolute;
+          inset: auto 24px calc(100% - var(--gp-word-top, 38%) + 18px);
+          margin: 0;
+          text-align: center;
+        }
+        .opus-support {
+          position: absolute;
+          inset: calc(var(--gp-word-bottom, 54%) + 24px) 24px auto;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          margin: 0;
+          text-align: center;
+        }
+        @media (max-width: 640px) {
+          .opus-eyebrow {
+            bottom: calc(100% - var(--gp-word-top, 38%) + 10px);
+          }
+          .opus-support {
+            top: calc(var(--gp-word-bottom, 54%) + 14px);
+          }
+        }
+      `}</style>
       <GlyphPortal
         word="OPUSAIRS"
         fontFamily={family}
         fontWeight={900}
-        scrollLength={2.5}
+        scrollLength={2.4}
         interactive={true}
         annotations={false}
         enterLabel="Explore Index"
         style={{
           "--gp-paper": "#ffffff",
-          "--gp-ink": "#0c1212",
+          "--gp-ink": "#0b3b2a",
           "--gp-field": "#0b3b2a",
           "--gp-foreground": "#fbfbfa",
         }}
@@ -45,21 +79,9 @@ export default function LandingPage() {
           />
         }
         front={
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "clamp(24px, 4vw, 48px) 24px",
-              textAlign: "center",
-              pointerEvents: "none",
-            }}
-          >
-            {/* Top Bar / Header */}
-            <div style={{ width: "100%", maxWidth: "1200px", display: "flex", justifyContent: "space-between", alignItems: "center", pointerEvents: "auto" }}>
+          <>
+            {/* Header */}
+            <div className="opus-header">
               <span style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.03em", color: "#0c1212" }}>
                 Opus<span style={{ color: "#0b3b2a" }}>Airs</span>
               </span>
@@ -90,22 +112,26 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Minimal Opening Center Headline */}
-            <div style={{ pointerEvents: "auto", margin: "auto 0" }}>
+            {/* Headline ABOVE Giant Word */}
+            <div className="opus-eyebrow">
               <h1
                 style={{
-                  fontSize: "clamp(2.4rem, 6vw, 4.8rem)",
+                  fontSize: "clamp(1.5rem, 3.5vw, 2.8rem)",
                   fontWeight: 800,
-                  lineHeight: 1.05,
-                  letterSpacing: "-0.035em",
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.03em",
                   color: "#0c1212",
-                  margin: "0 0 16px",
+                  margin: 0,
                 }}
               >
-                Airfare Price Index
+                Airfare Price Index in Real Time
               </h1>
-              <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "#525854", margin: "0 0 28px", fontWeight: 500 }}>
-                Real-time aviation inflation tracking for MoSPI &amp; RBI
+            </div>
+
+            {/* Subtitle & Actions BELOW Giant Word */}
+            <div className="opus-support">
+              <p style={{ fontSize: "clamp(13px, 1.5vw, 16px)", color: "#525854", margin: 0, fontWeight: 500 }}>
+                High-frequency aviation price index for MoSPI, NSO &amp; RBI
               </p>
 
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
@@ -115,17 +141,17 @@ export default function LandingPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
-                    padding: "12px 24px",
+                    padding: "10px 20px",
                     borderRadius: "10px",
                     background: "#0b3b2a",
                     color: "#ffffff",
-                    fontSize: "14px",
+                    fontSize: "13px",
                     fontWeight: 600,
                     textDecoration: "none",
                     boxShadow: "0 2px 8px rgba(11,59,42,0.2)",
                   }}
                 >
-                  📊 Dashboard
+                  📊 View Dashboard
                 </Link>
                 <Link
                   href="/search"
@@ -133,26 +159,21 @@ export default function LandingPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
-                    padding: "12px 24px",
+                    padding: "10px 20px",
                     borderRadius: "10px",
                     background: "#ffffff",
                     border: "1px solid #d8deda",
                     color: "#0c1212",
-                    fontSize: "14px",
+                    fontSize: "13px",
                     fontWeight: 600,
                     textDecoration: "none",
                   }}
                 >
-                  ✈️ Flight Search
+                  ✈️ Search Flights
                 </Link>
               </div>
             </div>
-
-            {/* Bottom Scroll Indicator */}
-            <div style={{ fontSize: "12px", color: "#7c817b", letterSpacing: "0.02em" }}>
-              Scroll to step inside portal ↓
-            </div>
-          </div>
+          </>
         }
       >
         {/* Revealed Portal Content */}
