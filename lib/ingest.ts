@@ -11,6 +11,8 @@ export type QuoteIn = {
   carrier: string;
   flight_no?: string;
   dep_date: string;
+  return_date?: string | null;
+  trip_type?: string;
   fare_class?: string;
   lead_time_days?: number | null;
   collected_on?: string | null;
@@ -22,6 +24,24 @@ export type QuoteIn = {
   status?: string;
 };
 
+export type TripType = "one_way" | "round_trip";
+
+export function normalizeTripType(raw?: string | null): TripType {
+  const t = (raw || "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (t === "round_trip" || t === "roundtrip" || t === "return" || t === "rt") return "round_trip";
+  return "one_way";
+}
+
+export function uniqueFlightNo(flightNo: string | undefined, trip: TripType): string {
+  const fn = ((flightNo || "NA").trim() || "NA").replace(/^RT\//, "");
+  if (trip === "round_trip") return `RT/${fn}`.slice(0, 16);
+  return fn.slice(0, 16);
+}
+
+export function displayFlightNo(flightNo: unknown): string {
+  return String(flightNo ?? "").replace(/^RT\//, "") || "NA";
+}
+
 export type CollectionEvent = QuoteIn & {
   source: string;
   flight_no: string;
@@ -30,6 +50,7 @@ export type CollectionEvent = QuoteIn & {
   collected_on: string;
   collected_at: string;
   status: string;
+  trip_type: TripType;
 };
 
 function toEvent(q: QuoteIn): CollectionEvent {
@@ -40,18 +61,21 @@ function toEvent(q: QuoteIn): CollectionEvent {
     const col = new Date(`${collected_on}T00:00:00Z`);
     lead = Math.round((dep.getTime() - col.getTime()) / 86400000);
   }
+  const trip_type = normalizeTripType(q.trip_type);
   return {
     ...q,
     source: (q.source || "manual").trim() || "manual",
     origin: q.origin.trim().toUpperCase(),
     destination: q.destination.trim().toUpperCase(),
     carrier: q.carrier.trim().toUpperCase(),
-    flight_no: (q.flight_no || "NA").trim() || "NA",
-    fare_class: (q.fare_class || FARE_CLASS).trim() || FARE_CLASS,
+    flight_no: uniqueFlightNo(q.flight_no, trip_type),
+    fare_class: (q.fare_class || FARE_CLASS).replace(/_RT$/i, "").trim() || FARE_CLASS,
     lead_time_days: Number(lead),
     collected_on,
     collected_at: new Date().toISOString(),
     status: (q.status || "ok").trim() || "ok",
+    trip_type,
+    return_date: q.return_date ? isoDate(q.return_date) : null,
   };
 }
 
@@ -83,12 +107,14 @@ export async function upsertEvents(
       await q`
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
-          lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency
+          lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency,
+          trip_type, return_date
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
           ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
-          ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR'
+          ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR',
+          ${ev.trip_type}, ${ev.return_date ?? null}
         )
       `;
       counts.inserted += 1;
@@ -102,7 +128,9 @@ export async function upsertEvents(
           convenience = ${ev.convenience ?? null},
           total_fare = ${ev.total_fare ?? null},
           collected_at = ${ev.collected_at},
-          run_id = ${runId}
+          run_id = ${runId},
+          trip_type = ${ev.trip_type},
+          return_date = ${ev.return_date ?? null}
         WHERE id = ${existing[0].id}
       `;
       counts.updated += 1;
@@ -180,6 +208,7 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
     const dep = cell(row, "dep_date", "departure", "travel_date");
     if (!dep) continue;
     const leadRaw = cell(row, "lead_time_days", "lead_time", "tplus");
+    const trip = normalizeTripType(cell(row, "trip_type", "trip", "journey"));
     const q: QuoteIn = {
       source: cell(row, "source") || "manual",
       origin,
@@ -187,6 +216,8 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
       carrier: (cell(row, "carrier", "airline") || "NA").toUpperCase(),
       flight_no: cell(row, "flight_no", "flight") || "NA",
       dep_date: dep,
+      return_date: cell(row, "return_date", "return") || null,
+      trip_type: trip,
       fare_class: cell(row, "fare_class", "cabin") || FARE_CLASS,
       collected_on: cell(row, "collected_on", "collected", "quote_date") || new Date().toISOString().slice(0, 10),
       base_fare: optFloat(cell(row, "base_fare", "base")),

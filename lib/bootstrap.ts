@@ -107,6 +107,8 @@ const DDL = [
     currency VARCHAR(8) NOT NULL DEFAULT 'INR',
     UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
   )`,
+  `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way'`,
+  `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS return_date DATE`,
   `CREATE TABLE IF NOT EXISTS quotes_clean (
     id SERIAL PRIMARY KEY,
     raw_id INTEGER REFERENCES quotes_raw(id),
@@ -129,6 +131,8 @@ const DDL = [
     is_imputed INTEGER NOT NULL DEFAULT 0,
     UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
   )`,
+  `ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way'`,
+  `ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS return_date DATE`,
   `CREATE TABLE IF NOT EXISTS index_values (
     id SERIAL PRIMARY KEY,
     series VARCHAR(64) NOT NULL,

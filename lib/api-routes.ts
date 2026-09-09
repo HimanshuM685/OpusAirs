@@ -18,7 +18,9 @@ import { bootstrap } from "./bootstrap";
 import { cleanQuotes } from "./cleaning";
 import { runPipeline } from "./collect";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
-import { ingestQuotes, parseCsvQuotes, type QuoteIn } from "./ingest";
+import { ingestQuotes, parseCsvQuotes, displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
+import { neededQuotes } from "./needed";
+import { parseDump } from "./parse-dump";
 import { DEFAULT_CSV_TEMPLATE } from "./seeds";
 
 function json(data: unknown, status = 200) {
@@ -93,7 +95,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const limit = Math.min(Number(sp.get("limit") || 200), 2000);
     const rows = await q`
       SELECT source, origin, destination, carrier, flight_no, dep_date, fare_class, lead_time_days,
-             collected_on, base_fare, taxes, udf, convenience, total_fare, is_outlier, is_imputed
+             collected_on, base_fare, taxes, udf, convenience, total_fare, is_outlier, is_imputed,
+             trip_type, return_date
       FROM quotes_clean
       WHERE (${origin}::text IS NULL OR origin = ${origin})
         AND (${dest}::text IS NULL OR destination = ${dest})
@@ -232,6 +235,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "GET" && path === "search") {
     const origin = iata(sp.get("origin"));
     const dest = iata(sp.get("dest"));
+    const trip = normalizeTripType(sp.get("trip_type") || sp.get("trip"));
     const limit = Math.min(Number(sp.get("limit") || 50), 200);
     if (!validIata(origin) || !validIata(dest)) {
       return json({ detail: "origin and dest must be 3-letter IATA codes" }, 400);
@@ -240,22 +244,26 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     async function searchRows() {
       const rows = (await q`
         SELECT carrier, flight_no, dep_date, fare_class, lead_time_days, base_fare, taxes, udf,
-               convenience, total_fare, collected_on
+               convenience, total_fare, collected_on, trip_type, return_date
         FROM quotes_clean
         WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0
+          AND COALESCE(trip_type, 'one_way') = ${trip}
         ORDER BY total_fare ASC
         LIMIT ${limit}
       `) as Record<string, unknown>[];
       return rows.map((r) => ({
         ...r,
+        flight_no: displayFlightNo(r.flight_no),
         dep_date: isoDate(r.dep_date),
         collected_on: isoDate(r.collected_on),
+        return_date: r.return_date ? isoDate(r.return_date) : null,
+        trip_type: r.trip_type || trip,
       })) as (Record<string, unknown> & { total_fare?: number })[];
     }
 
     let carriers = await searchRows();
     let fetched = false;
-    if (!carriers.length) {
+    if (!carriers.length && trip === "one_way") {
       const user = await getUser(req);
       if (user) {
         const like = `%origin=${origin} dest=${dest}%`;
@@ -286,6 +294,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       carriers,
       quote_count: carriers.length,
       fetched,
+      trip_type: trip,
     });
   }
 
@@ -339,7 +348,39 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     return json(await runPipeline({ scrape, routes, budget: routes ? 15 : 80 }));
   }
 
-  if (req.method === "POST" && path === "ingest/quotes") {
+  if (req.method === "POST" && path === "ingest/dump") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const body = (await req.json()) as { text?: string; quotes?: QuoteIn[]; rebuild_index?: boolean };
+    let quotes = body.quotes;
+    if (!quotes?.length) {
+      try {
+        quotes = await parseDump(body.text || "");
+      } catch (err) {
+        return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
+    if (!quotes.length) return json({ detail: "No quotes parsed. Paste JSON, CSV, or prose with fares." }, 400);
+    return json(await ingestQuotes(q, quotes, body.rebuild_index !== false));
+  }
+
+  if (req.method === "GET" && path === "ingest/needed") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const needed = await neededQuotes(q);
+    return json({
+      needed,
+      count: needed.length,
+      fields: [
+        "origin",
+        "destination",
+        "dep_date",
+        "total_fare",
+        "trip_type (one_way|round_trip)",
+        "optional: carrier, flight_no, return_date, lead_time_days, collected_on, base_fare, taxes, udf, convenience",
+      ],
+    });
+  }
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
     const body = (await req.json()) as { quotes?: QuoteIn[]; rebuild_index?: boolean };
@@ -447,7 +488,10 @@ function mapIndex(r: Record<string, unknown>) {
 function mapQuote(r: Record<string, unknown>) {
   return {
     ...r,
+    flight_no: displayFlightNo(r.flight_no),
     dep_date: isoDate(r.dep_date),
     collected_on: isoDate(r.collected_on),
+    return_date: r.return_date ? isoDate(r.return_date) : null,
+    trip_type: r.trip_type || "one_way",
   };
 }

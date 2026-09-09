@@ -150,6 +150,7 @@ export async function scrapePortals(opts?: {
             collected_at: new Date().toISOString(),
             status: "ok",
             total_fare: Math.min(...fares),
+            trip_type: "one_way",
           });
         } catch (err) {
           events.push(blocked(source, route.origin, route.destination, day, lt, String(err).slice(0, 200)));
@@ -188,6 +189,7 @@ function blocked(
     collected_on: collected,
     collected_at: new Date().toISOString(),
     status,
+    trip_type: "one_way",
     notes,
   } as CollectionEvent;
 }
