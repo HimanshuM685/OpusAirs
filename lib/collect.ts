@@ -49,8 +49,12 @@ function faresFromHtml(html: string): number[] {
 
 import { DEFAULT_SCRAPE_SOURCES } from "./seeds";
 
-export async function scrapePortals(collectedOn?: string): Promise<CollectionEvent[]> {
-  const day = collectedOn || new Date().toISOString().slice(0, 10);
+export async function scrapePortals(opts?: {
+  collectedOn?: string;
+  routes?: { origin: string; destination: string }[];
+  budget?: number;
+}): Promise<CollectionEvent[]> {
+  const day = opts?.collectedOn || new Date().toISOString().slice(0, 10);
   const q = sql();
   let sources: Source[] = [];
   try {
@@ -74,22 +78,27 @@ export async function scrapePortals(collectedOn?: string): Promise<CollectionEve
     }
   }
 
-  let routes: { origin: string; destination: string }[] = [];
-  try {
-    const dbRoutes = (await q`SELECT origin, destination FROM basket_routes`) as {
-      origin: string;
-      destination: string;
-    }[];
-    if (dbRoutes.length) routes = dbRoutes;
-  } catch {
-    /* fallback */
+  let routes = opts?.routes?.map((r) => ({
+    origin: r.origin.toUpperCase(),
+    destination: r.destination.toUpperCase(),
+  })) ?? [];
+  if (!routes.length) {
+    try {
+      const dbRoutes = (await q`SELECT origin, destination FROM basket_routes`) as {
+        origin: string;
+        destination: string;
+      }[];
+      if (dbRoutes.length) routes = dbRoutes;
+    } catch {
+      /* fallback */
+    }
   }
   if (!routes.length) {
     routes = loadPsdBasket();
   }
 
   const leads = [1, 7, 21];
-  const budget = 18;
+  const budget = opts?.budget ?? (opts?.routes?.length === 1 ? 15 : 80);
   const events: CollectionEvent[] = [];
   let searches = 0;
   const ua = process.env.USER_AGENT || "OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)";
@@ -183,11 +192,23 @@ function blocked(
   } as CollectionEvent;
 }
 
-export async function runPipeline(useScrape: boolean) {
+export async function runPipeline(opts?: {
+  scrape?: boolean;
+  routes?: { origin: string; destination: string }[];
+  budget?: number;
+}) {
+  const useScrape = opts?.scrape !== false;
   const q = sql();
   const summary: Record<string, number> = {};
+  const pairNote =
+    opts?.routes?.length === 1
+      ? `origin=${opts.routes[0].origin.toUpperCase()} dest=${opts.routes[0].destination.toUpperCase()}`
+      : "origin=* dest=*";
   if (useScrape) {
-    const events = await scrapePortals();
+    const events = await scrapePortals({
+      routes: opts?.routes,
+      budget: opts?.budget,
+    });
     const bySrc = new Map<string, CollectionEvent[]>();
     for (const ev of events) {
       const list = bySrc.get(ev.source) ?? [];
@@ -198,14 +219,14 @@ export async function runPipeline(useScrape: boolean) {
       const started = new Date().toISOString();
       const run = await q`
         INSERT INTO collection_runs (started_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes)
-        VALUES (${started}, ${src}, 'running', 0, 0, 0, 0, '') RETURNING id
+        VALUES (${started}, ${src}, 'running', 0, 0, 0, 0, ${pairNote}) RETURNING id
       `;
       const counts = await upsertEvents(q, evs, Number(run[0].id));
       await q`
         UPDATE collection_runs SET finished_at = ${new Date().toISOString()}, status = 'ok',
           quotes_ok = ${counts.ok ?? 0}, quotes_missing = ${counts.missing ?? 0},
           quotes_sold_out = ${counts.sold_out ?? 0}, quotes_blocked = ${counts.blocked ?? 0},
-          notes = ${`inserted=${counts.inserted} updated=${counts.updated}`}
+          notes = ${`${pairNote} inserted=${counts.inserted} updated=${counts.updated}`}
         WHERE id = ${run[0].id}
       `;
     }

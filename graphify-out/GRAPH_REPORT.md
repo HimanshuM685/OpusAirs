@@ -1,12 +1,18 @@
-# Graph Report - .  (2026-09-10)
+# Graph Report - OpusAirs  (2026-09-10)
 
 ## Corpus Check
-- Corpus is ~10,364 words - fits in a single context window. You may not need a graph.
+- 47 files · ~18,072 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 281 nodes · 606 edges · 22 communities (18 shown, 4 thin omitted)
-- Extraction: 66% EXTRACTED · 34% INFERRED · 0% AMBIGUOUS · INFERRED: 206 edges (avg confidence: 0.55)
-- Token cost: 46,494 input · 1,800 output
+- 289 nodes · 452 edges · 23 communities (19 shown, 4 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.87)
+- Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `b04bbfca`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_API Endpoints|API Endpoints]]
@@ -22,105 +28,100 @@
 - [[_COMMUNITY_Mock Airline Server|Mock Airline Server]]
 - [[_COMMUNITY_Root Layout|Root Layout]]
 - [[_COMMUNITY_Backend Package Init|Backend Package Init]]
-- [[_COMMUNITY_Next Config|Next Config]]
-- [[_COMMUNITY_Project Root|Project Root]]
+- [[_COMMUNITY_Package Init|Package Init]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Session` - 20 edges
-2. `get_settings()` - 20 edges
-3. `QuoteClean` - 17 edges
-4. `CollectionEvent` - 16 edges
-5. `compilerOptions` - 16 edges
-6. `BasketRoute` - 15 edges
-7. `CollectionRun` - 15 edges
-8. `IndexValue` - 15 edges
-9. `IndexPoint` - 13 edges
-10. `run_pipeline()` - 13 edges
+1. `handleV1()` - 26 edges
+2. `sql()` - 16 edges
+3. `compilerOptions` - 16 edges
+4. `isoDate()` - 13 edges
+5. `api()` - 11 edges
+6. `constructIndex()` - 10 edges
+7. `bootstrap()` - 10 edges
+8. `cleanQuotes()` - 10 edges
+9. `scrapePortals()` - 9 edges
+10. `runPipeline()` - 8 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Laspeyres APIx aggregation` --semantically_similar_to--> `OpusAirs Airfare Price Index (APIx)`  [INFERRED] [semantically similar]
   docs/METHODOLOGY.md → README.md
-- `Path` --uses--> `BasketRoute`  [INFERRED]
-  backend/app/basket.py → backend/app/models.py
-- `Session` --uses--> `BasketRoute`  [INFERRED]
-  backend/app/basket.py → backend/app/models.py
-- `BasketRoute` --uses--> `BasketRoute`  [INFERRED]
-  backend/app/basket.py → backend/app/models.py
-- `Session` --uses--> `IndexValue`  [INFERRED]
-  backend/app/index/construct.py → backend/app/models.py
+- `register()` --calls--> `bootstrap()`  [INFERRED]
+  instrumentation.ts → lib/bootstrap.ts
+- `run()` --calls--> `handleV1()`  [EXTRACTED]
+  app/v1/[...path]/route.ts → lib/api-routes.ts
+- `OpusAirs Airfare Price Index (APIx)` --references--> `Ethical collection policy (no CAPTCHA bypass)`  [EXTRACTED]
+  README.md → docs/COLLECTION.md
+- `NSO/RBI /v1 REST API` --references--> `FastAPI backend`  [EXTRACTED]
+  docs/API.md → README.md
 
 ## Import Cycles
-- 1-file cycle: `backend/app/main.py -> backend/app/main.py`
+- None detected.
 
 ## Hyperedges (group relationships)
 - **APIx methodology pipeline** — methodology_outlier_cleaning, methodology_jevons_elementary_price, methodology_laspeyres_apix, methodology_psd_basket [EXTRACTED 1.00]
 - **Collector safeguards** — collection_robotsgate, collection_hostlimiter, collection_ethical_collection_policy [EXTRACTED 1.00]
 
-## Communities (22 total, 4 thin omitted)
+## Communities (23 total, 4 thin omitted)
 
 ### Community 0 - "API Endpoints"
-Cohesion: 0.20
-Nodes (38): backtest_dgca(), collection_health(), get_elasticity(), get_heatmap(), get_index(), get_quotes(), get_route_index(), list_routes() (+30 more)
+Cohesion: 0.09
+Nodes (47): register(), handleV1(), iata(), json(), loginResponse(), mapIndex(), mapQuote(), qnum() (+39 more)
 
 ### Community 1 - "App Bootstrap & Config"
-Cohesion: 0.10
-Nodes (25): bootstrap(), main(), _raw_key(), _default_data_dir(), _connect_args(), get_engine(), get_session(), get_session_factory() (+17 more)
+Cohesion: 0.05
+Nodes (31): 1. Environment Configuration, 2. Local Node.js Deployment, 3. Docker Deployment, 4. Vercel + Neon Cloud Deployment, Manual Docker Build:, OpusAirs — Deployment Guide, Using Docker Compose:, OpusAirs /v1 REST API Reference (+23 more)
 
 ### Community 2 - "Basket & Pipeline"
-Cohesion: 0.09
-Nodes (27): load_psd_basket(), RouteSpec, sync_basket(), Path, Session, date, Session, date (+19 more)
+Cohesion: 0.12
+Nodes (25): constructIndex(), jevons(), LEAD_TIMES, cleanQuotes(), lowestEconomyCells(), madFlags(), median(), parseAmount() (+17 more)
 
 ### Community 3 - "Collector Settings & Auth"
-Cohesion: 0.11
-Nodes (17): require_api_key(), get_settings(), Settings, CollectionEvent, date, date, BaseSettings, backoff_sleep() (+9 more)
+Cohesion: 0.08
+Nodes (26): 1. Airfare Price Index, 2. Flight Search & Price Comparison, 3. Analytics & Basket, 4. Admin, Scraping & Ingestion, 5. Auth, Detailed Endpoint Documentation, `GET /v1/auth/me`, `GET /v1/backtest/dgca` (+18 more)
 
 ### Community 4 - "Collection Persistence"
-Cohesion: 0.18
-Nodes (21): persist_events(), run_pipeline(), DgcaBenchmark, QuoteRaw, CollectionEvent, date, Session, CollectionEvent (+13 more)
-
-### Community 5 - "Dashboard Pages"
-Cohesion: 0.13
-Nodes (11): color(), HeatmapPage(), api(), BacktestRow, BacktestSummary, CollectionHealth, ElasticityPoint, HeatmapCell (+3 more)
-
-### Community 6 - "TypeScript Config"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+11 more)
 
-### Community 7 - "Frontend Dependencies"
+### Community 5 - "Dashboard Pages"
+Cohesion: 0.09
+Nodes (16): WINDOWS, color(), HeatmapPage(), api(), BacktestRow, BacktestSummary, CarrierFare, CollectionHealth (+8 more)
+
+### Community 6 - "TypeScript Config"
 Cohesion: 0.11
-Nodes (17): dependencies, next, react, react-dom, recharts, devDependencies, @types/node, @types/react (+9 more)
+Nodes (18): dependencies, @neondatabase/serverless, next, react, react-dom, recharts, devDependencies, @types/node (+10 more)
+
+### Community 7 - "Frontend Dependencies"
+Cohesion: 0.17
+Nodes (11): 1. Relational Tables, 2. Ingest Formats, 3. Data Flow to Consumer Features, `basket_routes`, `collection_runs`, CSV Format (`POST /v1/ingest/csv` and Admin File Upload), Data Warehouse Schema & Ingest Formats, `index_values` (+3 more)
 
 ### Community 8 - "Docs & Methodology"
 Cohesion: 0.15
 Nodes (17): NSO/RBI /v1 REST API, X-API-Key auth, Amadeus GDS adapter (env-gated), Ethical collection policy (no CAPTCHA bypass), HostLimiter rate limiting, RobotsGate (robots.txt enforcement), Docker compose stack (mock-airline, api, web), DGCA TMU backtest (+9 more)
 
 ### Community 9 - "Seed Data Generation"
-Cohesion: 0.29
-Nodes (8): _components(), generate_dgca_rows(), generate_quotes(), TMU-style monthly averages: mean of observed totals (not lowest-fare Jevons)., write_seed_files(), date, Path, test_seed_has_thirty_five_days()
-
-### Community 10 - "Mock Airline Server"
-Cohesion: 0.29
-Nodes (4): api_flights(), _flights(), date, Local JS-rendered airline search UI for ethical Playwright demos. Not a real car
+Cohesion: 0.22
+Nodes (9): 1. Quote Specification, 2. Market Basket & City-Pair Weights, 3. Elementary Price Index (Jevons Formulation), 4. Aggregate Laspeyres APIx, 5. Aggregation Frequencies, 6. Outlier Detection & Cleaning, 7. DGCA Benchmark Backtesting, Additional Published Series (+1 more)
 
 ## Knowledge Gaps
-- **52 isolated node(s):** `date`, `Path`, `Engine`, `Session`, `date` (+47 more)
+- **113 isolated node(s):** `navLinks`, `WINDOWS`, `navLinks`, `Me`, `TREND_WINDOWS` (+108 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `get_settings()` connect `Collector Settings & Auth` to `App Bootstrap & Config`, `Basket & Pipeline`, `Collection Persistence`, `Seed Data Generation`?**
-  _High betweenness centrality (0.071) - this node is a cross-community bridge._
-- **Why does `FastAPI` connect `App Bootstrap & Config` to `API Endpoints`, `Mock Airline Server`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Why does `CollectionEvent` connect `Collection Persistence` to `Collector Settings & Auth`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Are the 11 inferred relationships involving `Session` (e.g. with `BasketRoute` and `CollectionRun`) actually correct?**
-  _`Session` has 11 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 2 inferred relationships involving `get_settings()` (e.g. with `require_api_key()` and `test_playwright_scrapes_mock_airline()`) actually correct?**
-  _`get_settings()` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 15 inferred relationships involving `QuoteClean` (e.g. with `Base` and `BacktestSummary`) actually correct?**
-  _`QuoteClean` has 15 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 14 inferred relationships involving `CollectionEvent` (e.g. with `CollectionEvent` and `date`) actually correct?**
-  _`CollectionEvent` has 14 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Detailed Endpoint Documentation` connect `Collector Settings & Auth` to `App Bootstrap & Config`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `OpusAirs /v1 REST API Reference` connect `App Bootstrap & Config` to `Collector Settings & Auth`?**
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
+- **What connects `navLinks`, `WINDOWS`, `navLinks` to the rest of the system?**
+  _113 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `API Endpoints` be split into smaller, more focused modules?**
+  _Cohesion score 0.09158249158249158 - nodes in this community are weakly interconnected._
+- **Should `App Bootstrap & Config` be split into smaller, more focused modules?**
+  _Cohesion score 0.05405405405405406 - nodes in this community are weakly interconnected._
+- **Should `Basket & Pipeline` be split into smaller, more focused modules?**
+  _Cohesion score 0.11931818181818182 - nodes in this community are weakly interconnected._
+- **Should `Collector Settings & Auth` be split into smaller, more focused modules?**
+  _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._

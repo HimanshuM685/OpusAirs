@@ -123,6 +123,7 @@ export type SearchResult = {
   cheapest?: number | null;
   carriers: CarrierFare[];
   quote_count: number;
+  fetched?: boolean;
 };
 
 export type TrendPoint = {

@@ -14,7 +14,7 @@ const navLinks = [
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [username, setUsername] = useState("admin");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -38,14 +38,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const res = await fetch("/v1/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = (await res.json()) as { detail?: string; success?: boolean };
       if (res.ok && data.success) {
         setIsAuthenticated(true);
         setPassword("");
       } else {
-        setError(data.detail || "Invalid username or password");
+        setError(data.detail || "Invalid email or password");
       }
     } catch {
       setError("Network or server error during sign in");
@@ -132,7 +132,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               color: "var(--text-muted)",
               lineHeight: 1.5,
             }}>
-              Restricted operator suite. Enter credentials configured in environment.
+              Restricted operator suite. Sign in with an admin user email.
             </p>
           </div>
 
@@ -165,15 +165,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}>
-                Username
+                Email
               </label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
-                placeholder="admin"
+                placeholder="admin@local"
                 style={{
                   width: "100%",
                   padding: "12px 14px",

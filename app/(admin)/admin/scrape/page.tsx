@@ -7,6 +7,9 @@ export default function ScrapePage() {
   const [rows, setRows] = useState<CollectionHealth[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("CCU");
+  const [dest, setDest] = useState("BOM");
+  const [busy, setBusy] = useState(false);
 
   function load() {
     api<CollectionHealth[]>("/v1/health/collection")
@@ -18,13 +21,19 @@ export default function ScrapePage() {
     load();
   }, []);
 
-  async function runScrape() {
+  async function runScrape(body: { origin?: string; dest?: string } = {}) {
+    setBusy(true);
+    setErr(null);
     setMsg("Running collect against live airline portals…");
     const res = await fetch(`/v1/collect/run?scrape=true`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-    setMsg(res.ok ? JSON.stringify(await res.json()) : `Failed ${res.status}`);
+    const text = await res.text();
+    setMsg(res.ok ? text : `Failed ${res.status} ${text}`);
     load();
+    setBusy(false);
   }
 
   return (
@@ -40,15 +49,53 @@ export default function ScrapePage() {
         .
       </p>
       {err && <p className="err">{err}</p>}
-      <p className="fade-in fade-in-delay-1">
+
+      <div className="panel fade-in fade-in-delay-1">
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>Top basket routes</h2>
+        <p className="sub">PSD city-pairs including CCU–BOM. Budget 80 searches, rate-limited.</p>
         <button
           className="primary"
           onClick={() => void runScrape()}
           type="button"
+          disabled={busy}
         >
-          🕷️ Scrape airline portals
+          Scrape top routes
         </button>
-      </p>
+      </div>
+
+      <div className="panel fade-in fade-in-delay-1">
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>Any route</h2>
+        <p className="sub">3-letter IATA. Scrapes only this pair.</p>
+        <div className="row" style={{ display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap" }}>
+          <div className="field">
+            <label htmlFor="scrape-origin">Origin</label>
+            <input
+              id="scrape-origin"
+              value={origin}
+              maxLength={3}
+              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="scrape-dest">Destination</label>
+            <input
+              id="scrape-dest"
+              value={dest}
+              maxLength={3}
+              onChange={(e) => setDest(e.target.value.toUpperCase())}
+            />
+          </div>
+          <button
+            className="primary"
+            type="button"
+            disabled={busy || origin.length !== 3 || dest.length !== 3}
+            onClick={() => void runScrape({ origin, dest })}
+          >
+            Scrape this route
+          </button>
+        </div>
+      </div>
+
       {msg && <p className="sub">{msg}</p>}
       <div className="panel fade-in fade-in-delay-2">
         <table>

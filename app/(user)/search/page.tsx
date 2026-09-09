@@ -22,24 +22,17 @@ const TREND_WINDOWS = [
 
 export default function SearchPage() {
   const [routes, setRoutes] = useState<RouteOut[]>([]);
-  const [origin, setOrigin] = useState("");
-  const [dest, setDest] = useState("");
+  const [origin, setOrigin] = useState("CCU");
+  const [dest, setDest] = useState("BOM");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [trendWindow, setTrendWindow] = useState("30d");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Load available routes for dropdowns
   useEffect(() => {
     api<RouteOut[]>("/v1/routes")
-      .then((r) => {
-        setRoutes(r);
-        if (r.length >= 1) {
-          setOrigin(r[0].origin);
-          setDest(r[0].destination);
-        }
-      })
+      .then(setRoutes)
       .catch(() => {});
   }, []);
 
@@ -54,17 +47,17 @@ export default function SearchPage() {
   }, [routes]);
 
   async function handleSearch() {
-    if (!origin || !dest) return;
+    const o = origin.trim().toUpperCase();
+    const d = dest.trim().toUpperCase();
+    if (o.length !== 3 || d.length !== 3) return;
     setLoading(true);
     setErr(null);
     try {
-      const [searchRes, trendRes] = await Promise.all([
-        api<SearchResult>(`/v1/search?origin=${origin}&dest=${dest}`),
-        api<TrendPoint[]>(
-          `/v1/trends/${origin}/${dest}?window=${trendWindow}`,
-        ),
-      ]);
+      const searchRes = await api<SearchResult>(`/v1/search?origin=${o}&dest=${d}`);
       setResult(searchRes);
+      const trendRes = await api<TrendPoint[]>(
+        `/v1/trends/${o}/${d}?window=${trendWindow}`,
+      );
       setTrends(trendRes);
     } catch (e) {
       setErr(String(e));
@@ -110,58 +103,62 @@ export default function SearchPage() {
     <>
       <h1 className="fade-in">Flight Search &amp; Price Compare</h1>
       <p className="sub fade-in fade-in-delay-1">
-        Search between any two cities to compare fares across carriers and track
-        price trends over time.
+        Search any 3-letter IATA pair. If no quotes exist and you are signed in,
+        live portals are fetched then. Anonymous search returns warehouse only.
       </p>
       {err && <p className="err">{err}</p>}
+      {loading && <p className="sub">Fetching live fares… this can take a few minutes.</p>}
 
       {/* Search Box */}
       <div className="search-box fade-in fade-in-delay-1">
         <div className="search-fields">
           <div className="field">
             <label>Origin</label>
-            <select
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
+            <input
               id="search-origin"
-            >
-              <option value="">Select</option>
-              {airports.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+              value={origin}
+              maxLength={3}
+              list="airport-codes"
+              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+            />
           </div>
           <div className="field">
             <label>Destination</label>
-            <select
-              value={dest}
-              onChange={(e) => setDest(e.target.value)}
+            <input
               id="search-dest"
-            >
-              <option value="">Select</option>
-              {airports.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+              value={dest}
+              maxLength={3}
+              list="airport-codes"
+              onChange={(e) => setDest(e.target.value.toUpperCase())}
+            />
           </div>
+          <datalist id="airport-codes">
+            {airports.map((a) => (
+              <option key={a} value={a} />
+            ))}
+          </datalist>
           <button
             className="primary"
             type="button"
             onClick={() => void handleSearch()}
-            disabled={loading || !origin || !dest}
+            disabled={loading || origin.trim().length !== 3 || dest.trim().length !== 3}
             id="search-btn"
           >
-            {loading ? "Searching…" : "🔍 Search"}
+            {loading ? "Fetching live fares…" : "Search"}
           </button>
         </div>
       </div>
 
       {result && (
         <>
+          {result.fetched && (
+            <p className="sub">Live fetch just ran for this pair. Warehouse updated.</p>
+          )}
+          {result.quote_count === 0 && !result.fetched && (
+            <p className="sub">
+              No quotes yet. Sign in and search again to fetch live fares, or scrape from admin.
+            </p>
+          )}
           {/* Summary stats */}
           <div className="stat-row fade-in">
             <div className="stat-card">

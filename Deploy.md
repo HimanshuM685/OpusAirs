@@ -17,8 +17,9 @@ DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?ssl
 # ------------------------------------------------------------------------------
 # Admin Authentication (Hidden Operator Suite at /admin)
 # ------------------------------------------------------------------------------
-ADMIN_USER=admin
+ADMIN_EMAIL=admin@local
 ADMIN_PASSWORD=change_this_to_a_secure_password
+SESSION_SECRET=change_this_long_random_string
 
 # ------------------------------------------------------------------------------
 # Data & Index Settings
@@ -85,8 +86,9 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://..." opusairs
 2. **Import project** in [Vercel](https://vercel.com).
 3. **Configure Environment Variables** in Vercel Project Settings:
    - `DATABASE_URL`: Your Neon connection string (ensure `?sslmode=require` is appended).
-   - `ADMIN_USER`: Operator username (e.g. `admin`).
+   - `ADMIN_EMAIL`: Operator email (e.g. `admin@local`).
    - `ADMIN_PASSWORD`: Secure operator password.
+   - `SESSION_SECRET`: Cookie HMAC secret.
    - `APIX_BASE_DATE`: `2026-08-01`.
 4. **Deploy**:
    - Vercel automatically runs Next.js build.

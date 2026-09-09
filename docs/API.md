@@ -76,6 +76,8 @@ Compares fares across carriers operating the selected city pair.
 - `origin` (required): Origin airport code (e.g. `DEL`)
 - `dest` (required): Destination airport code (e.g. `BOM`)
 
+If `quote_count` is 0 and the caller has an `opus_session` cookie, the API scrapes that pair (skipped if scraped in the last 15 minutes) and returns `fetched: true`.
+
 **Example Response:**
 ```json
 {
@@ -186,8 +188,7 @@ Returns status of recent collection and scraper executions per source.
 ```
 
 #### `POST /v1/collect/run`
-Executes collection pipeline.
-- Query parameter: `scrape=true|false` (controls whether live web portals in `data/scrape_sources.json` are fetched).
+Admin cookie required. Body `{ "origin": "CCU", "dest": "BOM" }` scrapes that pair; omit O/D to scrape the full basket. `scrape=true|false` query still works.
 
 #### `POST /v1/ingest/quotes`
 Ingests an array of raw quote objects.
@@ -229,26 +230,22 @@ Compares computed APIx against the DGCA TMU published 72-route benchmark (`data/
 
 ---
 
-### 5. Admin Authentication & Session
+### 5. Auth
+
+#### `POST /v1/auth/register`
+Creates a `users` row (email + scrypt hash). Sets `opus_session` cookie.
+
+#### `POST /v1/auth/login`
+Email + password. Cookie `opus_session=id.hmac`.
+
+#### `POST /v1/auth/logout`
+Clears the session cookie.
+
+#### `GET /v1/auth/me`
+`{ authenticated, user?: { id, email, role } }`
 
 #### `POST /v1/admin/login`
-Authenticates operator against `ADMIN_USER` and `ADMIN_PASSWORD` defined in the environment. Sets an HTTP-only session cookie (`opus_admin_session`).
+Same as login but requires `role=admin`. Body `{ "email", "password" }`.
 
-**Request Body:**
-```json
-{
-  "username": "admin",
-  "password": "your_password"
-}
-```
-
-#### `POST /v1/admin/logout`
-Terminates operator session by clearing the session cookie.
-
-#### `GET /v1/admin/check`
-Checks current operator session authentication status.
-```json
-{
-  "authenticated": true
-}
-```
+#### `POST /v1/admin/logout` / `GET /v1/admin/check`
+Logout and `{ authenticated }` for admin role.

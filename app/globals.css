@@ -141,6 +141,13 @@ h3 { font-size: 18px; }
 }
 .topnav .admin-link:hover { border-color: var(--border-hover); color: var(--text-primary); }
 
+.topnav-user { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.topnav-email { font-size: 13px; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topnav-user button { font-family: inherit; background: transparent; cursor: pointer; }
+.auth-page { max-width: 440px; margin: 24px auto; }
+.auth-page .field { margin-bottom: 14px; }
+.auth-page .field input { width: 100%; padding: 10px 12px; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); box-sizing: border-box; }
+
 .user-main { flex: 1; padding: var(--sp-xl) var(--sp-xl) 80px; max-width: 1280px; width: 100%; margin: 0 auto; }
 
 /* ============================================================
@@ -463,13 +470,24 @@ textarea {
   align-items: end;
   flex-wrap: wrap;
 }
-.search-box .field { display: flex; flex-direction: column; gap: var(--sp-xs); flex: 1; min-width: 140px; }
 .search-box .field label {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
+}
+.search-box .field input,
+.panel .field input {
+  padding: 10px 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  max-width: 120px;
 }
 
 /* Window Toggle */

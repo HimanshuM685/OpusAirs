@@ -105,8 +105,9 @@ cp .env.example .env.local
 Edit `.env.local` with your database connection string and operator credentials:
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
-ADMIN_USER=admin
+ADMIN_EMAIL=admin@local
 ADMIN_PASSWORD=change_this_to_a_secure_password
+SESSION_SECRET=change_this_long_random_string
 SCRAPE_ENABLED=false
 APIX_BASE_DATE=2026-08-01
 ```
@@ -120,7 +121,7 @@ npm run dev
 - Public User Interface: [http://localhost:3000](http://localhost:3000)
 - User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
 - Flight Search & Compare: [http://localhost:3000/search](http://localhost:3000/search)
-- Hidden Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (Sign in with `ADMIN_USER` & `ADMIN_PASSWORD`)
+- Hidden Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (admin email + password from `users` table; seeded as `ADMIN_EMAIL`)
 - API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index)
 
 ---
