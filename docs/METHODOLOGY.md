@@ -63,4 +63,4 @@ Also published:
 
 ## Backtest
 
-See `/v1/backtest/dgca`. Monthly APIx is compared with a TMU-style **mean** fare index on the same reconstructed sample (DGCA TMU samples airline websites monthly on ~72 routes; it does not publish a public daily dump). The published 72-route composite (+20.5% June 2026 vs March 2025, parliamentary reply) is stored for context.
+See `/v1/backtest/dgca`. Monthly APIx (from Neon quotes) is compared with the published DGCA TMU 72-route composite stored in `data/dgca_benchmark.csv` (+20.5% June 2026 vs March 2025, parliamentary reply). There is no reconstructed fare seed.

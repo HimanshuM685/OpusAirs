@@ -1,0 +1,61 @@
+{
+  "max_searches_per_run": 18,
+  "lead_times": [1, 7, 21],
+  "sources": [
+    {
+      "id": "indigo",
+      "name": "IndiGo",
+      "enabled": true,
+      "carrier": "6E",
+      "start_url": "https://www.goindigo.in/",
+      "search_url_template": "https://www.goindigo.in/?from={origin}&to={destination}&date={date}",
+      "flight_card": "[data-flight], .flight-card, .trip-card, [class*='flight-info']",
+      "price": "[data-total], .fare-amount, .price, [class*='fare']",
+      "flight_no": "[data-flight], .flight-number, [class*='flight-no']"
+    },
+    {
+      "id": "airindia",
+      "name": "Air India",
+      "enabled": true,
+      "carrier": "AI",
+      "start_url": "https://www.airindia.com/",
+      "search_url_template": "https://www.airindia.com/?from={origin}&to={destination}&date={date}",
+      "flight_card": "[data-flight], .flight-card, [class*='flight']",
+      "price": "[data-total], .price, [class*='fare']",
+      "flight_no": "[data-flight], .flight-number"
+    },
+    {
+      "id": "airindia_express",
+      "name": "Air India Express",
+      "enabled": true,
+      "carrier": "IX",
+      "start_url": "https://www.airindiaexpress.com/",
+      "search_url_template": "https://www.airindiaexpress.com/?from={origin}&to={destination}&date={date}",
+      "flight_card": "[data-flight], .flight-card",
+      "price": "[data-total], .price, [class*='fare']",
+      "flight_no": "[data-flight], .flight-number"
+    },
+    {
+      "id": "akasa",
+      "name": "Akasa Air",
+      "enabled": true,
+      "carrier": "QP",
+      "start_url": "https://www.akasaair.com/",
+      "search_url_template": "https://www.akasaair.com/?from={origin}&to={destination}&date={date}",
+      "flight_card": "[data-flight], .flight-card",
+      "price": "[data-total], .price, [class*='fare']",
+      "flight_no": "[data-flight], .flight-number"
+    },
+    {
+      "id": "spicejet",
+      "name": "SpiceJet",
+      "enabled": true,
+      "carrier": "SG",
+      "start_url": "https://www.spicejet.com/",
+      "search_url_template": "https://www.spicejet.com/?from={origin}&to={destination}&date={date}",
+      "flight_card": "[data-flight], .flight-card",
+      "price": "[data-total], .price, [class*='fare']",
+      "flight_no": "[data-flight], .flight-number"
+    }
+  ]
+}

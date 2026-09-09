@@ -1,0 +1,262 @@
+{
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/__init__.py": {
+    "mtime": 1788977254.356949,
+    "ast_hash": "180eac1c9ba86802b2ad61e223795fa8",
+    "semantic_hash": "180eac1c9ba86802b2ad61e223795fa8"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/api/__init__.py": {
+    "mtime": 1788977480.498659,
+    "ast_hash": "28e0372ffb9cb041cedc85e81b5ff331",
+    "semantic_hash": "28e0372ffb9cb041cedc85e81b5ff331"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/api/v1.py": {
+    "mtime": 1788979141.2671046,
+    "ast_hash": "f55a2f6cf1179419d1abb65d28d72976",
+    "semantic_hash": "f55a2f6cf1179419d1abb65d28d72976"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/basket.py": {
+    "mtime": 1788977311.2434535,
+    "ast_hash": "57145b6f06463a5ff2c22cea9a2b960a",
+    "semantic_hash": "57145b6f06463a5ff2c22cea9a2b960a"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/bootstrap.py": {
+    "mtime": 1788979128.709853,
+    "ast_hash": "a31b2daba2758cd530b87fa2b3ea92db",
+    "semantic_hash": "a31b2daba2758cd530b87fa2b3ea92db"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/cleaning/__init__.py": {
+    "mtime": 1788977333.0847554,
+    "ast_hash": "d0e37bdb10b762cc6fb182805636163e",
+    "semantic_hash": "d0e37bdb10b762cc6fb182805636163e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/cleaning/pipeline.py": {
+    "mtime": 1788977312.207478,
+    "ast_hash": "ffc00cb40a64238789362f1733a25047",
+    "semantic_hash": "ffc00cb40a64238789362f1733a25047"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collect.py": {
+    "mtime": 1788979098.9060895,
+    "ast_hash": "9885cc74f7dafc7b217bc2591d66c9b0",
+    "semantic_hash": "9885cc74f7dafc7b217bc2591d66c9b0"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/__init__.py": {
+    "mtime": 1788978249.7008264,
+    "ast_hash": "d675c587bd7203df126996cfa2ce15b8",
+    "semantic_hash": "d675c587bd7203df126996cfa2ce15b8"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/amadeus.py": {
+    "mtime": 1788977369.6953943,
+    "ast_hash": "1af94e035658e8cafd3f08d690639fcb",
+    "semantic_hash": "1af94e035658e8cafd3f08d690639fcb"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/dgca.py": {
+    "mtime": 1788977596.977583,
+    "ast_hash": "40a3144ca35fc6f55ce0f0f733e027f1",
+    "semantic_hash": "40a3144ca35fc6f55ce0f0f733e027f1"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/fixtures.py": {
+    "mtime": 1788977373.2221687,
+    "ast_hash": "36e92481f5f731fead9d8efce5331a6a",
+    "semantic_hash": "36e92481f5f731fead9d8efce5331a6a"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/mock_airline.py": {
+    "mtime": 1788977364.53416,
+    "ast_hash": "a9ad10b4fdf2be3adc5aeb9b880ed007",
+    "semantic_hash": "a9ad10b4fdf2be3adc5aeb9b880ed007"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/collectors/safeguards.py": {
+    "mtime": 1788977349.8038974,
+    "ast_hash": "6987b44d2dba2a63da5d2c30e11300a8",
+    "semantic_hash": "6987b44d2dba2a63da5d2c30e11300a8"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/config.py": {
+    "mtime": 1788979061.2495496,
+    "ast_hash": "1b546f9ab76cb19b90e82434dc452fe7",
+    "semantic_hash": "1b546f9ab76cb19b90e82434dc452fe7"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/db.py": {
+    "mtime": 1788979061.9720643,
+    "ast_hash": "baa53b15c1ed4c2ecf4baeadd7f7d16e",
+    "semantic_hash": "baa53b15c1ed4c2ecf4baeadd7f7d16e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/index/__init__.py": {
+    "mtime": 1788977334.1465816,
+    "ast_hash": "8b871ebfd39207b04e583a853821871e",
+    "semantic_hash": "8b871ebfd39207b04e583a853821871e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/index/construct.py": {
+    "mtime": 1788977593.5523303,
+    "ast_hash": "44b2f44a73f11044e54efe244803853f",
+    "semantic_hash": "44b2f44a73f11044e54efe244803853f"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/main.py": {
+    "mtime": 1788979231.7026038,
+    "ast_hash": "48e3bb5f26b1220822b59e27622fbd89",
+    "semantic_hash": "48e3bb5f26b1220822b59e27622fbd89"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/models.py": {
+    "mtime": 1788977284.1614642,
+    "ast_hash": "38b625aeb73e0f63f322187ee935a31c",
+    "semantic_hash": "38b625aeb73e0f63f322187ee935a31c"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/schemas.py": {
+    "mtime": 1788979066.6577628,
+    "ast_hash": "8dfffd3f365545c1388c43f204481d84",
+    "semantic_hash": "8dfffd3f365545c1388c43f204481d84"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/seed.py": {
+    "mtime": 1788977650.7351441,
+    "ast_hash": "44fd90802be97794d34cf4964509e9e1",
+    "semantic_hash": "44fd90802be97794d34cf4964509e9e1"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/services/__init__.py": {
+    "mtime": 1788977479.8919783,
+    "ast_hash": "672d5885b1aa992533719d7db776214d",
+    "semantic_hash": "672d5885b1aa992533719d7db776214d"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/app/services/backtest.py": {
+    "mtime": 1788978183.3245752,
+    "ast_hash": "484e74bde62cff5d0a757bad78273c32",
+    "semantic_hash": "484e74bde62cff5d0a757bad78273c32"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/pyproject.toml": {
+    "mtime": 1788979090.9211614,
+    "ast_hash": "97881779ce94c9fe31dc5da66b41ee2e",
+    "semantic_hash": "97881779ce94c9fe31dc5da66b41ee2e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/__init__.py": {
+    "mtime": 1788977821.3555102,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/conftest.py": {
+    "mtime": 1788977664.2824035,
+    "ast_hash": "5703754a9e4ef4ccb160dc21495db768",
+    "semantic_hash": "5703754a9e4ef4ccb160dc21495db768"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_api.py": {
+    "mtime": 1788977618.48666,
+    "ast_hash": "9044e07d9f26e8b5ecd5192709060050",
+    "semantic_hash": "9044e07d9f26e8b5ecd5192709060050"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_cleaning.py": {
+    "mtime": 1788977611.4811978,
+    "ast_hash": "086fe3f7ced6bfea36b8cf91bb86834b",
+    "semantic_hash": "086fe3f7ced6bfea36b8cf91bb86834b"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_index.py": {
+    "mtime": 1788977608.6985438,
+    "ast_hash": "a4349d61751c431030c7953632acde39",
+    "semantic_hash": "a4349d61751c431030c7953632acde39"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_playwright_mock.py": {
+    "mtime": 1788977865.1848984,
+    "ast_hash": "3dd1d9b1d3306ef749b89e2bbe3432d0",
+    "semantic_hash": "3dd1d9b1d3306ef749b89e2bbe3432d0"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_safeguards.py": {
+    "mtime": 1788977617.9470272,
+    "ast_hash": "fe32955cf99d138b76ba08712c16621c",
+    "semantic_hash": "fe32955cf99d138b76ba08712c16621c"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/backend/tests/test_seed.py": {
+    "mtime": 1788977864.5203838,
+    "ast_hash": "20e44efd71f194216a9195f1f71cdb08",
+    "semantic_hash": "20e44efd71f194216a9195f1f71cdb08"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/backtest/page.tsx": {
+    "mtime": 1788977753.5124085,
+    "ast_hash": "514630d59b26f5ea8523342af2bccc5a",
+    "semantic_hash": "514630d59b26f5ea8523342af2bccc5a"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/elasticity/page.tsx": {
+    "mtime": 1788977728.6392238,
+    "ast_hash": "b5504bcc7d457d5d2007498562c697d8",
+    "semantic_hash": "b5504bcc7d457d5d2007498562c697d8"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/health/page.tsx": {
+    "mtime": 1788979152.0376065,
+    "ast_hash": "aa177b3bf9ba230af6375823f094d74a",
+    "semantic_hash": "aa177b3bf9ba230af6375823f094d74a"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/heatmap/page.tsx": {
+    "mtime": 1788977723.183032,
+    "ast_hash": "01b983b01616c33b2e75cfd88b280214",
+    "semantic_hash": "01b983b01616c33b2e75cfd88b280214"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/layout.tsx": {
+    "mtime": 1788979150.0770776,
+    "ast_hash": "d894d7211daf3bc6db6a59580b118d2d",
+    "semantic_hash": "d894d7211daf3bc6db6a59580b118d2d"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/page.tsx": {
+    "mtime": 1788977716.4992094,
+    "ast_hash": "779bf4ff4026fc46c44ef208a10f4d22",
+    "semantic_hash": "779bf4ff4026fc46c44ef208a10f4d22"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/routes/[pair]/page.tsx": {
+    "mtime": 1788977744.5932655,
+    "ast_hash": "26d19703996c7f78781f897c6ff1f9bc",
+    "semantic_hash": "26d19703996c7f78781f897c6ff1f9bc"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/app/routes/page.tsx": {
+    "mtime": 1788977740.5692582,
+    "ast_hash": "3544204b58c433ba55cee4ec5cb9b774",
+    "semantic_hash": "3544204b58c433ba55cee4ec5cb9b774"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/lib/api.ts": {
+    "mtime": 1788977676.9098783,
+    "ast_hash": "34075814efdee5fc49b9df6f6ec2fc4e",
+    "semantic_hash": "34075814efdee5fc49b9df6f6ec2fc4e"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/next-env.d.ts": {
+    "mtime": 1788978055.8938832,
+    "ast_hash": "ba64ff7d54714a8f64db89b1003207d8",
+    "semantic_hash": "ba64ff7d54714a8f64db89b1003207d8"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/next.config.ts": {
+    "mtime": 1788977669.64489,
+    "ast_hash": "24b5dd234ad38eb42778bed0765a8aec",
+    "semantic_hash": "24b5dd234ad38eb42778bed0765a8aec"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/package.json": {
+    "mtime": 1788977666.721948,
+    "ast_hash": "08ba72b2dde5b0b2c42b359f8140e976",
+    "semantic_hash": "08ba72b2dde5b0b2c42b359f8140e976"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/frontend/tsconfig.json": {
+    "mtime": 1788977667.3069296,
+    "ast_hash": "3845ba465b50728d69e9dc9c327d8a56",
+    "semantic_hash": "3845ba465b50728d69e9dc9c327d8a56"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/mock_airline/server.py": {
+    "mtime": 1788977508.7337844,
+    "ast_hash": "db4213eb14646dd57f7f1084ecbb0ae6",
+    "semantic_hash": "db4213eb14646dd57f7f1084ecbb0ae6"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/README.md": {
+    "mtime": 1788979197.932538,
+    "ast_hash": "825703ee5de3982ea87a077ac86419cc",
+    "semantic_hash": "825703ee5de3982ea87a077ac86419cc"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/docker-compose.yml": {
+    "mtime": 1788979199.2517622,
+    "ast_hash": "d3d5c753b71ae417b38d4268959c4caa",
+    "semantic_hash": "d3d5c753b71ae417b38d4268959c4caa"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/docs/API.md": {
+    "mtime": 1788979195.793155,
+    "ast_hash": "9030e011f38046d59fd6771a1f335d13",
+    "semantic_hash": "9030e011f38046d59fd6771a1f335d13"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/docs/COLLECTION.md": {
+    "mtime": 1788979187.9753058,
+    "ast_hash": "610efa8c0aa8466568f3ad679057d647",
+    "semantic_hash": "610efa8c0aa8466568f3ad679057d647"
+  },
+  "/Users/fusion/Code/GitRepos/OpusAirs/docs/METHODOLOGY.md": {
+    "mtime": 1788977815.5234935,
+    "ast_hash": "c6ee9d4b48dfe6f546c0a37ba3c903d6",
+    "semantic_hash": "c6ee9d4b48dfe6f546c0a37ba3c903d6"
+  }
+}

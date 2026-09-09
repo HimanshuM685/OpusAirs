@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_KEY, API_URL, api, type CollectionHealth } from "@/lib/api";
+import { api, type CollectionHealth } from "@/lib/api";
 
 export default function HealthPage() {
   const [rows, setRows] = useState<CollectionHealth[]>([]);
@@ -18,11 +18,10 @@ export default function HealthPage() {
     load();
   }, []);
 
-  async function runMock() {
-    setMsg("Running Playwright collect against mock airline…");
-    const res = await fetch(`${API_URL}/v1/collect/run?mock=true`, {
+  async function runScrape() {
+    setMsg("Running Playwright collect against live airline portals…");
+    const res = await fetch(`/v1/collect/run?scrape=true`, {
       method: "POST",
-      headers: { "X-API-Key": API_KEY },
     });
     setMsg(res.ok ? JSON.stringify(await res.json()) : `Failed ${res.status}`);
     load();
@@ -32,13 +31,14 @@ export default function HealthPage() {
     <>
       <h1>Collection health</h1>
       <p className="sub">
-        Ethical collectors abort on CAPTCHA/challenge pages and record <code>blocked</code>. They do
-        not rotate IPs or solve CAPTCHAs.
+        Live portal scrape checks robots.txt, rate-limits, and records <code>blocked</code> on
+        CAPTCHA. It does not rotate IPs or solve challenges. If a source blocks, feed the same
+        schema on <a href="/ingest">Feed quotes</a>.
       </p>
       {err && <p className="err">{err}</p>}
       <p>
-        <button className="primary" onClick={runMock} type="button">
-          Collect from mock airline
+        <button className="primary" onClick={() => void runScrape()} type="button">
+          Scrape airline portals
         </button>
       </p>
       {msg && <p className="sub">{msg}</p>}
