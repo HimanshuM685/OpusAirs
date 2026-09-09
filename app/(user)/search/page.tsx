@@ -103,67 +103,517 @@ export default function SearchPage() {
     return ((last - first) / first) * 100;
   }, [trends]);
 
+  const [departDate, setDepartDate] = useState("2026-09-17");
+  const [returnDate, setReturnDate] = useState("2026-09-24");
+  const [adults, setAdults] = useState(1);
+  const [childrenCount, setChildrenCount] = useState(0);
+  const [infants, setInfants] = useState(0);
+  const [travelClass, setTravelClass] = useState("Economy");
+  const [concession, setConcession] = useState("None");
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [showPassengerModal, setShowPassengerModal] = useState(false);
+
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
       <JellyAnimatedHero
         badgeText="Route Intelligence &amp; Carrier Compare"
         title="Search Flights &amp; Compare Fares"
         subtitle="Search between any two domestic cities to compare baseline vs tax breakdowns across IndiGo, Air India, SpiceJet and Akasa."
-        primaryCtaText="📊 View Dashboard"
+        primaryCtaText="View Dashboard"
         primaryCtaHref="/dashboard"
-        secondaryCtaText="🗺️ Heatmap"
+        secondaryCtaText="Heatmap"
         secondaryCtaHref="/heatmap"
       />
       {err && <p className="err">{err}</p>}
       {loading && <p className="sub">Fetching live fares… this can take a few minutes.</p>}
 
-      {/* Search Box */}
-      <div className="search-box fade-in fade-in-delay-1">
-        <div className="search-fields">
-          <div className="field">
-            <label>Origin</label>
-            <input
-              id="search-origin"
-              value={origin}
-              maxLength={3}
-              list="airport-codes"
-              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
-            />
+      {/* Premium Airline Flight Search Bar matching User UI Spec */}
+      <div
+        className="fade-in"
+        style={{
+          background: "#ffffff",
+          borderRadius: "20px",
+          padding: "24px 32px",
+          boxShadow: "0 10px 36px rgba(11, 59, 42, 0.08)",
+          border: "1px solid #d8deda",
+          marginBottom: "40px",
+        }}
+      >
+        {/* Top Option Controls */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "24px",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          {/* Trip Type Selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: "24px", color: "#0c1212" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="trip_type"
+                checked={tripType === "round_trip"}
+                onChange={() => setTripType("round_trip")}
+                style={{ accentColor: "#0b3b2a", width: "16px", height: "16px" }}
+              />
+              <span>Round Trip</span>
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="trip_type"
+                checked={tripType === "one_way"}
+                onChange={() => setTripType("one_way")}
+                style={{ accentColor: "#0b3b2a", width: "16px", height: "16px" }}
+              />
+              <span>One Way</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setTripType("round_trip")}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#0b3b2a",
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: 0,
+                fontSize: "14px",
+              }}
+            >
+              Multi City
+            </button>
           </div>
-          <div className="field">
-            <label>Destination</label>
-            <input
-              id="search-dest"
-              value={dest}
-              maxLength={3}
-              list="airport-codes"
-              onChange={(e) => setDest(e.target.value.toUpperCase())}
-            />
+
+          {/* Right Promo Link */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setShowPromo(!showPromo)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#0c1212",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+              }}
+            >
+              Add Promo Code <span style={{ fontSize: "11px" }}>▼</span>
+            </button>
+            {showPromo && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "28px",
+                  background: "#ffffff",
+                  border: "1px solid #d8deda",
+                  borderRadius: "10px",
+                  padding: "12px",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.1)",
+                  zIndex: 20,
+                  display: "flex",
+                  gap: "8px",
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="PROMO2026"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #d8deda",
+                    fontSize: "13px",
+                  }}
+                />
+                <button
+                  type="button"
+                  style={{
+                    background: "#0b3b2a",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 14px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Main Search Controls Row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "16px",
+            background: "#f9fafb",
+            borderRadius: "16px",
+            padding: "16px 20px",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          {/* FROM / TO Block with Swap Icon */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: "1 1 240px", minWidth: "220px" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "4px" }}>
+                From
+              </div>
+              <input
+                value={origin}
+                maxLength={3}
+                list="airport-codes"
+                onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  fontSize: "22px",
+                  fontWeight: 800,
+                  color: "#0c1212",
+                  letterSpacing: "0.02em",
+                  outline: "none",
+                }}
+                placeholder="CCU"
+              />
+            </div>
+
+            {/* Swap Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const temp = origin;
+                setOrigin(dest);
+                setDest(temp);
+              }}
+              title="Swap Origin and Destination"
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: "#ffffff",
+                border: "1px solid #d8deda",
+                color: "#e11d48",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: "16px",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+                flexShrink: 0,
+                transition: "transform 0.2s ease",
+              }}
+            >
+              ⇄
+            </button>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", marginBottom: "4px" }}>
+                To
+              </div>
+              <input
+                value={dest}
+                maxLength={3}
+                list="airport-codes"
+                onChange={(e) => setDest(e.target.value.toUpperCase())}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  fontSize: "22px",
+                  fontWeight: 800,
+                  color: "#0c1212",
+                  letterSpacing: "0.02em",
+                  outline: "none",
+                }}
+                placeholder="BOM"
+              />
+            </div>
+          </div>
+
           <datalist id="airport-codes">
             {airports.map((a) => (
               <option key={a} value={a} />
             ))}
           </datalist>
-          <div className="field">
-            <label>Trip</label>
-            <select
-              id="search-trip"
-              value={tripType}
-              onChange={(e) => setTripType(e.target.value as "one_way" | "round_trip")}
+
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", height: "36px", background: "#e5e7eb" }} />
+
+          {/* Depart Date */}
+          <div style={{ flex: "0 0 130px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", marginBottom: "4px" }}>Depart</div>
+            <input
+              type="date"
+              value={departDate}
+              onChange={(e) => setDepartDate(e.target.value)}
+              style={{
+                border: "none",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#0c1212",
+                outline: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            />
+          </div>
+
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", height: "36px", background: "#e5e7eb" }} />
+
+          {/* Return Date */}
+          <div style={{ flex: "0 0 130px", opacity: tripType === "one_way" ? 0.4 : 1 }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", marginBottom: "4px" }}>Return</div>
+            <input
+              type="date"
+              disabled={tripType === "one_way"}
+              value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)}
+              style={{
+                border: "none",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#0c1212",
+                outline: "none",
+                cursor: tripType === "one_way" ? "not-allowed" : "pointer",
+                width: "100%",
+              }}
+            />
+          </div>
+
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", height: "36px", background: "#e5e7eb" }} />
+
+          {/* Passenger(s) Selector */}
+          <div style={{ flex: "1 1 180px", position: "relative" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", marginBottom: "4px" }}>Passenger(s)</div>
+            <button
+              type="button"
+              onClick={() => setShowPassengerModal(!showPassengerModal)}
+              style={{
+                border: "none",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#0c1212",
+                outline: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: 0,
+              }}
             >
-              <option value="one_way">One way</option>
-              <option value="round_trip">Round trip</option>
+              <span>Adult {adults}, Child {childrenCount}, Infant {infants}</span>
+              <span style={{ fontSize: "10px", color: "#6b7280" }}>▼</span>
+            </button>
+
+            {/* Passenger Count Dropdown */}
+            {showPassengerModal && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "44px",
+                  left: 0,
+                  background: "#ffffff",
+                  border: "1px solid #d8deda",
+                  borderRadius: "14px",
+                  padding: "16px",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
+                  zIndex: 30,
+                  width: "220px",
+                }}
+              >
+                {[
+                  ["Adults (12+ yrs)", adults, setAdults],
+                  ["Children (2-11 yrs)", childrenCount, setChildrenCount],
+                  ["Infants (< 2 yrs)", infants, setInfants],
+                ].map(([label, val, setVal]: any) => (
+                  <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0c1212" }}>{label}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setVal(Math.max(0, val - 1))}
+                        style={{ width: "26px", height: "26px", borderRadius: "50%", border: "1px solid #d8deda", background: "#f3f4f6", fontWeight: 700, cursor: "pointer" }}
+                      >
+                        -
+                      </button>
+                      <span style={{ fontSize: "14px", fontWeight: 700 }}>{val}</span>
+                      <button
+                        type="button"
+                        onClick={() => setVal(val + 1)}
+                        style={{ width: "26px", height: "26px", borderRadius: "50%", border: "1px solid #d8deda", background: "#f3f4f6", fontWeight: 700, cursor: "pointer" }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowPassengerModal(false)}
+                  style={{ width: "100%", padding: "8px", background: "#0b3b2a", color: "#ffffff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "13px", cursor: "pointer", marginTop: "4px" }}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", height: "36px", background: "#e5e7eb" }} />
+
+          {/* Class */}
+          <div style={{ flex: "0 0 110px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", marginBottom: "4px" }}>Class</div>
+            <select
+              value={travelClass}
+              onChange={(e) => setTravelClass(e.target.value)}
+              style={{
+                border: "none",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#0c1212",
+                outline: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              <option value="Economy">Economy</option>
+              <option value="Premium Economy">Premium Economy</option>
+              <option value="Business">Business</option>
             </select>
           </div>
+
+          {/* Vertical Divider */}
+          <div style={{ width: "1px", height: "36px", background: "#e5e7eb" }} />
+
+          {/* Concession Type */}
+          <div style={{ flex: "0 0 120px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#6b7280", marginBottom: "4px" }}>Concession Type</div>
+            <select
+              value={concession}
+              onChange={(e) => setConcession(e.target.value)}
+              style={{
+                border: "none",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#0c1212",
+                outline: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              <option value="None">None</option>
+              <option value="Student">Student</option>
+              <option value="Senior Citizen">Senior Citizen</option>
+              <option value="Armed Forces">Armed Forces</option>
+            </select>
+          </div>
+
+          {/* SEARCH Action Button */}
           <button
-            className="primary"
             type="button"
             onClick={() => void handleSearch()}
             disabled={loading || origin.trim().length !== 3 || dest.trim().length !== 3}
-            id="search-btn"
+            style={{
+              background: "linear-gradient(135deg, #0b3b2a, #14573f)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "12px",
+              padding: "14px 28px",
+              fontSize: "14px",
+              fontWeight: 800,
+              letterSpacing: "0.05em",
+              cursor: "pointer",
+              boxShadow: "0 4px 16px rgba(11, 59, 42, 0.25)",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              marginLeft: "auto",
+            }}
           >
-            {loading ? "Fetching live fares…" : "Search"}
+            {loading ? "SEARCHING…" : "SEARCH"}
+          </button>
+        </div>
+      </div>
+
+      {/* Popular Flight Deals Section matching bottom image layout */}
+      <div style={{ marginTop: "40px", marginBottom: "36px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#0c1212", marginBottom: "20px", letterSpacing: "-0.01em" }}>
+          Popular Flight Deals
+        </h2>
+        <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+          <fieldset style={{ flex: 1, minWidth: "260px", borderRadius: "10px", border: "1px solid #9ca3af", padding: "8px 16px" }}>
+            <legend style={{ fontSize: "12px", fontWeight: 600, color: "#4b5563", padding: "0 6px" }}>From</legend>
+            <input
+              type="text"
+              placeholder="Search city or airport"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+              style={{ width: "100%", border: "none", outline: "none", fontSize: "14px", color: "#0c1212", fontWeight: 600, background: "transparent" }}
+            />
+          </fieldset>
+
+          <button
+            type="button"
+            onClick={() => {
+              const temp = origin;
+              setOrigin(dest);
+              setDest(temp);
+            }}
+            style={{ width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "14px" }}
+          >
+            ⇄
+          </button>
+
+          <fieldset style={{ flex: 1, minWidth: "260px", borderRadius: "10px", border: "1px solid #9ca3af", padding: "8px 16px" }}>
+            <legend style={{ fontSize: "12px", fontWeight: 600, color: "#4b5563", padding: "0 6px" }}>To</legend>
+            <input
+              type="text"
+              placeholder="Search city or airport"
+              value={dest}
+              onChange={(e) => setDest(e.target.value.toUpperCase())}
+              style={{ width: "100%", border: "none", outline: "none", fontSize: "14px", color: "#0c1212", fontWeight: 600, background: "transparent" }}
+            />
+          </fieldset>
+
+          <button
+            type="button"
+            onClick={() => void handleSearch()}
+            style={{
+              background: "#0b3b2a",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              padding: "14px 32px",
+              fontSize: "14px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Search
           </button>
         </div>
       </div>
