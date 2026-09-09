@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, type IndexPoint } from "@/lib/api";
 import GlyphPortal from "@/components/ui/glyph-portal";
+import { GradientWave } from "@/components/ui/gradient-wave";
 
 const family = '"Outfit", "Inter", sans-serif';
 
@@ -69,14 +70,7 @@ export default function LandingPage() {
           "--gp-foreground": "#fbfbfa",
         }}
         background={
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(135deg, #0b3b2a 0%, #14573f 50%, #093023 100%)",
-            }}
-          />
+          <GradientWave colors={["#0b3b2a", "#14573f", "#093023", "#0b3b2a", "#14573f", "#082d22"]} />
         }
         front={
           <>
