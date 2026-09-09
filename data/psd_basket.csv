@@ -11,3 +11,6 @@ MAA,DEL,2317258,Delhi-Chennai reverse direction listed in SIH examples
 BOM,HYD,2248905,DGCA-style 2023-24 city-pair passengers
 BLR,HYD,2140533,DGCA-style 2023-24 city-pair passengers
 DEL,GOI,1800000,Leisure mix; estimated recent volume pending official PSD
+CCU,BOM,1600000,Kolkata-Mumbai high-volume sector
+BOM,CCU,1550000,Mumbai-Kolkata reverse
+

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { adminSeedEmail, adminSeedPassword, hashPassword } from "./auth";
 import { dataDir, sql } from "./db";
 import {
   DEFAULT_BASKET_ROUTES,
@@ -49,6 +50,13 @@ export function loadPsdBasket(): RouteSpec[] {
 }
 
 const DDL = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(16) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
   `CREATE TABLE IF NOT EXISTS basket_routes (
     id SERIAL PRIMARY KEY,
     origin VARCHAR(3) NOT NULL,
@@ -152,16 +160,28 @@ export async function bootstrap(): Promise<void> {
     await q(strings);
   }
 
-  // 1. Basket routes seed
-  const basketCount = (await q`SELECT COUNT(*) as count FROM basket_routes`) as { count: string | number }[];
-  if (Number(basketCount[0]?.count || 0) === 0) {
-    const basket = loadPsdBasket();
-    for (const r of basket) {
+  const basket = loadPsdBasket();
+  for (const r of basket) {
+    const existing = await q`
+      SELECT id FROM basket_routes WHERE origin = ${r.origin} AND destination = ${r.destination} LIMIT 1
+    `;
+    if (!existing.length) {
       await q`
         INSERT INTO basket_routes (origin, destination, raw_passengers, weight, note)
         VALUES (${r.origin}, ${r.destination}, ${r.raw_passengers}, ${r.weight}, ${r.note})
       `;
     }
+  }
+
+  const adminCount = (await q`SELECT COUNT(*) as count FROM users WHERE role = 'admin'`) as {
+    count: string | number;
+  }[];
+  if (Number(adminCount[0]?.count || 0) === 0) {
+    const email = adminSeedEmail();
+    const hash = hashPassword(adminSeedPassword());
+    await q`
+      INSERT INTO users (email, password_hash, role) VALUES (${email}, ${hash}, 'admin')
+    `;
   }
 
   // 2. Scrape sources seed

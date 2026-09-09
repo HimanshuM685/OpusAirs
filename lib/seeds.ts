@@ -18,6 +18,8 @@ export const DEFAULT_BASKET_ROUTES: RouteSeed[] = [
   { origin: "BOM", destination: "HYD", raw_passengers: 2248905, note: "DGCA-style 2023-24 city-pair passengers" },
   { origin: "BLR", destination: "HYD", raw_passengers: 2140533, note: "DGCA-style 2023-24 city-pair passengers" },
   { origin: "DEL", destination: "GOI", raw_passengers: 1800000, note: "Leisure mix estimated volume" },
+  { origin: "CCU", destination: "BOM", raw_passengers: 1600000, note: "Kolkata–Mumbai high-volume sector" },
+  { origin: "BOM", destination: "CCU", raw_passengers: 1550000, note: "Mumbai–Kolkata reverse" },
 ];
 
 export type DgcaSeed = {

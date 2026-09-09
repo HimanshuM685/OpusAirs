@@ -2,6 +2,14 @@
 -- create_all() also builds this on API boot. Use this file as the contract
 -- for manual loads (psql, Neon SQL editor, spreadsheet export).
 
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(16) NOT NULL DEFAULT 'user',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS basket_routes (
   id SERIAL PRIMARY KEY,
   origin VARCHAR(3) NOT NULL,
