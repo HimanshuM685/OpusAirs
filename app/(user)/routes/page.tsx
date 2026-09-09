@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, type RouteOut } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 export default function RoutesPage() {
   const [rows, setRows] = useState<RouteOut[]>([]);
@@ -32,53 +33,15 @@ export default function RoutesPage() {
 
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
-      {/* Header */}
-      <div
-        className="fade-in"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0c1212", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
-            City-Pair Sectors &amp; PSD Basket
-          </h1>
-          <p style={{ fontSize: "14px", color: "#525854", margin: 0 }}>
-            Official DGCA passenger-weighted route basket powering the Laspeyres index calculation.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "100px",
-            background: "#f0f5f2",
-            border: "1px solid #d0dfd7",
-            color: "#0b3b2a",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <span
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#0b3b2a",
-              boxShadow: "0 0 8px #0b3b2a",
-            }}
-          />
-          Basket Config: psd_basket.csv
-        </div>
-      </div>
+      <JellyAnimatedHero
+        badgeText={`Basket Config · ${rows.length} Active City Pairs`}
+        title="City-Pair Sectors &amp; PSD Basket"
+        subtitle="Official DGCA passenger-weighted route basket powering the Laspeyres index calculation for NSO &amp; RBI."
+        primaryCtaText="✈️ Search Routes"
+        primaryCtaHref="/search"
+        secondaryCtaText="📊 View Dashboard"
+        secondaryCtaHref="/dashboard"
+      />
 
       {err && (
         <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>

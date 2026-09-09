@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, type RouteOut, type SearchResult, type TrendPoint } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const TREND_WINDOWS = [
   { key: "30d", label: "30 Days" },
@@ -107,12 +108,16 @@ export default function SearchPage() {
   }, [trends]);
 
   return (
-    <>
-      <h1 className="fade-in">Flight Search &amp; Price Compare</h1>
-      <p className="sub fade-in fade-in-delay-1">
-        Search between any two cities to compare fares across carriers and track
-        price trends over time.
-      </p>
+    <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
+      <JellyAnimatedHero
+        badgeText="Route Intelligence &amp; Carrier Compare"
+        title="Search Flights &amp; Compare Fares"
+        subtitle="Search between any two domestic cities to compare baseline vs tax breakdowns across IndiGo, Air India, SpiceJet and Akasa."
+        primaryCtaText="📊 View Dashboard"
+        primaryCtaHref="/dashboard"
+        secondaryCtaText="🗺️ Heatmap"
+        secondaryCtaHref="/heatmap"
+      />
       {err && <p className="err">{err}</p>}
 
       {/* Search Box */}
@@ -386,6 +391,6 @@ export default function SearchPage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

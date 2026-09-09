@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, type ElasticityPoint } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 export default function ElasticityPage() {
   const [rows, setRows] = useState<ElasticityPoint[]>([]);
@@ -37,53 +38,15 @@ export default function ElasticityPage() {
 
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
-      {/* Header */}
-      <div
-        className="fade-in"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0c1212", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
-            Advance Purchase Elasticity
-          </h1>
-          <p style={{ fontSize: "14px", color: "#525854", margin: 0 }}>
-            Mean observed total fare by booking lead-time (T+1 through T+45 days before departure).
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "100px",
-            background: "#f0f5f2",
-            border: "1px solid #d0dfd7",
-            color: "#0b3b2a",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <span
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#0b3b2a",
-              boxShadow: "0 0 8px #0b3b2a",
-            }}
-          />
-          Window: T+1 to T+45 Days
-        </div>
-      </div>
+      <JellyAnimatedHero
+        badgeText={`Lead Window · T+1 through T+45 Days`}
+        title="Advance Purchase Price Elasticity"
+        subtitle="Mean observed total fare by booking window. Last-minute tickets (T+1) carry the highest surge premium vs T+30 advance bookings."
+        primaryCtaText="📊 View Dashboard"
+        primaryCtaHref="/dashboard"
+        secondaryCtaText="✈️ Search Flights"
+        secondaryCtaHref="/search"
+      />
 
       {err && (
         <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>

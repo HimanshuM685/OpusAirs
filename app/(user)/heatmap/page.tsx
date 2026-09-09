@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, type HeatmapCell } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 function color(v: number, min: number, max: number) {
   const t = max === min ? 0.5 : (v - min) / (max - min);
@@ -55,53 +56,15 @@ export default function HeatmapPage() {
 
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
-      {/* Header */}
-      <div
-        className="fade-in"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0c1212", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
-            Sector Index Heatmap
-          </h1>
-          <p style={{ fontSize: "14px", color: "#525854", margin: 0 }}>
-            Daily route-level APIx matrix (100 = base window). Spot price surges across trunk corridors.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "100px",
-            background: "#f0f5f2",
-            border: "1px solid #d0dfd7",
-            color: "#0b3b2a",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <span
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#0b3b2a",
-              boxShadow: "0 0 8px #0b3b2a",
-            }}
-          />
-          Matrix Resolution: Daily / Sector
-        </div>
-      </div>
+      <JellyAnimatedHero
+        badgeText={`Matrix Resolution · ${routes.length} Sectors Logged`}
+        title="Sector Index Heatmap"
+        subtitle="Daily route-level APIx intensity matrix (100 = base window). Spot real-time price surges across trunk corridors."
+        primaryCtaText="📊 View Dashboard"
+        primaryCtaHref="/dashboard"
+        secondaryCtaText="✈️ Search Routes"
+        secondaryCtaHref="/search"
+      />
 
       {err && (
         <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>

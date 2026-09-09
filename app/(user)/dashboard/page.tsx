@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, type IndexPoint } from "@/lib/api";
+import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const WINDOWS = [
   { key: "30d", label: "30 Days", days: 30 },
@@ -56,53 +57,16 @@ export default function DashboardPage() {
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
       
-      {/* Dashboard Top Header */}
-      <div
-        className="fade-in"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0c1212", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
-            Real-Time Airfare Price Index
-          </h1>
-          <p style={{ fontSize: "14px", color: "#525854", margin: 0 }}>
-            Official high-frequency aviation inflation tracking for MoSPI, NSO &amp; RBI.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "100px",
-            background: "#f0f5f2",
-            border: "1px solid #d0dfd7",
-            color: "#0b3b2a",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <span
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#0b3b2a",
-              boxShadow: "0 0 8px #0b3b2a",
-            }}
-          />
-          Live Telemetry · Base 100.00
-        </div>
-      </div>
+      {/* Jelly Animated Hero Header */}
+      <JellyAnimatedHero
+        badgeText={`Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "100.00"}`}
+        title="Real-Time Airfare Price Index"
+        subtitle="Official high-frequency aviation inflation tracking for MoSPI, NSO & RBI. Laspeyres APIx on DGCA-weighted city-pair basket."
+        primaryCtaText="✈️ Search Flights"
+        primaryCtaHref="/search"
+        secondaryCtaText="🗺️ Sector Heatmap"
+        secondaryCtaHref="/heatmap"
+      />
 
       {err && (
         <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>
