@@ -143,7 +143,7 @@ export default function GlyphPortal({
     });
     glyph.style.fontFamily = [...available, DEFAULT_FONT].join(",");
     // A pending requested face may also hold WebKit's render loop. Keep that mount static.
-    stalled = available.length < families.length;
+    stalled = available.length === 0;
 
     const readInk = () => {
       if (!context) return false;
@@ -319,6 +319,9 @@ export default function GlyphPortal({
     window.addEventListener("resize", resize);
     window.visualViewport?.addEventListener("resize", resize);
     motion.addEventListener("change", resize);
+    void document.fonts.ready.then(() => {
+      if (!disposed) { fontDirty = true; dirty = true; schedule(); }
+    });
     frame();
     // WebKit can withhold frames, timers and scroll events behind an initial hung font.
     // Begin in reading flow. Enable motion only when the browser starts rendering promptly.
