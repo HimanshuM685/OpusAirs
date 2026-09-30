@@ -23,12 +23,14 @@ export default function ScrapePage() {
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, 15000);
+    return () => clearInterval(timer);
   }, []);
 
-  async function runScrape(body: { origin?: string; dest?: string } = {}) {
+  async function runScrape(body: { origin?: string; dest?: string; full?: boolean } = {}) {
     setBusy(true);
     setErr(null);
-    setMsg("Running collect against live airline portals…");
+    setMsg(body.full ? "Starting India collect in the background…" : "Running collect against live airline portals…");
     const res = await fetch(`/v1/collect/run?scrape=true`, {
       method: "POST",
       credentials: "include",
@@ -56,8 +58,23 @@ export default function ScrapePage() {
       {err && <p className="err">{err}</p>}
 
       <div className="panel fade-in fade-in-delay-1">
-        <h2 style={{ marginTop: 0, fontSize: 18 }}>Top basket routes</h2>
-        <p className="sub">PSD basket is queued first. A daily cron finishes the rest. This button claims up to 80 pending jobs.</p>
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>India collect</h2>
+        <p className="sub">
+          Queues PSD basket routes first, then any discovered Indian pairs. One-way and round-trip,
+          T+1, T+7, T+14, T+21, and T+30. Respects robots.txt and stops on a challenge. A second start
+          exits if one collect is already running.
+        </p>
+        <button className="primary" type="button" disabled={busy} onClick={() => void runScrape({ full: true })}>
+          Start India collect
+        </button>
+        <p className="sub" style={{ marginTop: 12 }}>
+          Daily cron: <code>15 2 * * * cd /path/to/OpusAirs && npm run collect:daily</code>
+        </p>
+      </div>
+
+      <div className="panel fade-in fade-in-delay-1">
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>Basket sample</h2>
+        <p className="sub">Claims up to 80 pending jobs in this request. The India collect button is the long run.</p>
         <button
           className="primary"
           onClick={() => void runScrape()}

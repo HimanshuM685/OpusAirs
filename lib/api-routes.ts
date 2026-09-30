@@ -4,10 +4,11 @@ import { constructIndex } from "./apix";
 import {
   authJson,
   createUser,
-  currentOperator,
   findUserByEmail,
   getUser,
   isAuthResponse,
+  loginAdmin,
+  adminConfigured,
   makeLogoutCookie,
   makeSessionCookie,
   normalizeLoginEmail,
@@ -377,7 +378,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "POST" && path === "collect/run") {
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
-    let body: { origin?: string; dest?: string; scrape?: boolean } = {};
+    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean } = {};
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text) as typeof body;
@@ -387,6 +388,17 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const scrape = body.scrape !== false && sp.get("scrape") !== "false";
     const origin = iata(body.origin || sp.get("origin"));
     const dest = iata(body.dest || sp.get("dest"));
+    if (body.full) {
+      const { spawn } = await import("node:child_process");
+      const child = spawn("npm", ["run", "collect:daily"], {
+        cwd: process.cwd(),
+        detached: true,
+        stdio: "ignore",
+        env: process.env,
+      });
+      child.unref();
+      return json({ started: true, pid: child.pid ?? null });
+    }
     const routes =
       validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
     return json(await runPipeline({ scrape, routes, budget: routes ? 15 : 80 }));
@@ -511,17 +523,28 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "admin/login") {
-    return json({ detail: "Not found: POST /v1/admin/login" }, 404);
+    try {
+      const body = (await req.json()) as { email?: string; password?: string };
+      if (!adminConfigured()) return json({ detail: "Admin is not configured" }, 401);
+      const user = await loginAdmin(body.email || "", body.password || "");
+      if (!user) return json({ detail: "Invalid email or password" }, 401);
+      return authJson(
+        { success: true, user: { id: user.id, email: user.email, role: user.role } },
+        makeSessionCookie(user.id),
+      );
+    } catch {
+      return json({ detail: "Invalid request" }, 400);
+    }
   }
 
   if (req.method === "POST" && path === "admin/logout") {
-    return json({ detail: "Not found: POST /v1/admin/logout" }, 404);
+    return authJson({ success: true }, makeLogoutCookie());
   }
 
   if (req.method === "GET" && path === "admin/check") {
-    const operator = await currentOperator();
-    if (!operator?.allowed) return json({ authenticated: false });
-    return json({ authenticated: true, email: operator.email });
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return json({ authenticated: false });
+    return json({ authenticated: true, email: admin.email });
   }
 
   return json({ detail: `Not found: ${req.method} /v1/${path}` }, 404);

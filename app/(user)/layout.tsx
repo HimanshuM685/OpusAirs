@@ -62,9 +62,6 @@ export default function UserLayout({ children }: { children: ReactNode }) {
             </div>
 
             <div className="floating-pill-actions">
-              <Link href="/admin" className="nav-btn-outline">
-                Admin
-              </Link>
               <Link href="/dashboard" className="nav-btn-solid">
                 Dashboard
               </Link>

@@ -1,5 +1,4 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { getNeonAuth } from "./auth/server";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { sql } from "./db";
 
 export const COOKIE_NAME = "opus_session";
@@ -95,42 +94,47 @@ export async function requireUser(req: Request): Promise<AuthUser | Response> {
   return user;
 }
 
-export function adminEmails(): Set<string> {
-  return new Set(
-    (process.env.ADMIN_EMAIL || "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-export async function currentOperator(): Promise<{ email: string; allowed: boolean } | null> {
-  const neon = getNeonAuth();
-  if (!neon) return null;
-  const { data } = await neon.getSession();
-  const email = data?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  return { email, allowed: adminEmails().has(email) };
-}
-
-export async function requireAdmin(_req: Request): Promise<AuthUser | Response> {
-  const operator = await currentOperator();
-  if (!operator?.allowed) {
-    return Response.json({ detail: "Admin required" }, { status: 401 });
-  }
-  return { id: 0, email: operator.email, role: "admin" };
-}
-
-export function isAuthResponse(value: AuthUser | Response): value is Response {
-  return value instanceof Response;
-}
-
 export function adminSeedEmail(): string {
   return (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 }
 
 export function adminSeedPassword(): string {
   return process.env.ADMIN_PASSWORD || "";
+}
+
+export function adminConfigured(): boolean {
+  return Boolean(adminSeedEmail() && adminSeedPassword());
+}
+
+function sameSecret(given: string, expected: string): boolean {
+  const left = createHash("sha256").update(given).digest();
+  const right = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(left, right);
+}
+
+export async function loginAdmin(emailRaw: string, password: string): Promise<AuthUser | null> {
+  const email = adminSeedEmail();
+  const expected = adminSeedPassword();
+  if (!email || !expected) return null;
+  if (emailRaw.trim().toLowerCase() !== email) return null;
+  if (!sameSecret(password, expected)) return null;
+  await ensureSeedAdmin();
+  return findUserByEmail(email);
+}
+
+export async function requireAdmin(req: Request): Promise<AuthUser | Response> {
+  if (!adminConfigured()) {
+    return Response.json({ detail: "Admin required" }, { status: 401 });
+  }
+  const user = await getUser(req);
+  if (!user || user.role !== "admin" || user.email.toLowerCase() !== adminSeedEmail()) {
+    return Response.json({ detail: "Admin required" }, { status: 401 });
+  }
+  return user;
+}
+
+export function isAuthResponse(value: AuthUser | Response): value is Response {
+  return value instanceof Response;
 }
 
 export function normalizeLoginEmail(raw: string): string {
