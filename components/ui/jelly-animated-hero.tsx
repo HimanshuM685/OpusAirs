@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, type ReactNode } from "react";
+import React, { memo, useCallback, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 export type JellyAnimatedHeroProps = {
@@ -14,7 +14,7 @@ export type JellyAnimatedHeroProps = {
   children?: ReactNode;
 };
 
-export default function JellyAnimatedHero({
+function JellyAnimatedHero({
   badgeText = "Live Telemetry · Base 100.00",
   title,
   subtitle = "High-frequency aviation price index for NSO, MoSPI & RBI.",
@@ -27,21 +27,24 @@ export default function JellyAnimatedHero({
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left - rect.width / 2) / 25;
     const y = (e.clientY - rect.top - rect.height / 2) / 25;
     setMousePos({ x, y });
-  };
+  }, []);
+
+  const handleMouseEnter = useCallback(() => setIsHovered(true), []);
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+    setMousePos({ x: 0, y: 0 });
+  }, []);
 
   return (
     <div
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        setMousePos({ x: 0, y: 0 });
-      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         position: "relative",
         overflow: "hidden",
@@ -248,3 +251,5 @@ export default function JellyAnimatedHero({
     </div>
   );
 }
+
+export default memo(JellyAnimatedHero);

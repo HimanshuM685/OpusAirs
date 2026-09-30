@@ -28,15 +28,25 @@ export default function RoutesPage() {
 
   const totalPassengers = useMemo(
     () => rows.reduce((acc, r) => acc + (r.raw_passengers || 0), 0),
-    [rows]
+    [rows],
+  );
+
+  const avgSectorWeight = useMemo(
+    () => (rows.length > 0 ? (100 / rows.length).toFixed(2) : "0"),
+    [rows.length],
+  );
+
+  const heroBadge = useMemo(
+    () => `Basket Config · ${rows.length} Active City Pairs`,
+    [rows.length],
   );
 
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
       <JellyAnimatedHero
-        badgeText={`Basket Config · ${rows.length} Active City Pairs`}
-        title="City-Pair Sectors &amp; PSD Basket"
-        subtitle="Official DGCA passenger-weighted route basket powering the Laspeyres index calculation for NSO &amp; RBI."
+        badgeText={heroBadge}
+        title="City-Pair Sectors & PSD Basket"
+        subtitle="Official DGCA passenger-weighted route basket powering the Laspeyres index calculation for NSO & RBI."
         primaryCtaText="✈️ Search Routes"
         primaryCtaHref="/search"
         secondaryCtaText="📊 View Dashboard"
@@ -82,7 +92,7 @@ export default function RoutesPage() {
             Average Sector Weight
           </div>
           <div style={{ fontSize: "32px", fontWeight: 800, color: "#0c1212" }}>
-            {rows.length > 0 ? (100 / rows.length).toFixed(2) : "0"}%
+            {avgSectorWeight}%
           </div>
           <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
             Normalized basket share
@@ -94,7 +104,7 @@ export default function RoutesPage() {
             Top Trunk Sector
           </div>
           <div style={{ fontSize: "28px", fontWeight: 800, color: "#14573f" }}>
-            DEL → BOM
+            {rows[0] ? `${rows[0].origin} → ${rows[0].destination}` : "—"}
           </div>
           <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
             Highest volume corridor
@@ -115,7 +125,7 @@ export default function RoutesPage() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "20px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: 0 }}>
-              Sectors &amp; Weight Distribution
+              Sectors & Weight Distribution
             </h2>
 
             <input

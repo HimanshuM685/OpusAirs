@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { api, type IndexPoint } from "@/lib/api";
+import { api, type IndexPoint, type RouteOut } from "@/lib/api";
+import IndexAreaChart from "@/components/charts/index-area-chart";
+import TopRouteCard from "@/components/dashboard/top-route-card";
 import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const WINDOWS = [
@@ -25,6 +18,7 @@ export default function DashboardPage() {
   const [series, setSeries] = useState("apix_laspeyres");
   const [window, setWindow] = useState("all");
   const [rows, setRows] = useState<IndexPoint[]>([]);
+  const [routes, setRoutes] = useState<RouteOut[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,25 +27,54 @@ export default function DashboardPage() {
       .catch((e) => setErr(String(e)));
   }, [freq, series]);
 
+  useEffect(() => {
+    api<RouteOut[]>("/v1/routes")
+      .then(setRoutes)
+      .catch(() => {});
+  }, []);
+
   const windowDays = WINDOWS.find((w) => w.key === window)?.days ?? 99999;
   const filtered = useMemo(() => {
-    if (windowDays >= 99999) return rows;
+    const byDay = new Map<string, IndexPoint>();
+    for (const r of rows) {
+      const day = String(r.period_date).slice(0, 10);
+      byDay.set(day, r);
+    }
+    const unique = [...byDay.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([, r]) => ({ ...r, period_date: String(r.period_date).slice(0, 10) }));
+    if (windowDays >= 99999) return unique;
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - windowDays);
+    cutoff.setUTCDate(cutoff.getUTCDate() - windowDays);
     const cutStr = cutoff.toISOString().slice(0, 10);
-    return rows.filter((r) => r.period_date >= cutStr);
+    const next = unique.filter((r) => r.period_date >= cutStr);
+    return next.length ? next : unique;
   }, [rows, windowDays]);
 
-  const latest = filtered.at(-1);
-  const first = filtered[0];
-  const change =
-    latest && first
-      ? ((latest.value - first.value) / first.value) * 100
-      : null;
+  const topRoutes = useMemo(() => routes.slice(0, 4), [routes]);
 
-  const data = useMemo(
+  const { latest, change } = useMemo(() => {
+    const last = filtered.at(-1);
+    const first = filtered[0];
+    const delta =
+      last && first ? ((last.value - first.value) / first.value) * 100 : null;
+    return { latest: last, change: delta };
+  }, [filtered]);
+
+  const chartData = useMemo(
     () => filtered.map((r) => ({ date: r.period_date, value: r.value })),
     [filtered],
+  );
+
+  const tableRows = useMemo(
+    () => [...filtered.slice(-10)].reverse(),
+    [filtered],
+  );
+
+  const heroBadge = useMemo(
+    () =>
+      `Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "—"}`,
+    [latest],
   );
 
   return (
@@ -59,7 +82,7 @@ export default function DashboardPage() {
       
       {/* Jelly Animated Hero Header */}
       <JellyAnimatedHero
-        badgeText={`Live Telemetry · Latest APIx ${latest ? latest.value.toFixed(2) : "—"}`}
+        badgeText={heroBadge}
         title="Real-Time Airfare Price Index"
         subtitle="Official high-frequency aviation inflation tracking for MoSPI, NSO & RBI. Laspeyres APIx on DGCA-weighted city-pair basket."
         primaryCtaText="✈️ Search Flights"
@@ -169,7 +192,7 @@ export default function DashboardPage() {
             Basket Sectors
           </div>
           <div style={{ fontSize: "32px", fontWeight: 800, color: "#0b3b2a", letterSpacing: "-0.02em" }}>
-            100+
+            {routes.length || "—"}
           </div>
           <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
             DGCA weighted routes
@@ -181,6 +204,7 @@ export default function DashboardPage() {
           className="fade-in fade-in-delay-2"
           style={{
             gridColumn: "span 8",
+            minWidth: 0,
             background: "#ffffff",
             border: "1px solid #d8deda",
             borderRadius: "18px",
@@ -197,31 +221,8 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div style={{ height: "340px" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0b3b2a" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#0b3b2a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#e1ebe5" strokeDasharray="3 3" />
-                <XAxis dataKey="date" stroke="#7c817b" tick={{ fontSize: 12, fill: "#525854" }} />
-                <YAxis stroke="#7c817b" domain={["auto", "auto"]} tick={{ fontSize: 12, fill: "#525854" }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#ffffff",
-                    border: "1px solid #d8deda",
-                    borderRadius: 10,
-                    fontSize: 13,
-                    color: "#0c1212",
-                    boxShadow: "0 4px 12px rgba(11,59,42,0.12)",
-                  }}
-                />
-                <Area type="monotone" dataKey="value" stroke="#0b3b2a" fill="url(#emeraldGrad)" strokeWidth={2.5} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div style={{ height: "340px", minWidth: 0, width: "100%" }}>
+            <IndexAreaChart data={chartData} />
           </div>
         </div>
 
@@ -244,45 +245,12 @@ export default function DashboardPage() {
           </h2>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>DEL → BOM</div>
-                <div style={{ fontSize: "12px", color: "#525854" }}>Delhi - Mumbai</div>
-              </div>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#d9383a", background: "rgba(217, 56, 58, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
-                +5.4%
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>BLR → DEL</div>
-                <div style={{ fontSize: "12px", color: "#525854" }}>Bengaluru - Delhi</div>
-              </div>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#d9383a", background: "rgba(217, 56, 58, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
-                +3.8%
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>BOM → CCU</div>
-                <div style={{ fontSize: "12px", color: "#525854" }}>Mumbai - Kolkata</div>
-              </div>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#0b3b2a", background: "rgba(11, 59, 42, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
-                -1.2%
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#f7faf8", border: "1px solid #ebf2ee", borderRadius: "10px" }}>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#0c1212" }}>HYD → MAA</div>
-                <div style={{ fontSize: "12px", color: "#525854" }}>Hyderabad - Chennai</div>
-              </div>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#0b3b2a", background: "rgba(11, 59, 42, 0.1)", padding: "4px 8px", borderRadius: "6px" }}>
-                -2.5%
-              </span>
-            </div>
+            {topRoutes.length === 0 && (
+              <p className="sub" style={{ margin: 0 }}>No basket routes yet.</p>
+            )}
+            {topRoutes.map((r) => (
+              <TopRouteCard key={`${r.origin}-${r.destination}`} route={r} />
+            ))}
           </div>
         </div>
 
@@ -318,7 +286,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(-10).reverse().map((r, i) => (
+                {tableRows.map((r, i) => (
                   <tr key={`${r.period_date}-${i}`}>
                     <td style={{ fontWeight: 600 }}>{r.period_date}</td>
                     <td>{series}</td>

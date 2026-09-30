@@ -1,39 +1,36 @@
-# Graph Report - OpusAirs  (2026-09-10)
+# Graph Report - .  (2026-09-30)
 
 ## Corpus Check
-- 51 files · ~23,717 words
+- 56 files · ~31,671 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 320 nodes · 522 edges · 27 communities (22 shown, 5 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.87)
+- 300 nodes · 531 edges · 26 communities (18 shown, 8 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
-## Graph Freshness
-- Built from commit: `2046889c`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
-
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_API Endpoints|API Endpoints]]
-- [[_COMMUNITY_App Bootstrap & Config|App Bootstrap & Config]]
-- [[_COMMUNITY_Basket & Pipeline|Basket & Pipeline]]
-- [[_COMMUNITY_Collector Settings & Auth|Collector Settings & Auth]]
-- [[_COMMUNITY_Collection Persistence|Collection Persistence]]
 - [[_COMMUNITY_Dashboard Pages|Dashboard Pages]]
+- [[_COMMUNITY_API Route Handlers|API Route Handlers]]
+- [[_COMMUNITY_APIx Index Math|APIx Index Math]]
+- [[_COMMUNITY_REST API Docs|REST API Docs]]
+- [[_COMMUNITY_Quote Ingest Pipeline|Quote Ingest Pipeline]]
+- [[_COMMUNITY_Demo UI Components|Demo UI Components]]
 - [[_COMMUNITY_TypeScript Config|TypeScript Config]]
 - [[_COMMUNITY_Frontend Dependencies|Frontend Dependencies]]
-- [[_COMMUNITY_Docs & Methodology|Docs & Methodology]]
-- [[_COMMUNITY_Seed Data Generation|Seed Data Generation]]
-- [[_COMMUNITY_Mock Airline Server|Mock Airline Server]]
-- [[_COMMUNITY_Root Layout|Root Layout]]
-- [[_COMMUNITY_Backend Package Init|Backend Package Init]]
-- [[_COMMUNITY_Next Config|Next Config]]
-- [[_COMMUNITY_Package Init|Package Init]]
-- [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
-- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Glyph Portal UI|Glyph Portal UI]]
+- [[_COMMUNITY_Data Collection|Data Collection]]
+- [[_COMMUNITY_FastAPI Route Module|FastAPI Route Module]]
+- [[_COMMUNITY_Caveman Agent Rules|Caveman Agent Rules]]
+- [[_COMMUNITY_Admin Layout Shell|Admin Layout Shell]]
+- [[_COMMUNITY_Root App Layout|Root App Layout]]
+- [[_COMMUNITY_DGCA Backtest Methodology|DGCA Backtest Methodology]]
+- [[_COMMUNITY_Ingest Admin Page|Ingest Admin Page]]
+- [[_COMMUNITY_Collection Ethics|Collection Ethics]]
+- [[_COMMUNITY_Next.js Config|Next.js Config]]
+- [[_COMMUNITY_Auto-Clarity Exception|Auto-Clarity Exception]]
+- [[_COMMUNITY_Project README|Project README]]
+- [[_COMMUNITY_Windsurf Caveman Rules|Windsurf Caveman Rules]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `handleV1()` - 29 edges
@@ -41,108 +38,105 @@
 3. `isoDate()` - 16 edges
 4. `compilerOptions` - 16 edges
 5. `api()` - 11 edges
-6. `bootstrap()` - 11 edges
+6. `OpusAirs` - 11 edges
 7. `constructIndex()` - 10 edges
 8. `cleanQuotes()` - 10 edges
-9. `4. Admin, Scraping & Ingestion` - 10 edges
-10. `loadPsdBasket()` - 9 edges
+9. `loadPsdBasket()` - 9 edges
+10. `scrapePortals()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Laspeyres APIx aggregation` --semantically_similar_to--> `OpusAirs Airfare Price Index (APIx)`  [INFERRED] [semantically similar]
-  docs/METHODOLOGY.md → README.md
-- `run()` --calls--> `handleV1()`  [EXTRACTED]
-  app/v1/[...path]/route.ts → lib/api-routes.ts
-- `register()` --calls--> `bootstrap()`  [INFERRED]
-  instrumentation.ts → lib/bootstrap.ts
-- `OpusAirs Airfare Price Index (APIx)` --references--> `Ethical collection policy (no CAPTCHA bypass)`  [EXTRACTED]
-  README.md → docs/COLLECTION.md
-- `NSO/RBI /v1 REST API` --references--> `FastAPI backend`  [EXTRACTED]
-  docs/API.md → README.md
+- `Caveman communication style` --semantically_similar_to--> `Caveman communication style`  [INFERRED] [semantically similar]
+  .github/copilot-instructions.md → .clinerules/caveman.md
+- `Caveman communication style` --semantically_similar_to--> `Caveman communication style`  [INFERRED] [semantically similar]
+  .opencode/AGENTS.md → .clinerules/caveman.md
+- `Caveman communication style` --semantically_similar_to--> `Caveman communication style`  [INFERRED] [semantically similar]
+  AGENTS.md → .clinerules/caveman.md
+- `/v1 REST API` --semantically_similar_to--> `OpusAirs /v1 REST API reference`  [INFERRED] [semantically similar]
+  README.md → docs/API.md
+- `OpusAirs deployment guide (docs)` --semantically_similar_to--> `OpusAirs deployment guide`  [INFERRED] [semantically similar]
+  docs/Deploy.md → Deploy.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **APIx methodology pipeline** — methodology_outlier_cleaning, methodology_jevons_elementary_price, methodology_laspeyres_apix, methodology_psd_basket [EXTRACTED 1.00]
-- **Collector safeguards** — collection_robotsgate, collection_hostlimiter, collection_ethical_collection_policy [EXTRACTED 1.00]
+- **Identical caveman agent communication rules across IDE/tool configs** — clinerules_caveman_caveman_communication_style, github_copilot_instructions_caveman_communication_style, opencode_agents_caveman_communication_style, windsurf_rules_caveman_caveman_communication_style, root_agents_caveman_communication_style [INFERRED 0.95]
+- **Published APIx index series variants (Laspeyres, Jevons, T+21)** — docs_api_series_apix_laspeyres, docs_api_series_apix_jevons, docs_api_series_apix_t21 [EXTRACTED 1.00]
+- **Quote warehouse ETL chain from raw ingest to index_values** — docs_schema_quotes_raw, docs_schema_quotes_clean, docs_schema_index_values [EXTRACTED 1.00]
 
-## Communities (27 total, 5 thin omitted)
+## Communities (26 total, 8 thin omitted)
 
-### Community 0 - "API Endpoints"
-Cohesion: 0.14
-Nodes (33): handleV1(), iata(), json(), loginResponse(), mapIndex(), mapQuote(), qnum(), validIata() (+25 more)
+### Community 0 - "Dashboard Pages"
+Cohesion: 0.09
+Nodes (21): CITY, WINDOWS, color(), HeatmapPage(), api(), BacktestRow, BacktestSummary, CarrierFare (+13 more)
 
-### Community 1 - "App Bootstrap & Config"
-Cohesion: 0.05
-Nodes (31): 1. Environment Configuration, 2. Local Node.js Deployment, 3. Docker Deployment, 4. Vercel + Neon Cloud Deployment, Manual Docker Build:, OpusAirs — Deployment Guide, Using Docker Compose:, OpusAirs /v1 REST API Reference (+23 more)
+### Community 1 - "API Route Handlers"
+Cohesion: 0.13
+Nodes (38): handleV1(), iata(), json(), loginResponse(), mapIndex(), mapQuote(), qnum(), validIata() (+30 more)
 
-### Community 2 - "Basket & Pipeline"
-Cohesion: 0.15
-Nodes (21): constructIndex(), jevons(), LEAD_TIMES, loadPsdBasket(), cleanQuotes(), lowestEconomyCells(), madFlags(), median() (+13 more)
+### Community 2 - "APIx Index Math"
+Cohesion: 0.10
+Nodes (30): register(), constructIndex(), jevons(), DDL, LEAD_TIMES, loadPsdBasket(), RouteSpec, cleanQuotes() (+22 more)
 
-### Community 3 - "Collector Settings & Auth"
-Cohesion: 0.07
-Nodes (28): 1. Airfare Price Index, 2. Flight Search & Price Comparison, 3. Analytics & Basket, 4. Admin, Scraping & Ingestion, 5. Auth, Detailed Endpoint Documentation, `GET /v1/auth/me`, `GET /v1/backtest/dgca` (+20 more)
+### Community 3 - "REST API Docs"
+Cohesion: 0.08
+Nodes (35): Docker Compose web service, GET /v1/index, POST /v1/index/rebuild, data/psd_basket.csv market basket, apix_jevons index series, apix_laspeyres index series, apix_t21 index series (21-day advance purchase), OpusAirs /v1 REST API reference (+27 more)
 
-### Community 4 - "Collection Persistence"
+### Community 4 - "Quote Ingest Pipeline"
+Cohesion: 0.12
+Nodes (23): asDate(), CARRIER_CODES, cell(), CollectionEvent, normalizeCarrier(), normalizeTripType(), optFloat(), parseCsvQuotes() (+15 more)
+
+### Community 5 - "Demo UI Components"
+Cohesion: 0.12
+Nodes (6): Gradient, GradientWave(), GradientWaveProps, MiniGl, Me, navLinks
+
+### Community 6 - "TypeScript Config"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+11 more)
 
-### Community 5 - "Dashboard Pages"
-Cohesion: 0.09
-Nodes (16): WINDOWS, color(), HeatmapPage(), api(), BacktestRow, BacktestSummary, CarrierFare, CollectionHealth (+8 more)
-
-### Community 6 - "TypeScript Config"
+### Community 7 - "Frontend Dependencies"
 Cohesion: 0.11
 Nodes (18): dependencies, @neondatabase/serverless, next, react, react-dom, recharts, devDependencies, @types/node (+10 more)
 
-### Community 7 - "Frontend Dependencies"
-Cohesion: 0.17
-Nodes (11): 1. Relational Tables, 2. Ingest Formats, 3. Data Flow to Consumer Features, `basket_routes`, `collection_runs`, CSV Format (`POST /v1/ingest/csv` and Admin File Upload), Data Warehouse Schema & Ingest Formats, `index_values` (+3 more)
+### Community 8 - "Glyph Portal UI"
+Cohesion: 0.24
+Nodes (7): clamp(), GlyphPortal(), GlyphPortalProps, GlyphPortalStyle, Ink, Letter, smooth()
 
-### Community 8 - "Docs & Methodology"
-Cohesion: 0.15
-Nodes (17): NSO/RBI /v1 REST API, X-API-Key auth, Amadeus GDS adapter (env-gated), Ethical collection policy (no CAPTCHA bypass), HostLimiter rate limiting, RobotsGate (robots.txt enforcement), Docker compose stack (mock-airline, api, web), DGCA TMU backtest (+9 more)
+### Community 9 - "Data Collection"
+Cohesion: 0.29
+Nodes (7): opus_session session cookie authentication, POST /v1/collect/run, Automated live web scraper, collection_runs audit log, Politeness rate-limiting (LIVE_RATE_LIMIT_SECONDS), Robots.txt adherence before scraping, data/scrape_sources.json search budget caps
 
-### Community 9 - "Seed Data Generation"
-Cohesion: 0.22
-Nodes (9): 1. Quote Specification, 2. Market Basket & City-Pair Weights, 3. Elementary Price Index (Jevons Formulation), 4. Aggregate Laspeyres APIx, 5. Aggregation Frequencies, 6. Outlier Detection & Cleaning, 7. DGCA Benchmark Backtesting, Additional Published Series (+1 more)
-
-### Community 23 - "Community 23"
-Cohesion: 0.19
-Nodes (15): cell(), CollectionEvent, normalizeTripType(), optFloat(), parseCsvQuotes(), QuoteIn, toEvent(), TripType (+7 more)
-
-### Community 24 - "Community 24"
-Cohesion: 0.22
-Nodes (13): register(), adminSeedEmail(), adminSeedPassword(), ensureSeedAdmin(), hashPassword(), bootstrap(), DDL, RouteSpec (+5 more)
-
-### Community 25 - "Community 25"
-Cohesion: 0.18
-Nodes (8): settings, clamp(), GlyphPortal(), GlyphPortalProps, GlyphPortalStyle, Ink, Letter, smooth()
-
-### Community 26 - "Community 26"
+### Community 10 - "FastAPI Route Module"
 Cohesion: 0.60
 Nodes (4): Ctx, GET(), POST(), run()
 
+### Community 11 - "Caveman Agent Rules"
+Cohesion: 0.50
+Nodes (4): Caveman communication style, Caveman communication style, Caveman communication style, Caveman communication style
+
+### Community 14 - "DGCA Backtest Methodology"
+Cohesion: 1.00
+Nodes (3): GET /v1/backtest/dgca, data/dgca_benchmark.csv, DGCA Tariff Monitoring Unit (TMU) 72-route benchmark
+
 ## Knowledge Gaps
-- **124 isolated node(s):** `NeededCell`, `navLinks`, `WINDOWS`, `navLinks`, `Me` (+119 more)
+- **73 isolated node(s):** `NeededCell`, `navLinks`, `WINDOWS`, `CITY`, `navLinks` (+68 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Detailed Endpoint Documentation` connect `Collector Settings & Auth` to `App Bootstrap & Config`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **Why does `OpusAirs /v1 REST API Reference` connect `App Bootstrap & Config` to `Collector Settings & Auth`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+- **Why does `handleV1()` connect `API Route Handlers` to `APIx Index Math`, `FastAPI Route Module`, `Quote Ingest Pipeline`?**
+  _High betweenness centrality (0.011) - this node is a cross-community bridge._
 - **What connects `NeededCell`, `navLinks`, `WINDOWS` to the rest of the system?**
-  _124 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `API Endpoints` be split into smaller, more focused modules?**
-  _Cohesion score 0.14414414414414414 - nodes in this community are weakly interconnected._
-- **Should `App Bootstrap & Config` be split into smaller, more focused modules?**
-  _Cohesion score 0.05405405405405406 - nodes in this community are weakly interconnected._
-- **Should `Basket & Pipeline` be split into smaller, more focused modules?**
-  _Cohesion score 0.1452991452991453 - nodes in this community are weakly interconnected._
-- **Should `Collector Settings & Auth` be split into smaller, more focused modules?**
-  _Cohesion score 0.07142857142857142 - nodes in this community are weakly interconnected._
+  _82 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Dashboard Pages` be split into smaller, more focused modules?**
+  _Cohesion score 0.08826945412311266 - nodes in this community are weakly interconnected._
+- **Should `API Route Handlers` be split into smaller, more focused modules?**
+  _Cohesion score 0.12659698025551683 - nodes in this community are weakly interconnected._
+- **Should `APIx Index Math` be split into smaller, more focused modules?**
+  _Cohesion score 0.09986504723346828 - nodes in this community are weakly interconnected._
+- **Should `REST API Docs` be split into smaller, more focused modules?**
+  _Cohesion score 0.08235294117647059 - nodes in this community are weakly interconnected._
+- **Should `Quote Ingest Pipeline` be split into smaller, more focused modules?**
+  _Cohesion score 0.1225071225071225 - nodes in this community are weakly interconnected._

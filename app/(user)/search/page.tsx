@@ -1,25 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { api, type RouteOut, type SearchResult, type TrendPoint } from "@/lib/api";
+import {
+  CHART_TOOLTIP_STYLE_COMPACT,
+  formatChartShortDate,
+  formatInrAxis,
+} from "@/lib/chart-styles";
 import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
 
 const TREND_WINDOWS = [
   { key: "30d", label: "30 Days" },
   { key: "3m", label: "3 Months" },
   { key: "6m", label: "6 Months" },
+  { key: "all", label: "All" },
 ];
+
+function fareAxis(rows: { min_fare: number; max_fare: number }[]): [number, number] {
+  if (!rows.length) return [0, 1];
+  const lo = Math.min(...rows.map((r) => Number(r.min_fare)));
+  const hi = Math.max(...rows.map((r) => Number(r.max_fare)));
+  const pad = Math.max((hi - lo) * 0.15, hi * 0.05, 100);
+  return [Math.max(0, Math.floor(lo - pad)), Math.ceil(hi + pad)];
+}
 
 export default function SearchPage() {
   const [routes, setRoutes] = useState<RouteOut[]>([]);
@@ -31,6 +45,16 @@ export default function SearchPage() {
   const [tripType, setTripType] = useState<"one_way" | "round_trip">("one_way");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [departDate, setDepartDate] = useState("2026-09-17");
+  const [returnDate, setReturnDate] = useState("2026-09-24");
+  const [adults, setAdults] = useState(1);
+  const [childrenCount, setChildrenCount] = useState(0);
+  const [infants, setInfants] = useState(0);
+  const [travelClass, setTravelClass] = useState("Economy");
+  const [concession, setConcession] = useState("None");
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [showPassengerModal, setShowPassengerModal] = useState(false);
 
   useEffect(() => {
     api<RouteOut[]>("/v1/routes")
@@ -48,7 +72,7 @@ export default function SearchPage() {
     return [...s].sort();
   }, [routes]);
 
-  async function handleSearch() {
+  const handleSearch = useCallback(async () => {
     const o = origin.trim().toUpperCase();
     const d = dest.trim().toUpperCase();
     if (o.length !== 3 || d.length !== 3) return;
@@ -60,7 +84,7 @@ export default function SearchPage() {
       );
       setResult(searchRes);
       const trendRes = await api<TrendPoint[]>(
-        `/v1/trends/${o}/${d}?window=${trendWindow}`,
+        `/v1/trends/${o}/${d}?window=${trendWindow}&trip_type=${tripType}`,
       );
       setTrends(trendRes);
     } catch (e) {
@@ -68,17 +92,22 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [origin, dest, tripType, trendWindow]);
+
+  const swapAirports = useCallback(() => {
+    setOrigin(dest);
+    setDest(origin);
+  }, [origin, dest]);
 
   // Fetch trends when window changes (if we already have a search)
   useEffect(() => {
     if (!result) return;
     api<TrendPoint[]>(
-      `/v1/trends/${result.origin}/${result.destination}?window=${trendWindow}`,
+      `/v1/trends/${result.origin}/${result.destination}?window=${trendWindow}&trip_type=${tripType}`,
     )
       .then(setTrends)
       .catch(() => {});
-  }, [trendWindow, result]);
+  }, [trendWindow, result, tripType]);
 
   // Carrier comparison — group by carrier, show cheapest per carrier
   const carrierCompare = useMemo(() => {
@@ -103,22 +132,15 @@ export default function SearchPage() {
     return ((last - first) / first) * 100;
   }, [trends]);
 
-  const [departDate, setDepartDate] = useState("2026-09-17");
-  const [returnDate, setReturnDate] = useState("2026-09-24");
-  const [adults, setAdults] = useState(1);
-  const [childrenCount, setChildrenCount] = useState(0);
-  const [infants, setInfants] = useState(0);
-  const [travelClass, setTravelClass] = useState("Economy");
-  const [concession, setConcession] = useState("None");
-  const [showPromo, setShowPromo] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
-  const [showPassengerModal, setShowPassengerModal] = useState(false);
+  const trendYDomain = useMemo(() => fareAxis(trends), [trends]);
+
+  const showTrendDots = trends.length < 8;
 
   return (
     <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
       <JellyAnimatedHero
-        badgeText="Route Intelligence &amp; Carrier Compare"
-        title="Search Flights &amp; Compare Fares"
+        badgeText="Route Intelligence & Carrier Compare"
+        title="Search Flights & Compare Fares"
         subtitle="Search between any two domestic cities to compare baseline vs tax breakdowns across IndiGo, Air India, SpiceJet and Akasa."
         primaryCtaText="View Dashboard"
         primaryCtaHref="/dashboard"
@@ -297,11 +319,7 @@ export default function SearchPage() {
             {/* Swap Button */}
             <button
               type="button"
-              onClick={() => {
-                const temp = origin;
-                setOrigin(dest);
-                setDest(temp);
-              }}
+              onClick={swapAirports}
               title="Swap Origin and Destination"
               style={{
                 width: "36px",
@@ -538,7 +556,9 @@ export default function SearchPage() {
           <button
             type="button"
             onClick={() => void handleSearch()}
-            disabled={loading || origin.trim().length !== 3 || dest.trim().length !== 3}
+            disabled={
+              loading || origin.trim().length !== 3 || dest.trim().length !== 3
+            }
             style={{
               background: "linear-gradient(135deg, #0b3b2a, #14573f)",
               color: "#ffffff",
@@ -578,11 +598,7 @@ export default function SearchPage() {
 
           <button
             type="button"
-            onClick={() => {
-              const temp = origin;
-              setOrigin(dest);
-              setDest(temp);
-            }}
+            onClick={swapAirports}
             style={{ width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "14px" }}
           >
             ⇄
@@ -685,14 +701,7 @@ export default function SearchPage() {
                       width={50}
                     />
                     <Tooltip
-                      contentStyle={{
-                        background: "#ffffff",
-                        border: "1px solid #d8deda",
-                        borderRadius: 8,
-                        fontSize: 13,
-                        color: "#0c1212",
-                        boxShadow: "0 4px 12px rgba(11,59,42,0.1)",
-                      }}
+                      contentStyle={CHART_TOOLTIP_STYLE_COMPACT}
                       formatter={(v: number) => [
                         `₹${v.toLocaleString("en-IN")}`,
                         "Cheapest fare",
@@ -755,7 +764,7 @@ export default function SearchPage() {
           </div>
 
           {/* Price Trends */}
-          {trends.length > 0 && (
+          {result.quote_count > 0 && (
             <div className="panel fade-in">
               <div
                 className="row"
@@ -779,80 +788,77 @@ export default function SearchPage() {
                   ))}
                 </div>
               </div>
-              <div style={{ height: 320 }}>
+              {trends.length === 0 ? (
+                <p className="sub">No trend points in this window. Try 6 Months or All.</p>
+              ) : (
+              <div style={{ height: 320, minWidth: 0, width: "100%" }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trends}>
-                    <defs>
-                      <linearGradient
-                        id="trendGrad"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor="#0b3b2a"
-                          stopOpacity={0.25}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#0b3b2a"
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#e1ebe5" />
+                  <LineChart
+                    data={trends}
+                    margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
+                  >
+                    <CartesianGrid stroke="#e1ebe5" strokeDasharray="3 3" />
                     <XAxis
                       dataKey="period_date"
                       stroke="#7c817b"
                       tick={{ fontSize: 12, fill: "#525854" }}
+                      tickFormatter={formatChartShortDate}
+                      minTickGap={24}
                     />
                     <YAxis
                       stroke="#7c817b"
                       tick={{ fontSize: 12, fill: "#525854" }}
-                      tickFormatter={(v: number) => `₹${(v / 1000).toFixed(1)}k`}
+                      domain={trendYDomain}
+                      tickFormatter={formatInrAxis}
+                      width={72}
                     />
                     <Tooltip
-                      contentStyle={{
-                        background: "#ffffff",
-                        border: "1px solid #d8deda",
-                        borderRadius: 8,
-                        fontSize: 13,
-                        color: "#0c1212",
-                        boxShadow: "0 4px 12px rgba(11,59,42,0.1)",
+                      contentStyle={CHART_TOOLTIP_STYLE_COMPACT}
+                      labelFormatter={(d) => String(d)}
+                      formatter={(v: unknown, name: unknown) => {
+                        const n = Number(Array.isArray(v) ? v[0] : v);
+                        const label =
+                          name === "avg_fare"
+                            ? "Average"
+                            : name === "min_fare"
+                              ? "Min"
+                              : "Max";
+                        return [
+                          Number.isFinite(n) ? `₹${n.toLocaleString("en-IN")}` : "—",
+                          label,
+                        ];
                       }}
-                      formatter={(v: number, name: string) => [
-                        `₹${v.toLocaleString("en-IN")}`,
-                        name === "avg_fare"
-                          ? "Average"
-                          : name === "min_fare"
-                            ? "Min"
-                            : "Max",
-                      ]}
                     />
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="max_fare"
-                      stroke="transparent"
-                      fill="rgba(217,56,58,0.06)"
+                      stroke="#d9383a"
+                      strokeDasharray="4 4"
+                      strokeWidth={1.5}
+                      dot={showTrendDots}
+                      name="max_fare"
                     />
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="avg_fare"
                       stroke="#0b3b2a"
-                      fill="url(#trendGrad)"
                       strokeWidth={2.5}
+                      dot
+                      name="avg_fare"
                     />
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="min_fare"
-                      stroke="transparent"
-                      fill="rgba(20,87,63,0.06)"
+                      stroke="#14573f"
+                      strokeDasharray="4 4"
+                      strokeWidth={1.5}
+                      dot={showTrendDots}
+                      name="min_fare"
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
+              )}
             </div>
           )}
         </>

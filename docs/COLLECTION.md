@@ -44,4 +44,26 @@ Every collection run creates a record in `collection_runs`:
 - `quotes_blocked`: Challenge detected or robots.txt disallowed
 - `notes`: Error context or summary
 
-Collection health is visible in real-time on the Admin Overview (`/admin`) and Scrape Monitor (`/admin/scrape`), or via `GET /v1/health/collection`.
+Collection health is visible in real-time on the Admin Overview (`/admin`) and Scrape Monitor (`/admin/scrape`), or via `GET /v1/health/collection`. Today's queue counts are `GET /v1/collect/jobs` (admin cookie).
+
+---
+
+## 4. Daily cron and recovery
+
+The crawl is a resumable job queue (`collect_jobs`), not one HTTP page per click. PSD basket routes are priority 0. A collector that returns a real Indian city pair inserts it into `collect_routes` for the next day. Search paths that `robots.txt` disallows are marked `blocked` and are not fetched.
+
+```bash
+mkdir -p data/logs
+# 02:15 local time. Stops after COLLECT_MAX_HOURS (default 18) and resumes next run.
+15 2 * * * cd /path/to/OpusAirs && npm run collect:daily >> data/logs/collect.log 2>&1
+```
+
+`npm run collect:daily` runs `scripts/collect-daily.ts`, which calls `runPipeline({ scrape: true, full: true })`.
+
+- A second start exits 0 while a lock younger than `COLLECT_MAX_HOURS` is `running`.
+- Jobs left `running` with `locked_at` older than 15 minutes return to `pending` (or `failed` after 3 attempts). `quotes_raw` is not deleted.
+- Timeout and HTTP 5xx retry up to 3 times. `robots.txt`, 401, 403, 429, and challenge pages are `blocked` for that day and are not retried.
+- The script exits 1 only if the process throws or the queue had pending jobs and none were attempted. A high block rate logs coverage and, when `ALERT_WEBHOOK` is set, POSTs `{ "text": "..." }`. It still exits 0 if the queue drained.
+- Re-run the same command after a crash. Completed jobs for that `collected_on` are not repeated.
+
+Horizon per route, per enabled source: T+1, T+7, T+14, T+21, T+30, one-way and round-trip (return = departure + 7 days). `LIVE_RATE_LIMIT_SECONDS` (default 8) applies between fetches to the same host, not between robots.txt skips.

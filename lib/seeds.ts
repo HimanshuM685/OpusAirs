@@ -57,7 +57,7 @@ export const DEFAULT_SCRAPE_SOURCES = [
     carrier: "6E",
     enabled: true,
     start_url: "https://www.goindigo.in/",
-    search_url_template: "https://www.goindigo.in/?from={origin}&to={destination}&date={date}",
+    search_url_template: "https://www.goindigo.in/book/flight-select.html?from={origin}&to={destination}&date={date}",
   },
   {
     id: "airindia",
@@ -65,7 +65,7 @@ export const DEFAULT_SCRAPE_SOURCES = [
     carrier: "AI",
     enabled: true,
     start_url: "https://www.airindia.com/",
-    search_url_template: "https://www.airindia.com/?from={origin}&to={destination}&date={date}",
+    search_url_template: "https://www.airindia.com/in/en/book/search-flights.html?from={origin}&to={destination}&date={date}",
   },
   {
     id: "airindia_express",
@@ -73,7 +73,7 @@ export const DEFAULT_SCRAPE_SOURCES = [
     carrier: "IX",
     enabled: true,
     start_url: "https://www.airindiaexpress.com/",
-    search_url_template: "https://www.airindiaexpress.com/?from={origin}&to={destination}&date={date}",
+    search_url_template: "https://www.airindiaexpress.com/book/search?from={origin}&to={destination}&date={date}",
   },
   {
     id: "akasa",
@@ -81,7 +81,7 @@ export const DEFAULT_SCRAPE_SOURCES = [
     carrier: "QP",
     enabled: true,
     start_url: "https://www.akasaair.com/",
-    search_url_template: "https://www.akasaair.com/?from={origin}&to={destination}&date={date}",
+    search_url_template: "https://www.akasaair.com/book/flight-select?from={origin}&to={destination}&date={date}",
   },
   {
     id: "spicejet",
@@ -89,7 +89,7 @@ export const DEFAULT_SCRAPE_SOURCES = [
     carrier: "SG",
     enabled: true,
     start_url: "https://www.spicejet.com/",
-    search_url_template: "https://www.spicejet.com/?from={origin}&to={destination}&date={date}",
+    search_url_template: "https://www.spicejet.com/search?from={origin}&to={destination}&date={date}",
   },
 ];
 

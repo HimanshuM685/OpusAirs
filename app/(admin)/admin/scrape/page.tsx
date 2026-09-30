@@ -10,11 +10,15 @@ export default function ScrapePage() {
   const [origin, setOrigin] = useState("CCU");
   const [dest, setDest] = useState("BOM");
   const [busy, setBusy] = useState(false);
+  const [jobs, setJobs] = useState<Record<string, number> | null>(null);
 
   function load() {
     api<CollectionHealth[]>("/v1/health/collection")
       .then(setRows)
       .catch((e) => setErr(String(e)));
+    api<Record<string, number>>("/v1/collect/jobs")
+      .then(setJobs)
+      .catch(() => setJobs(null));
   }
 
   useEffect(() => {
@@ -53,7 +57,7 @@ export default function ScrapePage() {
 
       <div className="panel fade-in fade-in-delay-1">
         <h2 style={{ marginTop: 0, fontSize: 18 }}>Top basket routes</h2>
-        <p className="sub">PSD city-pairs including CCU–BOM. Budget 80 searches, rate-limited.</p>
+        <p className="sub">PSD basket is queued first. A daily cron finishes the rest. This button claims up to 80 pending jobs.</p>
         <button
           className="primary"
           onClick={() => void runScrape()}
@@ -98,6 +102,16 @@ export default function ScrapePage() {
       </div>
 
       {msg && <p className="sub">{msg}</p>}
+      {jobs && (
+        <div className="panel fade-in">
+          <h2 style={{ marginTop: 0, fontSize: 18 }}>Today&apos;s queue</h2>
+          <p className="sub">
+            pending {jobs.pending ?? 0} · running {jobs.running ?? 0} · done {jobs.done ?? 0} · missing{" "}
+            {jobs.missing ?? 0} · blocked {jobs.blocked ?? 0} · failed {jobs.failed ?? 0} · routes ok{" "}
+            {jobs.routes_ok ?? 0}/{jobs.routes ?? 0}
+          </p>
+        </div>
+      )}
       <div className="panel fade-in fade-in-delay-2">
         <table>
           <thead>

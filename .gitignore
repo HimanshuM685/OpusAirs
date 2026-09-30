@@ -5,4 +5,12 @@ out/
 .env
 .DS_Store
 tsconfig.tsbuildinfo
+node_modules/
+.next/
+out/
+.env.local
+.env
+.DS_Store
+tsconfig.tsbuildinfo
 graphify-out/
+data/logs/

@@ -197,35 +197,70 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     );
   }
 
+  if (req.method === "GET" && path === "collect/jobs") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const day = sp.get("date") || new Date().toISOString().slice(0, 10);
+    const rows = (await q`
+      SELECT status, COUNT(*)::int AS n FROM collect_jobs WHERE collected_on = ${day} GROUP BY status
+    `) as { status: string; n: number }[];
+    const counts: Record<string, number> = { pending: 0, running: 0, done: 0, blocked: 0, missing: 0, failed: 0 };
+    for (const r of rows) counts[r.status] = Number(r.n);
+    const routes = (await q`
+      SELECT COUNT(*)::int AS n FROM (
+        SELECT DISTINCT origin, destination FROM collect_jobs WHERE collected_on = ${day}
+      ) s
+    `) as { n: number }[];
+    const okRoutes = (await q`
+      SELECT COUNT(*)::int AS n FROM (
+        SELECT DISTINCT origin, destination FROM collect_jobs WHERE collected_on = ${day} AND status = 'done'
+      ) s
+    `) as { n: number }[];
+    return json({ collected_on: day, ...counts, routes: Number(routes[0]?.n || 0), routes_ok: Number(okRoutes[0]?.n || 0) });
+  }
+
   if (req.method === "GET" && path === "routes") {
-    const routes = (await q`SELECT * FROM basket_routes`) as {
+    const routes = (await q`SELECT origin, destination, weight, raw_passengers FROM basket_routes ORDER BY weight DESC`) as {
       origin: string;
       destination: string;
       weight: number;
       raw_passengers: number;
     }[];
-    const out = [];
-    for (const r of routes) {
-      const latest = await q`
-        SELECT value FROM index_values
-        WHERE series = 'apix_route' AND frequency = 'daily' AND origin = ${r.origin} AND destination = ${r.destination}
-        ORDER BY period_date DESC LIMIT 1
-      `;
-      const fare = await q`
-        SELECT total_fare FROM quotes_clean
-        WHERE origin = ${r.origin} AND destination = ${r.destination} AND is_outlier = 0
-        ORDER BY collected_on DESC LIMIT 1
-      `;
-      out.push({
-        origin: r.origin,
-        destination: r.destination,
-        weight: r.weight,
-        raw_passengers: r.raw_passengers,
-        latest_index: latest[0]?.value ?? null,
-        latest_fare: fare[0]?.total_fare ?? null,
-      });
+    const idx = (await q`
+      SELECT origin, destination, value, period_date,
+        ROW_NUMBER() OVER (PARTITION BY origin, destination ORDER BY period_date DESC) AS rn
+      FROM index_values
+      WHERE series = 'apix_route' AND frequency = 'daily' AND origin IS NOT NULL
+    `) as { origin: string; destination: string; value: number; period_date: string; rn: number }[];
+    const latestBy = new Map<string, number>();
+    const prevBy = new Map<string, number>();
+    for (const r of idx) {
+      const key = `${r.origin}|${r.destination}`;
+      const rn = Number(r.rn);
+      if (rn === 1) latestBy.set(key, Number(r.value));
+      else if (rn === 2) prevBy.set(key, Number(r.value));
     }
-    return json(out);
+    const fares = (await q`
+      SELECT DISTINCT ON (origin, destination) origin, destination, total_fare
+      FROM quotes_clean
+      WHERE is_outlier = 0
+      ORDER BY origin, destination, collected_on DESC
+    `) as { origin: string; destination: string; total_fare: number }[];
+    const fareBy = new Map(fares.map((f) => [`${f.origin}|${f.destination}`, Number(f.total_fare)]));
+    return json(
+      routes.map((r) => {
+        const key = `${r.origin}|${r.destination}`;
+        return {
+          origin: r.origin,
+          destination: r.destination,
+          weight: r.weight,
+          raw_passengers: r.raw_passengers,
+          latest_index: latestBy.get(key) ?? null,
+          prev_index: prevBy.get(key) ?? null,
+          latest_fare: fareBy.get(key) ?? null,
+        };
+      }),
+    );
   }
 
   if (req.method === "GET" && path === "backtest/dgca") {
@@ -302,22 +337,26 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const origin = parts[1].toUpperCase();
     const dest = parts[2].toUpperCase();
     const window = sp.get("window") || "30d";
-    const today = new Date();
+    const trip = sp.get("trip_type");
     const days = window === "3m" ? 90 : window === "6m" ? 180 : window === "all" ? 36500 : 30;
-    const since = new Date(today);
+    const since = new Date();
     since.setUTCDate(since.getUTCDate() - days);
     const sinceStr = since.toISOString().slice(0, 10);
     const rows = (await q`
-      SELECT collected_on, total_fare FROM quotes_clean
-      WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0 AND collected_on >= ${sinceStr}
-      ORDER BY collected_on
-    `) as { collected_on: string; total_fare: number }[];
+      SELECT dep_date, collected_on, total_fare, trip_type FROM quotes_clean
+      WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0
+      ORDER BY dep_date
+    `) as { dep_date: string; collected_on: string; total_fare: number; trip_type?: string }[];
+    const byCollect = new Set(rows.map((r) => isoDate(r.collected_on)));
+    const useDep = byCollect.size <= 1;
     const buckets = new Map<string, number[]>();
     for (const r of rows) {
-      const d = isoDate(r.collected_on);
-      const list = buckets.get(d) ?? [];
-      list.push(r.total_fare);
-      buckets.set(d, list);
+      if (trip && (r.trip_type || "one_way") !== trip) continue;
+      const day = isoDate(useDep ? r.dep_date : r.collected_on);
+      if (day < sinceStr) continue;
+      const list = buckets.get(day) ?? [];
+      list.push(Number(r.total_fare));
+      buckets.set(day, list);
     }
     return json(
       [...buckets.entries()].sort().map(([period_date, fares]) => ({

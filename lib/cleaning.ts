@@ -1,4 +1,5 @@
 import { isoDate } from "./db";
+import { pickBest } from "./collect/policy";
 
 export function parseAmount(value: unknown): number | null {
   if (value == null || value === "") return null;
@@ -92,13 +93,41 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
   const raw = (await q`SELECT * FROM quotes_raw`) as RawQuote[];
   await q`DELETE FROM quotes_clean`;
   const grouped = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
+  const flights = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
   for (const row of raw) {
     if (["sold_out", "cancelled", "blocked", "missing"].includes(row.status)) continue;
     const parts = splitFareComponents(row);
     if (!parts) continue;
-    const key = `${row.origin}|${row.destination}|${row.lead_time_days}`;
+    const flightKey = [
+      row.origin,
+      row.destination,
+      row.carrier,
+      row.flight_no,
+      isoDate(row.dep_date),
+      row.fare_class,
+      isoDate(row.collected_on),
+      row.trip_type || "one_way",
+    ].join("|");
+    const flight = flights.get(flightKey) ?? [];
+    flight.push({ raw: row, parts });
+    flights.set(flightKey, flight);
+  }
+  for (const group of flights.values()) {
+    const best = pickBest(
+      group.map((item) => ({
+        ...item,
+        flight_no: item.raw.flight_no,
+        base_fare: item.parts.base_fare,
+        taxes: item.parts.taxes,
+        udf: item.parts.udf,
+        convenience: item.parts.convenience,
+        total_fare: item.parts.total_fare,
+        return_date: item.raw.return_date,
+      })),
+    );
+    const key = `${best.raw.origin}|${best.raw.destination}|${best.raw.lead_time_days}`;
     const list = grouped.get(key) ?? [];
-    list.push({ raw: row, parts });
+    list.push(best);
     grouped.set(key, list);
   }
   const seen = new Set<string>();

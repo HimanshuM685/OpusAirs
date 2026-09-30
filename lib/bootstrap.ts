@@ -152,6 +152,45 @@ const DDL = [
     value DOUBLE PRECISION NOT NULL,
     note VARCHAR(500) NOT NULL DEFAULT ''
   )`,
+  `CREATE TABLE IF NOT EXISTS collect_routes (
+    origin VARCHAR(3) NOT NULL,
+    destination VARCHAR(3) NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 1,
+    discovered_on DATE,
+    PRIMARY KEY (origin, destination)
+  )`,
+  `CREATE TABLE IF NOT EXISTS collect_jobs (
+    id SERIAL PRIMARY KEY,
+    collected_on DATE NOT NULL,
+    source VARCHAR(64) NOT NULL,
+    origin VARCHAR(3) NOT NULL,
+    destination VARCHAR(3) NOT NULL,
+    dep_date DATE NOT NULL,
+    return_date DATE,
+    trip_type VARCHAR(16) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    locked_at TIMESTAMP,
+    last_error VARCHAR(500) NOT NULL DEFAULT '',
+    UNIQUE (collected_on, source, origin, destination, dep_date, trip_type)
+  )`,
+  `CREATE TABLE IF NOT EXISTS collect_attempts (
+    id SERIAL PRIMARY KEY,
+    job_id INTEGER REFERENCES collect_jobs(id),
+    source VARCHAR(64) NOT NULL,
+    host VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    http_code INTEGER,
+    quote_count INTEGER NOT NULL DEFAULT 0,
+    error VARCHAR(500) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS collect_lock (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    started_at TIMESTAMP NOT NULL,
+    status VARCHAR(16) NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS ix_collect_jobs_status ON collect_jobs (collected_on, status)`,
 ];
 
 let bootstrapped = false;
@@ -178,6 +217,14 @@ export async function bootstrap(): Promise<void> {
   }
 
   await ensureSeedAdmin();
+
+  for (const r of basket) {
+    await q`
+      INSERT INTO collect_routes (origin, destination, priority, discovered_on)
+      VALUES (${r.origin}, ${r.destination}, 0, ${new Date().toISOString().slice(0, 10)})
+      ON CONFLICT (origin, destination) DO NOTHING
+    `;
+  }
 
   // 2. Scrape sources seed
   const sourcesCount = (await q`SELECT COUNT(*) as count FROM scrape_sources`) as { count: string | number }[];

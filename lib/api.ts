@@ -51,6 +51,7 @@ export type RouteOut = {
   weight: number;
   raw_passengers: number;
   latest_index?: number | null;
+  prev_index?: number | null;
   latest_fare?: number | null;
 };
 

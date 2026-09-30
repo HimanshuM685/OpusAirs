@@ -8,7 +8,7 @@
       "enabled": true,
       "carrier": "6E",
       "start_url": "https://www.goindigo.in/",
-      "search_url_template": "https://www.goindigo.in/?from={origin}&to={destination}&date={date}",
+      "search_url_template": "https://www.goindigo.in/book/flight-select.html?from={origin}&to={destination}&date={date}",
       "flight_card": "[data-flight], .flight-card, .trip-card, [class*='flight-info']",
       "price": "[data-total], .fare-amount, .price, [class*='fare']",
       "flight_no": "[data-flight], .flight-number, [class*='flight-no']"
@@ -19,7 +19,7 @@
       "enabled": true,
       "carrier": "AI",
       "start_url": "https://www.airindia.com/",
-      "search_url_template": "https://www.airindia.com/?from={origin}&to={destination}&date={date}",
+      "search_url_template": "https://www.airindia.com/in/en/book/search-flights.html?from={origin}&to={destination}&date={date}",
       "flight_card": "[data-flight], .flight-card, [class*='flight']",
       "price": "[data-total], .price, [class*='fare']",
       "flight_no": "[data-flight], .flight-number"
@@ -30,7 +30,7 @@
       "enabled": true,
       "carrier": "IX",
       "start_url": "https://www.airindiaexpress.com/",
-      "search_url_template": "https://www.airindiaexpress.com/?from={origin}&to={destination}&date={date}",
+      "search_url_template": "https://www.airindiaexpress.com/book/search?from={origin}&to={destination}&date={date}",
       "flight_card": "[data-flight], .flight-card",
       "price": "[data-total], .price, [class*='fare']",
       "flight_no": "[data-flight], .flight-number"
@@ -41,7 +41,7 @@
       "enabled": true,
       "carrier": "QP",
       "start_url": "https://www.akasaair.com/",
-      "search_url_template": "https://www.akasaair.com/?from={origin}&to={destination}&date={date}",
+      "search_url_template": "https://www.akasaair.com/book/flight-select?from={origin}&to={destination}&date={date}",
       "flight_card": "[data-flight], .flight-card",
       "price": "[data-total], .price, [class*='fare']",
       "flight_no": "[data-flight], .flight-number"
@@ -52,7 +52,7 @@
       "enabled": true,
       "carrier": "SG",
       "start_url": "https://www.spicejet.com/",
-      "search_url_template": "https://www.spicejet.com/?from={origin}&to={destination}&date={date}",
+      "search_url_template": "https://www.spicejet.com/search?from={origin}&to={destination}&date={date}",
       "flight_card": "[data-flight], .flight-card",
       "price": "[data-total], .price, [class*='fare']",
       "flight_no": "[data-flight], .flight-number"

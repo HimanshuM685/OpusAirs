@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS quotes_raw (
   return_date DATE,
   UNIQUE (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
 );
+
+CREATE TABLE IF NOT EXISTS quotes_clean (
   id SERIAL PRIMARY KEY,
   raw_id INTEGER REFERENCES quotes_raw(id),
   source VARCHAR(64) NOT NULL,
@@ -102,6 +104,49 @@ CREATE TABLE IF NOT EXISTS dgca_benchmark (
   note VARCHAR(500) NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS collect_routes (
+  origin VARCHAR(3) NOT NULL,
+  destination VARCHAR(3) NOT NULL,
+  priority INTEGER NOT NULL DEFAULT 1,
+  discovered_on DATE,
+  PRIMARY KEY (origin, destination)
+);
+
+CREATE TABLE IF NOT EXISTS collect_jobs (
+  id SERIAL PRIMARY KEY,
+  collected_on DATE NOT NULL,
+  source VARCHAR(64) NOT NULL,
+  origin VARCHAR(3) NOT NULL,
+  destination VARCHAR(3) NOT NULL,
+  dep_date DATE NOT NULL,
+  return_date DATE,
+  trip_type VARCHAR(16) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  locked_at TIMESTAMP,
+  last_error VARCHAR(500) NOT NULL DEFAULT '',
+  UNIQUE (collected_on, source, origin, destination, dep_date, trip_type)
+);
+
+CREATE TABLE IF NOT EXISTS collect_attempts (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER REFERENCES collect_jobs(id),
+  source VARCHAR(64) NOT NULL,
+  host VARCHAR(255) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  http_code INTEGER,
+  quote_count INTEGER NOT NULL DEFAULT 0,
+  error VARCHAR(500) NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS collect_lock (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  started_at TIMESTAMP NOT NULL,
+  status VARCHAR(16) NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS ix_quotes_raw_route ON quotes_raw (origin, destination, collected_on);
 CREATE INDEX IF NOT EXISTS ix_quotes_clean_route ON quotes_clean (origin, destination, collected_on);
 CREATE INDEX IF NOT EXISTS ix_index_series ON index_values (series, frequency, period_date);
+CREATE INDEX IF NOT EXISTS ix_collect_jobs_status ON collect_jobs (collected_on, status);
