@@ -132,6 +132,16 @@ export async function finishJob(q: Q, id: number, status: string, error = ""): P
   `;
 }
 
+export async function blockPendingSource(q: Q, day: string, source: string, error: string): Promise<number> {
+  const rows = (await q`
+    UPDATE collect_jobs
+    SET status = 'blocked', locked_at = NULL, last_error = ${error.slice(0, 500)}
+    WHERE collected_on = ${day} AND source = ${source} AND status = 'pending'
+    RETURNING id
+  `) as { id: number }[];
+  return rows.length;
+}
+
 export async function recordAttempt(
   q: Q,
   input: { jobId: number; source: string; host: string; status: string; http: number | null; quotes: number; error: string },

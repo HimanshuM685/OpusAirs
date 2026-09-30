@@ -10,6 +10,7 @@ import {
   countStatus,
   expandJobs,
   finishJob,
+  blockPendingSource,
   jobSummary,
   reclaimStale,
   recordAttempt,
@@ -24,6 +25,7 @@ export type PipelineOpts = {
   routes?: { origin: string; destination: string }[];
   budget?: number;
   full?: boolean;
+  force?: boolean;
 };
 
 function maxHours(): number {
@@ -49,6 +51,18 @@ async function alert(text: string): Promise<void> {
 export async function runPipeline(opts?: PipelineOpts) {
   await bootstrap();
   const q = sql();
+  if (opts?.scrape !== false && !opts?.force && process.env.SCRAPE_ENABLED !== "true") {
+    return {
+      collected: {},
+      cleaned: 0,
+      index_rows: 0,
+      attempted: 0,
+      pending_at_start: 0,
+      skipped: true,
+      coverage: null,
+      reason: "SCRAPE_ENABLED is not true",
+    };
+  }
   if (opts?.scrape === false) {
     const cleaned = await cleanQuotes(q);
     const indexed = await constructIndex(q);
@@ -78,6 +92,7 @@ export async function runPipeline(opts?: PipelineOpts) {
     await expandJobs(q, { collectedOn: day, sources: sources.map((s) => s.id), routes: opts?.routes });
     pendingAtStart = await countStatus(q, day, "pending");
     const byId = new Map(sources.map((s) => [s.id, s]));
+    const closed = new Set<string>();
     const budget = opts?.full ? Number.POSITIVE_INFINITY : (opts?.budget ?? Number.POSITIVE_INFINITY);
 
     while (attempted < budget && Date.now() - started < hours * 3600 * 1000) {
@@ -87,6 +102,11 @@ export async function runPipeline(opts?: PipelineOpts) {
       const collector = byId.get(job.source);
       const row = bump(job.source);
       row.attempted += 1;
+      if (closed.has(job.source)) {
+        await finishJob(q, job.id, "blocked", "source closed");
+        row.blocked += 1;
+        continue;
+      }
       if (!collector) {
         await finishJob(q, job.id, "failed", "unknown source");
         await recordAttempt(q, { jobId: job.id, source: job.source, host: "", status: "failed", http: null, quotes: 0, error: "unknown source" });
@@ -121,6 +141,10 @@ export async function runPipeline(opts?: PipelineOpts) {
         } else {
           row.blocked += 1;
           await finishJob(q, job.id, "blocked", outcome.reason);
+          if (outcome.reason === "robots.txt" || outcome.reason === "challenge") {
+            closed.add(job.source);
+            row.blocked += await blockPendingSource(q, day, job.source, outcome.reason);
+          }
         }
       } catch (err) {
         const message = String(err).slice(0, 200);

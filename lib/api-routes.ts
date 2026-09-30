@@ -451,12 +451,15 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const dest = iata(body.dest || sp.get("dest"));
     const routes = validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
     const id = await enqueue(q, "collect", body, async () => {
-      if (process.env.SCRAPE_ENABLED !== "true" || scrape === false) return { skipped: true };
+      const forced = body.full === true;
+      if (scrape === false) return { skipped: true };
+      if (!forced && process.env.SCRAPE_ENABLED !== "true") return { skipped: true };
       return await runPipeline({
         scrape: true,
         routes,
-        budget: body.full ? undefined : routes ? 15 : 80,
-        full: Boolean(body.full),
+        budget: forced ? undefined : routes ? 15 : 80,
+        full: forced,
+        force: forced,
       });
     });
     return json({ job_id: id }, 202);

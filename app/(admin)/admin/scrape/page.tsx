@@ -12,6 +12,8 @@ export default function ScrapePage() {
   const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState<Record<string, number> | null>(null);
 
+  const [latestJob, setLatestJob] = useState<{ id: string; type: string; status: string } | null>(null);
+
   function load() {
     api<CollectionHealth[]>("/v1/health/collection")
       .then(setRows)
@@ -19,6 +21,9 @@ export default function ScrapePage() {
     api<Record<string, number>>("/v1/collect/jobs")
       .then(setJobs)
       .catch(() => setJobs(null));
+    api<{ id: string; type: string; status: string }[]>("/v1/jobs")
+      .then((list) => setLatestJob(list[0] ?? null))
+      .catch(() => setLatestJob(null));
   }
 
   useEffect(() => {
@@ -60,13 +65,20 @@ export default function ScrapePage() {
       <div className="panel fade-in fade-in-delay-1">
         <h2 style={{ marginTop: 0, fontSize: 18 }}>India collect</h2>
         <p className="sub">
-          Queues PSD basket routes first, then any discovered Indian pairs. One-way and round-trip,
-          T+1, T+7, T+14, T+21, and T+30. Respects robots.txt and stops on a challenge. A second start
-          exits if one collect is already running.
+          Queues the PSD basket first, then discovered Indian pairs. One-way and round-trip,
+          T+1, T+7, T+14, T+21, and T+30. Every flight card on an allowed page is stored.
+          The first robots.txt disallow or challenge closes that source for the day. Remaining
+          jobs are marked blocked with no further fetch. Disallowed portals are not forced open.
+          A second start exits if one collect is already running.
         </p>
         <button className="primary" type="button" disabled={busy} onClick={() => void runScrape({ full: true })}>
           Start India collect
         </button>
+        {latestJob && (
+          <p className="sub" style={{ marginTop: 12 }}>
+            Latest job {latestJob.type}: {latestJob.status} ({latestJob.id})
+          </p>
+        )}
         <p className="sub" style={{ marginTop: 12 }}>
           Daily cron: <code>15 2 * * * cd /path/to/OpusAirs && npm run collect:daily</code>
         </p>
