@@ -10,6 +10,7 @@
     "collect:daily": "tsx scripts/collect-daily.ts"
   },
   "dependencies": {
+    "@neondatabase/auth": "^0.5.0-beta",
     "@neondatabase/serverless": "^1.1.0",
     "next": "^15.2.0",
     "react": "^19.0.0",

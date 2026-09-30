@@ -4,6 +4,7 @@ import { constructIndex } from "./apix";
 import {
   authJson,
   createUser,
+  currentOperator,
   findUserByEmail,
   getUser,
   isAuthResponse,
@@ -176,6 +177,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "health/collection") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
     const rows = (await q`SELECT * FROM collection_runs ORDER BY started_at DESC`) as Record<string, unknown>[];
     const latest = new Map<string, Record<string, unknown>>();
     for (const r of rows) {
@@ -264,6 +267,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "backtest/dgca") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
     return json(await computeBacktest(q));
   }
 
@@ -506,21 +511,17 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "admin/login") {
-    try {
-      const body = (await req.json()) as { email?: string; username?: string; password?: string };
-      return await loginResponse(body.email || body.username, body.password, true);
-    } catch {
-      return json({ detail: "Invalid request" }, 400);
-    }
+    return json({ detail: "Not found: POST /v1/admin/login" }, 404);
   }
 
   if (req.method === "POST" && path === "admin/logout") {
-    return authJson({ success: true }, makeLogoutCookie());
+    return json({ detail: "Not found: POST /v1/admin/logout" }, 404);
   }
 
   if (req.method === "GET" && path === "admin/check") {
-    const user = await getUser(req);
-    return json({ authenticated: Boolean(user && user.role === "admin") });
+    const operator = await currentOperator();
+    if (!operator?.allowed) return json({ authenticated: false });
+    return json({ authenticated: true, email: operator.email });
   }
 
   return json({ detail: `Not found: ${req.method} /v1/${path}` }, 404);

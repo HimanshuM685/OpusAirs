@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { getNeonAuth } from "./auth/server";
 import { sql } from "./db";
 
 export const COOKIE_NAME = "opus_session";
@@ -94,12 +95,30 @@ export async function requireUser(req: Request): Promise<AuthUser | Response> {
   return user;
 }
 
-export async function requireAdmin(req: Request): Promise<AuthUser | Response> {
-  const user = await getUser(req);
-  if (!user || user.role !== "admin") {
+export function adminEmails(): Set<string> {
+  return new Set(
+    (process.env.ADMIN_EMAIL || "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+export async function currentOperator(): Promise<{ email: string; allowed: boolean } | null> {
+  const neon = getNeonAuth();
+  if (!neon) return null;
+  const { data } = await neon.getSession();
+  const email = data?.user?.email?.trim().toLowerCase();
+  if (!email) return null;
+  return { email, allowed: adminEmails().has(email) };
+}
+
+export async function requireAdmin(_req: Request): Promise<AuthUser | Response> {
+  const operator = await currentOperator();
+  if (!operator?.allowed) {
     return Response.json({ detail: "Admin required" }, { status: 401 });
   }
-  return user;
+  return { id: 0, email: operator.email, role: "admin" };
 }
 
 export function isAuthResponse(value: AuthUser | Response): value is Response {

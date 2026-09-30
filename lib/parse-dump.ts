@@ -42,36 +42,14 @@ function env(name: string): string {
 type LlmCfg = { key: string; base: string; model: string; headers: Record<string, string> };
 
 function llmConfig(): LlmCfg | null {
-  const groq = env("GROQ_API_KEY");
-  const openrouter = env("OPENROUTER_API_KEY");
-  const groqModel = env("GROQ_MODEL") || env("LLM_MODEL");
-  const groqLooksOpenRouter = groqModel.includes("/");
-
-  if (openrouter && (groqLooksOpenRouter || !groq)) {
-    return {
-      key: openrouter,
-      base: (env("OPENROUTER_BASE_URL") || "https://openrouter.ai/api/v1").replace(/\/$/, ""),
-      model: env("OPENROUTER_MODEL") || env("LLM_MODEL") || "openai/gpt-4o-mini",
-      headers: { "HTTP-Referer": "https://opusairs.local", "X-Title": "OpusAirs" },
-    };
-  }
-  if (groq) {
-    return {
-      key: groq,
-      base: (env("GROQ_BASE_URL") || "https://api.groq.com/openai/v1").replace(/\/$/, ""),
-      model: groqLooksOpenRouter ? "llama-3.3-70b-versatile" : groqModel || "llama-3.3-70b-versatile",
-      headers: {},
-    };
-  }
-  if (openrouter) {
-    return {
-      key: openrouter,
-      base: (env("OPENROUTER_BASE_URL") || "https://openrouter.ai/api/v1").replace(/\/$/, ""),
-      model: env("OPENROUTER_MODEL") || env("LLM_MODEL") || "openai/gpt-4o-mini",
-      headers: { "HTTP-Referer": "https://opusairs.local", "X-Title": "OpusAirs" },
-    };
-  }
-  return null;
+  const key = env("GEMINI_API_KEY");
+  if (!key) return null;
+  return {
+    key,
+    base: (env("GEMINI_BASE_URL") || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, ""),
+    model: env("GEMINI_MODEL") || "gemini-2.5-flash",
+    headers: {},
+  };
 }
 
 async function chatJson(cfg: LlmCfg, text: string, jsonMode: boolean): Promise<Response> {
@@ -108,7 +86,7 @@ async function parseWithLlm(text: string): Promise<QuoteIn[]> {
   const cfg = llmConfig();
   if (!cfg) {
     throw new Error(
-      "Natural language dump needs GROQ_API_KEY or OPENROUTER_API_KEY, or paste JSON/CSV.",
+      "Natural language dump needs GEMINI_API_KEY, or paste JSON/CSV.",
     );
   }
   let res = await chatJson(cfg, text, true);
