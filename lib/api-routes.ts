@@ -19,7 +19,9 @@ import {
   verifyPassword,
 } from "./auth";
 import { computeBacktest } from "./backtest";
-import { bootstrap } from "./bootstrap";
+import { APIX_BASE_DATE, bootstrap, loadPsdBasket } from "./bootstrap";
+import { readCache, writeCache } from "./http-cache";
+import { enqueue, readJob, recentJobs } from "./jobs";
 import { cleanQuotes } from "./cleaning";
 import { runPipeline } from "./collect";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
@@ -30,6 +32,29 @@ import { DEFAULT_CSV_TEMPLATE } from "./seeds";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
+}
+
+const ingestHits: number[] = [];
+function ingestAllowed(): boolean {
+  const now = Date.now();
+  while (ingestHits.length && now - ingestHits[0] > 60_000) ingestHits.shift();
+  if (ingestHits.length >= 30) return false;
+  ingestHits.push(now);
+  return true;
+}
+
+async function requireWriter(req: Request): Promise<Response | null> {
+  const key = process.env.INGEST_API_KEY;
+  const header = req.headers.get("x-api-key");
+  if (key && header && header === key) return null;
+  const admin = await requireAdmin(req);
+  if (isAuthResponse(admin)) return admin;
+  return null;
+}
+
+async function remember(key: string, body: unknown) {
+  writeCache(key, body);
+  return json(body);
 }
 
 function qnum(sp: URLSearchParams, key: string): number | null {
@@ -70,14 +95,25 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
 
   if (req.method === "GET" && path === "index") {
     const frequency = sp.get("frequency") || "daily";
+    const includeAll = sp.get("include") === "all";
     const series = sp.get("series") || "apix_laspeyres";
-    const rows = await q`
-      SELECT series, frequency, period_date, origin, destination, value, imputed_share
-      FROM index_values
-      WHERE frequency = ${frequency} AND series = ${series} AND origin IS NULL
-      ORDER BY period_date
-    `;
-    return json(rows.map(mapIndex));
+    const cacheKey = `index:${frequency}:${includeAll ? "all" : series}`;
+    const hit = readCache(cacheKey, 10 * 60 * 1000);
+    if (hit) return json(hit);
+    const rows = includeAll
+      ? await q`
+          SELECT series, frequency, period_date, origin, destination, value, imputed_share, coverage, vintage, n_quotes
+          FROM index_values
+          WHERE frequency = ${frequency} AND origin IS NULL
+          ORDER BY period_date, series
+        `
+      : await q`
+          SELECT series, frequency, period_date, origin, destination, value, imputed_share, coverage, vintage, n_quotes
+          FROM index_values
+          WHERE frequency = ${frequency} AND series = ${series} AND origin IS NULL
+          ORDER BY period_date
+        `;
+    return remember(cacheKey, rows.map(mapIndex));
   }
 
   if (req.method === "GET" && parts[0] === "index" && parts[1] === "routes" && parts.length === 4) {
@@ -85,13 +121,19 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const dest = parts[3].toUpperCase();
     const frequency = sp.get("frequency") || "daily";
     const rows = await q`
-      SELECT series, frequency, period_date, origin, destination, value, imputed_share
+      SELECT series, frequency, period_date, origin, destination, value, imputed_share, coverage, vintage, n_quotes
       FROM index_values
       WHERE frequency = ${frequency} AND series = 'apix_route'
         AND origin = ${origin} AND destination = ${dest}
       ORDER BY period_date
     `;
-    return json(rows.map(mapIndex));
+    const basket = loadPsdBasket();
+    const weight = basket.find((r) => r.origin === origin && r.destination === dest)?.weight ?? 0;
+    return json(rows.map((r) => {
+      const row = mapIndex(r);
+      const value = Number(row.value);
+      return { ...row, contribution: Math.round(weight * (value / 100 - 1) * 10000) / 10000 };
+    }));
   }
 
   if (req.method === "GET" && path === "quotes") {
@@ -119,19 +161,22 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
 
   if (req.method === "GET" && path === "heatmap") {
     const lead = qnum(sp, "lead_time");
+    const cacheKey = `heatmap:${lead ?? "all"}`;
+    const cached = readCache(cacheKey, 10 * 60 * 1000);
+    if (cached) return json(cached);
     if (lead == null) {
       const rows = await q`
         SELECT origin, destination, period_date, value FROM index_values
         WHERE series = 'apix_route' AND frequency = 'daily' AND origin IS NOT NULL
       `;
-      return json(
-        rows.map((r) => ({
-          origin: r.origin,
-          destination: r.destination,
-          period_date: isoDate(r.period_date),
-          value: r.value,
-        })),
-      );
+      const body = rows.map((r) => ({
+        origin: r.origin,
+        destination: r.destination,
+        period_date: isoDate(r.period_date),
+        value: r.value,
+        imputed: false,
+      }));
+      return remember(cacheKey, body);
     }
     const rows = (await q`
       SELECT origin, destination, collected_on, total_fare FROM quotes_clean
@@ -144,12 +189,11 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       list.push(r.total_fare);
       cells.set(key, list);
     }
-    return json(
-      [...cells.entries()].sort().map(([key, vals]) => {
-        const [origin, destination, period_date] = key.split("|");
-        return { origin, destination, period_date, lead_time_days: lead, value: Math.min(...vals) };
-      }),
-    );
+    const body = [...cells.entries()].sort().map(([key, vals]) => {
+      const [origin, destination, period_date] = key.split("|");
+      return { origin, destination, period_date, lead_time_days: lead, value: Math.min(...vals), imputed: false };
+    });
+    return remember(cacheKey, body);
   }
 
   if (req.method === "GET" && path === "elasticity") {
@@ -230,6 +274,9 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "routes") {
+    const cacheKey = "routes:list";
+    const cached = readCache(cacheKey, 10 * 60 * 1000);
+    if (cached) return json(cached);
     const routes = (await q`SELECT origin, destination, weight, raw_passengers FROM basket_routes ORDER BY weight DESC`) as {
       origin: string;
       destination: string;
@@ -257,7 +304,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       ORDER BY origin, destination, collected_on DESC
     `) as { origin: string; destination: string; total_fare: number }[];
     const fareBy = new Map(fares.map((f) => [`${f.origin}|${f.destination}`, Number(f.total_fare)]));
-    return json(
+    return remember(cacheKey,
       routes.map((r) => {
         const key = `${r.origin}|${r.destination}`;
         return {
@@ -268,6 +315,14 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
           latest_index: latestBy.get(key) ?? null,
           prev_index: prevBy.get(key) ?? null,
           latest_fare: fareBy.get(key) ?? null,
+          contribution:
+            latestBy.get(key) != null
+              ? Math.round(r.weight * (Number(latestBy.get(key)) / 100 - 1) * 10000) / 10000
+              : null,
+          wow: null,
+          yoy: null,
+          coverage: null,
+          best_lead_bin: null,
         };
       }),
     );
@@ -382,8 +437,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "collect/run") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return admin;
+    const denied = await requireWriter(req);
+    if (denied) return denied;
     let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean } = {};
     try {
       const text = await req.text();
@@ -394,40 +449,31 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const scrape = body.scrape !== false && sp.get("scrape") !== "false";
     const origin = iata(body.origin || sp.get("origin"));
     const dest = iata(body.dest || sp.get("dest"));
-    if (body.full) {
-      const { spawn } = await import("node:child_process");
-      const child = spawn("npm", ["run", "collect:daily"], {
-        cwd: process.cwd(),
-        detached: true,
-        stdio: "ignore",
-        env: process.env,
+    const routes = validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
+    const id = await enqueue(q, "collect", body, async () => {
+      if (process.env.SCRAPE_ENABLED !== "true" || scrape === false) return { skipped: true };
+      return await runPipeline({
+        scrape: true,
+        routes,
+        budget: body.full ? undefined : routes ? 15 : 80,
+        full: Boolean(body.full),
       });
-      child.unref();
-      return json({ started: true, pid: child.pid ?? null });
-    }
-    const routes =
-      validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
-    return json(await runPipeline({ scrape, routes, budget: routes ? 15 : 80 }));
+    });
+    return json({ job_id: id }, 202);
   }
 
   if (req.method === "POST" && path === "ingest/dump") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return admin;
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    if (!ingestAllowed()) return json({ detail: "Ingest rate limit" }, 429);
     const body = (await req.json()) as { text?: string; quotes?: QuoteIn[]; rebuild_index?: boolean };
-    let quotes = body.quotes;
-    if (!quotes?.length) {
-      try {
-        quotes = await parseDump(body.text || "");
-      } catch (err) {
-        return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
-      }
-    }
-    if (!quotes.length) return json({ detail: "No quotes parsed. Paste JSON, CSV, or prose with fares." }, 400);
-    try {
-      return json(await ingestQuotes(q, quotes, body.rebuild_index !== false));
-    } catch (err) {
-      return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
-    }
+    const id = await enqueue(q, "ingest", { chars: body.text?.length ?? 0, n: body.quotes?.length ?? 0 }, async () => {
+      let quotes = body.quotes;
+      if (!quotes?.length) quotes = await parseDump(body.text || "");
+      if (!quotes.length) return { detail: "No quotes parsed" };
+      return await ingestQuotes(q, quotes, body.rebuild_index !== false);
+    });
+    return json({ job_id: id }, 202);
   }
 
   if (req.method === "GET" && path === "ingest/needed") {
@@ -449,28 +495,31 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "ingest/quotes") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return admin;
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    if (!ingestAllowed()) return json({ detail: "Ingest rate limit" }, 429);
     const body = (await req.json()) as { quotes?: QuoteIn[]; rebuild_index?: boolean };
     if (!body.quotes?.length) return json({ detail: "quotes array is empty" }, 400);
-    return json(await ingestQuotes(q, body.quotes, body.rebuild_index !== false));
+    const id = await enqueue(q, "ingest", { n: body.quotes.length }, async () =>
+      ingestQuotes(q, body.quotes || [], body.rebuild_index !== false),
+    );
+    return json({ job_id: id }, 202);
   }
 
   if (req.method === "POST" && path === "ingest/csv") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return admin;
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    if (!ingestAllowed()) return json({ detail: "Ingest rate limit" }, 429);
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json({ detail: "file required" }, 400);
-    let quotes: QuoteIn[];
-    try {
-      quotes = parseCsvQuotes(await file.text());
-    } catch (err) {
-      return json({ detail: err instanceof Error ? err.message : String(err) }, 400);
-    }
-    if (!quotes.length) return json({ detail: "No valid quote rows in CSV" }, 400);
-    const rebuild = sp.get("rebuild_index") !== "false";
-    return json(await ingestQuotes(q, quotes, rebuild));
+    const text = await file.text();
+    const id = await enqueue(q, "ingest", { file: file.name }, async () => {
+      const quotes = parseCsvQuotes(text);
+      if (!quotes.length) return { detail: "No valid quote rows in CSV" };
+      return ingestQuotes(q, quotes, sp.get("rebuild_index") !== "false");
+    });
+    return json({ job_id: id }, 202);
   }
 
   if (req.method === "GET" && path === "ingest/template") {
@@ -484,11 +533,14 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "index/rebuild") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return admin;
-    const cleaned = await cleanQuotes(q);
-    const indexed = await constructIndex(q);
-    return json({ cleaned, index_rows: indexed });
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    const vintage = sp.get("vintage") === "final" ? "final" : "provisional";
+    const id = await enqueue(q, "rebuild", { vintage }, async () => {
+      const index_rows = await constructIndex(q);
+      return { index_rows, vintage };
+    });
+    return json({ job_id: id }, 202);
   }
 
   if (req.method === "POST" && path === "auth/register") {
@@ -557,15 +609,98 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     return json({ authenticated: true, email: admin.email });
   }
 
+  if (req.method === "GET" && path === "health") {
+    const idx = (await q`
+      SELECT period_date, coverage, imputed_share FROM index_values
+      WHERE series = 'apix_laspeyres' AND frequency = 'daily' AND origin IS NULL
+      ORDER BY period_date DESC LIMIT 1
+    `) as { period_date: string; coverage: number; imputed_share: number }[];
+    const snap = (await q`SELECT snapshot_at FROM quote_snapshots ORDER BY snapshot_at DESC LIMIT 1`) as { snapshot_at: string }[];
+    const job = (await q`SELECT id, status FROM pipeline_jobs ORDER BY created_at DESC LIMIT 1`) as { id: string; status: string }[];
+    const blocked = (await q`
+      SELECT source FROM collection_runs WHERE quotes_blocked > 0 ORDER BY started_at DESC LIMIT 8
+    `) as { source: string }[];
+    const row = idx[0];
+    return json({
+      ok: Boolean(row),
+      last_snapshot_at: snap[0]?.snapshot_at ?? null,
+      last_index_date: row ? isoDate(row.period_date) : null,
+      coverage: row ? Number(row.coverage) : 0,
+      imputed_share: row ? Number(row.imputed_share) : 0,
+      blocked_sources: [...new Set(blocked.map((r) => r.source))],
+      job: job[0] ? { id: job[0].id, status: job[0].status } : null,
+    });
+  }
+
+  if (req.method === "GET" && parts[0] === "jobs" && parts.length === 2) {
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    const job = await readJob(q, parts[1]);
+    if (!job) return json({ detail: "Job not found" }, 404);
+    return json(job);
+  }
+
+  if (req.method === "GET" && path === "jobs") {
+    const denied = await requireWriter(req);
+    if (denied) return denied;
+    return json(await recentJobs(q, 20));
+  }
+
+  if (req.method === "GET" && path === "bulletin") {
+    const frequency = sp.get("frequency") || "monthly";
+    const format = sp.get("format") || "json";
+    const rows = (await q`
+      SELECT series, frequency, period_date, value, imputed_share, coverage, vintage, n_quotes
+      FROM index_values
+      WHERE frequency = ${frequency} AND origin IS NULL AND series IN ('apix_laspeyres', 'apix_t21', 'apix_chain', 'apix_laspeyres_ma7')
+      ORDER BY period_date, series
+    `) as Record<string, unknown>[];
+    const latest = rows.filter((r) => r.series === "apix_laspeyres").at(-1);
+    const meta = {
+      title: "OpusAirs Airfare Price Index bulletin",
+      base_date: APIX_BASE_DATE,
+      weights: "data/psd_basket.csv",
+      frequency,
+      coverage: latest ? Number(latest.coverage) : null,
+      imputed_share: latest ? Number(latest.imputed_share) : null,
+      methodology:
+        "National APIx is a passenger-weighted Laspeyres index of one-way economy fares. Missing basket cells are imputed. BUSINESS and round-trip quotes are excluded. CPI air weight is illustrative.",
+      values: rows.map(mapIndex),
+    };
+    if (format === "csv") {
+      const lines = [
+        `# ${meta.title}`,
+        `# base_date=${meta.base_date}`,
+        `# weights=${meta.weights}`,
+        `# coverage=${meta.coverage ?? ""}`,
+        `# imputed_share=${meta.imputed_share ?? ""}`,
+        `# ${meta.methodology}`,
+        "series,frequency,period_date,value,imputed_share,coverage,vintage,n_quotes",
+        ...meta.values.map((r) =>
+          [r.series, r.frequency, r.period_date, r.value, r.imputed_share, r.coverage ?? "", r.vintage ?? "", r.n_quotes ?? ""].join(","),
+        ),
+      ];
+      return new Response(lines.join("\n"), {
+        headers: { "Content-Type": "text/csv", "Content-Disposition": "attachment; filename=apix-bulletin.csv" },
+      });
+    }
+    return json(meta);
+  }
+
   return json({ detail: `Not found: ${req.method} /v1/${path}` }, 404);
 }
 
-function mapIndex(r: Record<string, unknown>) {
+function mapIndex(r: Record<string, unknown>): Record<string, unknown> {
+  const value = Number(r.value);
+  const weight = Number(process.env.CPI_AIR_WEIGHT || 0.004);
   return {
     ...r,
     period_date: isoDate(r.period_date),
     origin: r.origin ?? null,
     destination: r.destination ?? null,
+    ...(r.frequency === "monthly" && Number.isFinite(value)
+      ? { cpi_contribution_pp: Math.round(weight * (value / 100 - 1) * 100 * 10000) / 10000 }
+      : {}),
   };
 }
 

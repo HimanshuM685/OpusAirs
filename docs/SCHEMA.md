@@ -4,6 +4,8 @@ OpusAirs stores airfare observations in PostgreSQL (Neon serverless). Both autom
 
 SQL Reference: [data/schema.sql](../data/schema.sql)
 
+`quote_snapshots` freezes one economy one-way fare per basket route, lead-time bin, and snapshot slot (`0600`, `1800`, `adhoc`). `pipeline_jobs` tracks ingest, collect, and rebuild. `index_revisions` stores provisional and final vintages. `quotes_raw` and `quotes_clean` carry `source_rank` (airline 10–20, compliant OTA 30, manual 40, unknown 90). `index_values` adds `coverage`, `vintage`, `n_routes`, and `n_quotes`.
+
 ---
 
 ## 1. Relational Tables

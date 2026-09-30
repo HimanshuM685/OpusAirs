@@ -74,4 +74,16 @@ Before index compilation or flight search aggregation:
 
 ## 7. DGCA Benchmark Backtesting
 
-To validate real-world tracking, the computed monthly APIx is backtested against the published DGCA Tariff Monitoring Unit (TMU) 72-route composite index (`data/dgca_benchmark.csv`). Results and delta percentages are reported via `/admin/backtest` and `GET /v1/backtest/dgca`.
+To validate real-world tracking, the computed monthly APIx is backtested against the published DGCA Tariff Monitoring Unit (TMU) 72-route composite index (`data/dgca_benchmark.csv`). Results and delta percentages are reported via `/admin/backtest` and `GET /v1/backtest/dgca`. MAPE and RMSE are included. Overlap shorter than 3 months is marked provisional.
+
+## 8. v2 series and imputation
+
+- `apix_chain`: monthly chain-linked Laspeyres, previous month as the link, starting at 100.
+- `apix_lowe`: equal to Laspeyres until a second weight vintage exists.
+- `apix_economy`: equal to national Laspeyres. The national series is already one-way economy.
+- `apix_fare_timing`: weighted T+1 fare divided by the T+21 fare. A timing premium, not a price level.
+- `apix_laspeyres_ma7`: 7-day geometric moving mean of daily Laspeyres.
+
+Missing cells use the nearest lead-time bin the same day, else the last good fare within 7 days, else that day's basket median. Coverage below 0.60 sets vintage `provisional`. BUSINESS and round-trip quotes never enter `apix_*`.
+
+`cpi_contribution_pp` uses `CPI_AIR_WEIGHT` (default 0.004). That weight is illustrative, not an official MoSPI weight.

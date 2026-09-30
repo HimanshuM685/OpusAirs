@@ -27,8 +27,12 @@ export default function BacktestPage() {
           <div className="v">{data?.correlation ?? "n/a"}</div>
         </div>
         <div className="card">
-          <div className="k">Paired observations</div>
-          <div className="v">{data?.n_pairs ?? 0}</div>
+          <div className="k">MAPE</div>
+          <div className="v">{data?.mape == null ? "n/a" : data.mape.toFixed(3)}</div>
+        </div>
+        <div className="card">
+          <div className="k">RMSE {data?.provisional ? "(provisional, n < 3)" : ""}</div>
+          <div className="v">{data?.rmse == null ? "n/a" : data.rmse.toFixed(2)}</div>
         </div>
       </div>
       <div className="panel">

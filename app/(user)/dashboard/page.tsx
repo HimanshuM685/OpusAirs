@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [window, setWindow] = useState("all");
   const [rows, setRows] = useState<IndexPoint[]>([]);
   const [routes, setRoutes] = useState<RouteOut[]>([]);
+  const [health, setHealth] = useState<{ ok?: boolean; coverage?: number; last_snapshot_at?: string | null } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,6 +32,9 @@ export default function DashboardPage() {
     api<RouteOut[]>("/v1/routes")
       .then(setRoutes)
       .catch(() => {});
+    api<{ ok?: boolean; coverage?: number; last_snapshot_at?: string | null }>("/v1/health")
+      .then(setHealth)
+      .catch(() => setHealth({ ok: false }));
   }, []);
 
   const windowDays = WINDOWS.find((w) => w.key === window)?.days ?? 99999;
@@ -96,6 +100,9 @@ export default function DashboardPage() {
           {err}
         </div>
       )}
+      {(health && (!health.ok || (health.coverage != null && health.coverage < 0.8) || (health.last_snapshot_at && Date.now() - new Date(health.last_snapshot_at).getTime() > 36 * 3600 * 1000))) && (
+        <p className="err">Index quality is low: coverage {health.coverage ?? "—"}, last snapshot {health.last_snapshot_at || "never"}.</p>
+      )}
 
       {/* Controls Bar (Sticky Filters) */}
       <div
@@ -143,6 +150,8 @@ export default function DashboardPage() {
             <option value="apix_laspeyres">Series: Laspeyres (PSD Weights)</option>
             <option value="apix_jevons">Series: Unweighted Jevons</option>
             <option value="apix_t21">Series: T+21 (CPI Comparable)</option>
+            <option value="apix_chain">Series: Chain-linked</option>
+            <option value="apix_laspeyres_ma7">Series: 7-day moving mean</option>
           </select>
         </div>
       </div>
@@ -158,8 +167,8 @@ export default function DashboardPage() {
           <div style={{ fontSize: "32px", fontWeight: 800, color: "#0c1212", letterSpacing: "-0.02em" }}>
             {latest ? latest.value.toFixed(2) : "—"}
           </div>
-          <div style={{ fontSize: "12px", color: "#0b3b2a", fontWeight: 600, marginTop: "6px" }}>
-            ● Base 100.00 Normalized
+          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
+            coverage {latest?.coverage != null ? `${(latest.coverage * 100).toFixed(0)}%` : "—"} · imputed {latest?.imputed_share != null ? `${(latest.imputed_share * 100).toFixed(0)}%` : "—"}
           </div>
         </div>
 
@@ -223,6 +232,7 @@ export default function DashboardPage() {
 
           <div style={{ height: "340px", minWidth: 0, width: "100%" }}>
             <IndexAreaChart data={chartData} />
+            <p className="sub">Passenger-weighted Laspeyres of one-way economy fares, base 100. Missing cells are imputed and shown in the imputed share.</p>
           </div>
         </div>
 

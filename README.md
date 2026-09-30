@@ -109,6 +109,10 @@ ADMIN_EMAIL=admin@local
 ADMIN_PASSWORD=change_this_to_a_secure_password
 SESSION_SECRET=change_this_long_random_string
 SCRAPE_ENABLED=false
+INGEST_API_KEY=
+CPI_AIR_WEIGHT=0.004
+MAPE_TARGET=0.08
+SNAPSHOT_HOURS=6,18
 APIX_BASE_DATE=2026-08-01
 ```
 

@@ -150,3 +150,56 @@ CREATE INDEX IF NOT EXISTS ix_quotes_raw_route ON quotes_raw (origin, destinatio
 CREATE INDEX IF NOT EXISTS ix_quotes_clean_route ON quotes_clean (origin, destination, collected_on);
 CREATE INDEX IF NOT EXISTS ix_index_series ON index_values (series, frequency, period_date);
 CREATE INDEX IF NOT EXISTS ix_collect_jobs_status ON collect_jobs (collected_on, status);
+
+ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS source_rank INTEGER NOT NULL DEFAULT 90;
+ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS impute_method VARCHAR(32);
+ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS source_rank INTEGER NOT NULL DEFAULT 90;
+ALTER TABLE quotes_clean ADD COLUMN IF NOT EXISTS impute_method VARCHAR(32);
+ALTER TABLE index_values ADD COLUMN IF NOT EXISTS coverage DOUBLE PRECISION NOT NULL DEFAULT 1;
+ALTER TABLE index_values ADD COLUMN IF NOT EXISTS vintage VARCHAR(16) NOT NULL DEFAULT 'final';
+ALTER TABLE index_values ADD COLUMN IF NOT EXISTS n_routes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE index_values ADD COLUMN IF NOT EXISTS n_quotes INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS quote_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  snapshot_at TIMESTAMPTZ NOT NULL,
+  snapshot_slot VARCHAR(16) NOT NULL,
+  origin VARCHAR(3) NOT NULL,
+  destination VARCHAR(3) NOT NULL,
+  lead_time_bin INTEGER NOT NULL,
+  carrier VARCHAR(8),
+  source VARCHAR(64) NOT NULL,
+  source_rank INTEGER NOT NULL DEFAULT 50,
+  fare_class VARCHAR(32) NOT NULL DEFAULT 'ECONOMY',
+  trip_type VARCHAR(16) NOT NULL DEFAULT 'one_way',
+  total_fare DOUBLE PRECISION NOT NULL,
+  collected_on DATE NOT NULL,
+  quote_id INTEGER,
+  is_imputed INTEGER NOT NULL DEFAULT 0,
+  impute_method VARCHAR(32),
+  UNIQUE (snapshot_at, origin, destination, lead_time_bin, fare_class, trip_type)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_jobs (
+  id UUID PRIMARY KEY,
+  type VARCHAR(32) NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  payload JSONB,
+  stats JSONB,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS index_revisions (
+  series VARCHAR(64) NOT NULL,
+  frequency VARCHAR(16) NOT NULL,
+  period_date DATE NOT NULL,
+  vintage VARCHAR(16) NOT NULL,
+  value DOUBLE PRECISION NOT NULL,
+  imputed_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+  coverage DOUBLE PRECISION NOT NULL DEFAULT 1,
+  published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (series, frequency, period_date, vintage)
+);

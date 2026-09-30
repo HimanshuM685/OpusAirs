@@ -17,6 +17,8 @@ The scraper runs when triggered via the Admin Panel (`/admin/scrape`) or through
 - **Search Budget Caps**: Execution is capped by `max_searches_per_run` (defined in `data/scrape_sources.json`) to prevent uncontrolled looping.
 - **No CAPTCHA Bypass or Proxy Abuse**: The scraper explicitly **does not** employ CAPTCHA solvers, proxy rotators, or headless browser obfuscation. If an anti-bot challenge (Cloudflare, reCAPTCHA, 403, 429) is encountered, the event is recorded with `status=blocked` and logged in `collection_runs`. Operators can then provide quotes via the Data Dump Area.
 
+Snapshots run at 06:00 and 18:00 IST (`SNAPSHOT_HOURS=6,18`) and on demand (`adhoc`) after ingest or rebuild. The index reads snapshots, not a live page fetch inside a chart request. `POST /v1/collect/run` enqueues a job and does not fetch unless `SCRAPE_ENABLED=true`. Portals that disallow bots in robots.txt are skipped. MakeMyTrip, Ixigo, Goibibo, and Yatra are not collectors.
+
 ---
 
 ## 2. Manual Data Dump Area

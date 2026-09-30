@@ -39,6 +39,16 @@ Returns aggregate Airfare Price Index series calculated using elementary Jevons 
   - `apix_laspeyres`: Passenger-weighted Laspeyres index (base=100)
   - `apix_jevons`: Unweighted geometric mean across routes
   - `apix_t21`: Laspeyres index restricted to 21-day advance purchase (MoSPI CPI 2024 specification)
+  - `apix_chain`, `apix_lowe`, `apix_economy`, `apix_fare_timing`, `apix_laspeyres_ma7`
+- `include=all` returns every national series. Additive fields: `coverage`, `vintage`, `n_quotes`. Monthly rows add illustrative `cpi_contribution_pp`.
+
+`GET /v1/health` reports snapshot time, coverage, imputed share, and the last job. Empty warehouse: `ok: false`.
+
+`GET /v1/bulletin?frequency=monthly&format=json|csv` is the official extract. CSV comment lines start with `#`.
+
+`POST /v1/collect/run`, `POST /v1/ingest/*`, and `POST /v1/index/rebuild` return `202 { job_id }`. Collect fetches only when `SCRAPE_ENABLED=true`. `GET /v1/jobs` needs an admin cookie or `x-api-key`.
+
+`GET /v1/backtest/dgca` adds `mape`, `rmse`, `n`, `points`, and `pass`.
 
 **Example Response:**
 ```json

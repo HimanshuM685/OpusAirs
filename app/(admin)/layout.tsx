@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/admin/scrape", label: "Scrape & Health" },
   { href: "/admin/ingest", label: "Data Dump" },
   { href: "/admin/backtest", label: "DGCA Backtest" },
+  { href: "/admin/bulletin", label: "Bulletin" },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

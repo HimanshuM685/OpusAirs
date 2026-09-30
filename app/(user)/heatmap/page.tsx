@@ -71,6 +71,7 @@ export default function HeatmapPage() {
           {err}
         </div>
       )}
+      <p className="sub">Recommended book window is the cheapest recent cell on each route in this matrix.</p>
 
       {/* Bento Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "20px" }}>

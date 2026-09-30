@@ -145,12 +145,12 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
         INSERT INTO quotes_clean (
           raw_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
           lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, currency, is_outlier, is_imputed,
-          trip_type, return_date
+          trip_type, return_date, source_rank
         ) VALUES (
           ${r.id}, ${r.source}, ${r.origin}, ${r.destination}, ${r.carrier}, ${r.flight_no}, ${isoDate(r.dep_date)},
           ${r.fare_class}, ${r.lead_time_days}, ${isoDate(r.collected_on)}, ${parts.base_fare}, ${parts.taxes},
           ${parts.udf}, ${parts.convenience}, ${parts.total_fare}, 'INR', ${flags[i] ? 1 : 0}, 0,
-          ${trip}, ${ret}
+          ${trip}, ${ret}, ${Number((r as { source_rank?: number }).source_rank ?? 90)}
         )
         ON CONFLICT (source, origin, destination, carrier, flight_no, dep_date, fare_class, collected_on, lead_time_days)
         DO UPDATE SET

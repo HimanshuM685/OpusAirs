@@ -47,6 +47,18 @@ const CARRIER_CODES: Record<string, string> = {
   flybig: "S9",
 };
 
+export function sourceRank(source?: string | null): number {
+  const s = (source || "").toLowerCase();
+  if (s.includes("indigo") && !s.includes("express")) return 10;
+  if (s === "airindia" || s === "ai") return 12;
+  if (s.includes("express") || s === "ix" || s.includes("aiexpress")) return 14;
+  if (s.includes("akasa") || s === "qp") return 16;
+  if (s.includes("spice") || s === "sg") return 18;
+  if (s.includes("easemytrip") || s.includes("cleartrip")) return 30;
+  if (s === "manual" || s === "csv") return 40;
+  return 90;
+}
+
 export function normalizeCarrier(raw?: string | null): string {
   const t = (raw || "").trim();
   if (!t) return "NA";
@@ -74,6 +86,7 @@ export type CollectionEvent = QuoteIn & {
   collected_at: string;
   status: string;
   trip_type: TripType;
+  source_rank?: number;
 };
 
 function toEvent(q: QuoteIn): CollectionEvent {
@@ -100,6 +113,7 @@ function toEvent(q: QuoteIn): CollectionEvent {
     status: ((q.status || "ok").trim() || "ok").slice(0, 32),
     trip_type,
     return_date: q.return_date ? isoDate(q.return_date) : null,
+    source_rank: sourceRank(q.source),
   };
 }
 
@@ -132,13 +146,13 @@ export async function upsertEvents(
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
           lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency,
-          trip_type, return_date
+          trip_type, return_date, source_rank
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
           ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
           ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR',
-          ${ev.trip_type}, ${ev.return_date ?? null}
+          ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}
         )
       `;
       counts.inserted += 1;

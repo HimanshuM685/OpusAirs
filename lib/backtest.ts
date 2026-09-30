@@ -95,6 +95,12 @@ export async function computeBacktest(q: ReturnType<typeof sqlFn>) {
   const paired = rows.filter(
     (r) => r.origin == null && r.apix_monthly != null && r.dgca_value != null,
   ) as { apix_monthly: number; dgca_value: number }[];
+  const mape = paired.length
+    ? paired.reduce((s, r) => s + Math.abs(r.apix_monthly - r.dgca_value) / Math.abs(r.dgca_value || 1), 0) / paired.length
+    : null;
+  const rmse = paired.length
+    ? Math.sqrt(paired.reduce((s, r) => s + (r.apix_monthly - r.dgca_value) ** 2, 0) / paired.length)
+    : null;
 
   return {
     correlation: corr(
@@ -102,7 +108,15 @@ export async function computeBacktest(q: ReturnType<typeof sqlFn>) {
       paired.map((r) => r.dgca_value),
     ),
     n_pairs: paired.length,
-    note: "Monthly APIx vs published DGCA TMU 72-route composite. Quotes live in Neon.",
+    note: paired.length < 3
+      ? "Provisional: fewer than 3 overlapping months. Monthly APIx vs DGCA TMU."
+      : "Monthly APIx vs published DGCA TMU 72-route composite. Quotes live in Neon.",
     rows,
+    mape,
+    rmse,
+    n: paired.length,
+    points: paired.map((r) => ({ apix: r.apix_monthly, dgca: r.dgca_value })),
+    pass: mape != null && mape <= Number(process.env.MAPE_TARGET || 0.08),
+    provisional: paired.length < 3,
   };
 }

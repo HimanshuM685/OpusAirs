@@ -17,13 +17,11 @@ export default function RoutesPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return rows;
     const q = query.toLowerCase().trim();
-    return rows.filter(
-      (r) =>
-        r.origin.toLowerCase().includes(q) ||
-        r.destination.toLowerCase().includes(q)
-    );
+    const list = q
+      ? rows.filter((r) => r.origin.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q))
+      : rows;
+    return [...list].sort((a, b) => (b.contribution ?? -999) - (a.contribution ?? -999));
   }, [rows, query]);
 
   const totalPassengers = useMemo(
@@ -145,6 +143,10 @@ export default function RoutesPage() {
                   <th>PSD Basket Weight</th>
                   <th>Annual Passengers</th>
                   <th>Latest APIx</th>
+                  <th>Contribution</th>
+                  <th>WoW</th>
+                  <th>Best window</th>
+                  <th>Coverage</th>
                   <th>Latest Avg Fare</th>
                   <th>Action</th>
                 </tr>
@@ -167,6 +169,10 @@ export default function RoutesPage() {
                     </td>
                     <td>{r.raw_passengers.toLocaleString("en-IN")}</td>
                     <td style={{ fontWeight: 700, color: "#0b3b2a" }}>{r.latest_index?.toFixed(2) ?? "—"}</td>
+                    <td>{r.contribution != null ? r.contribution.toFixed(3) : "—"}</td>
+                    <td>{r.wow != null ? `${r.wow.toFixed(1)}%` : "—"}</td>
+                    <td>{r.best_lead_bin != null ? `T+${r.best_lead_bin}` : "—"}</td>
+                    <td>{r.coverage != null ? `${(r.coverage * 100).toFixed(0)}%` : "—"}</td>
                     <td style={{ fontWeight: 600 }}>{r.latest_fare ? `₹${r.latest_fare.toLocaleString("en-IN")}` : "—"}</td>
                     <td>
                       <Link

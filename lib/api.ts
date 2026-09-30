@@ -28,6 +28,10 @@ export type IndexPoint = {
   destination?: string | null;
   value: number;
   imputed_share: number;
+  coverage?: number;
+  vintage?: string;
+  n_quotes?: number;
+  cpi_contribution_pp?: number;
 };
 
 export type HeatmapCell = {
@@ -53,6 +57,11 @@ export type RouteOut = {
   latest_index?: number | null;
   prev_index?: number | null;
   latest_fare?: number | null;
+  contribution?: number | null;
+  wow?: number | null;
+  yoy?: number | null;
+  coverage?: number | null;
+  best_lead_bin?: number | null;
 };
 
 export type CollectionHealth = {
@@ -84,6 +93,11 @@ export type BacktestSummary = {
   n_pairs: number;
   note: string;
   rows: BacktestRow[];
+  mape?: number | null;
+  rmse?: number | null;
+  n?: number;
+  pass?: boolean;
+  provisional?: boolean;
 };
 
 export type QuoteOut = {

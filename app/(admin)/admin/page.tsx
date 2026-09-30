@@ -5,12 +5,20 @@ import { api, type CollectionHealth } from "@/lib/api";
 
 export default function AdminOverviewPage() {
   const [health, setHealth] = useState<CollectionHealth[]>([]);
+  const [jobs, setJobs] = useState<{ id: string; type: string; status: string; started_at?: string; finished_at?: string }[]>([]);
+  const [snap, setSnap] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     api<CollectionHealth[]>("/v1/health/collection")
       .then(setHealth)
       .catch((e) => setErr(String(e)));
+    api<{ id: string; type: string; status: string; started_at?: string; finished_at?: string }[]>("/v1/jobs")
+      .then(setJobs)
+      .catch(() => setJobs([]));
+    api<{ last_snapshot_at?: string | null; coverage?: number }>("/v1/health")
+      .then((h) => setSnap(h.last_snapshot_at ? `${h.last_snapshot_at} · coverage ${h.coverage ?? "—"}` : "no snapshot"))
+      .catch(() => setSnap(null));
   }, []);
 
   const totalOk = health.reduce((s, r) => s + r.quotes_ok, 0);
@@ -24,6 +32,18 @@ export default function AdminOverviewPage() {
         Collection health summary across all data sources.
       </p>
       {err && <p className="err">{err}</p>}
+      <p className="sub">Last snapshot: {snap || "—"}</p>
+      <div className="panel">
+        <h2>Recent jobs</h2>
+        <table>
+          <thead><tr><th>Type</th><th>Status</th><th>Started</th><th>Finished</th></tr></thead>
+          <tbody>
+            {jobs.map((j) => (
+              <tr key={j.id}><td>{j.type}</td><td>{j.status}</td><td>{j.started_at || "—"}</td><td>{j.finished_at || "—"}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="stat-row fade-in fade-in-delay-1">
         <div className="stat-card">
