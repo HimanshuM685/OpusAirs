@@ -3,12 +3,15 @@ import { join } from "node:path";
 import { constructIndex } from "./apix";
 import {
   authJson,
+  adminConfigured,
+  adminSeedEmail,
   createUser,
   findUserByEmail,
   getUser,
   isAuthResponse,
   loginAdmin,
-  adminConfigured,
+  makeAdminCookie,
+  makeAdminLogoutCookie,
   makeLogoutCookie,
   makeSessionCookie,
   normalizeLoginEmail,
@@ -45,6 +48,9 @@ function validIata(code: string): boolean {
 async function loginResponse(emailRaw: string | undefined, password: string | undefined, adminOnly: boolean) {
   const email = normalizeLoginEmail(emailRaw || "");
   if (!email || !password) return json({ detail: "Email and password required" }, 400);
+  if (adminSeedEmail() && email === adminSeedEmail()) {
+    return json({ detail: "Invalid email or password" }, 401);
+  }
   const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.password_hash)) {
     return json({ detail: "Invalid email or password" }, 401);
@@ -493,6 +499,9 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       if (!email.includes("@") || password.length < 6) {
         return json({ detail: "Valid email and password (min 6 chars) required" }, 400);
       }
+      if (adminSeedEmail() && email === adminSeedEmail()) {
+        return json({ detail: "Email already registered" }, 409);
+      }
       if (await findUserByEmail(email)) {
         return json({ detail: "Email already registered" }, 409);
       }
@@ -526,11 +535,12 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     try {
       const body = (await req.json()) as { email?: string; password?: string };
       if (!adminConfigured()) return json({ detail: "Admin is not configured" }, 401);
-      const user = await loginAdmin(body.email || "", body.password || "");
-      if (!user) return json({ detail: "Invalid email or password" }, 401);
+      if (!loginAdmin(body.email || "", body.password || "")) {
+        return json({ detail: "Invalid email or password" }, 401);
+      }
       return authJson(
-        { success: true, user: { id: user.id, email: user.email, role: user.role } },
-        makeSessionCookie(user.id),
+        { success: true, user: { email: adminSeedEmail(), role: "admin" } },
+        makeAdminCookie(),
       );
     } catch {
       return json({ detail: "Invalid request" }, 400);
@@ -538,7 +548,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "POST" && path === "admin/logout") {
-    return authJson({ success: true }, makeLogoutCookie());
+    return authJson({ success: true }, makeAdminLogoutCookie());
   }
 
   if (req.method === "GET" && path === "admin/check") {

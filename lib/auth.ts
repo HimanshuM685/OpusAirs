@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from
 import { sql } from "./db";
 
 export const COOKIE_NAME = "opus_session";
+export const ADMIN_COOKIE = "opus_admin";
 
 export type AuthUser = { id: number; email: string; role: string };
 
@@ -112,25 +113,50 @@ function sameSecret(given: string, expected: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-export async function loginAdmin(emailRaw: string, password: string): Promise<AuthUser | null> {
+function signAdmin(email: string): string {
+  return createHmac("sha256", sessionSecret()).update(`admin:${email}`).digest("hex");
+}
+
+export function makeAdminCookie(): string {
+  const email = adminSeedEmail();
+  const sig = signAdmin(email);
+  return `${ADMIN_COOKIE}=${encodeURIComponent(email)}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+}
+
+export function makeAdminLogoutCookie(): string {
+  return `${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+export function parseAdminSession(req: Request): string | null {
+  if (!adminConfigured()) return null;
+  const cookie = req.headers.get("cookie") || "";
+  const match = cookie.match(new RegExp(`(?:^|; )${ADMIN_COOKIE}=([^;]*)`));
+  if (!match) return null;
+  const raw = decodeURIComponent(match[1]);
+  const dot = raw.lastIndexOf(".");
+  if (dot < 1) return null;
+  const email = raw.slice(0, dot);
+  const sig = raw.slice(dot + 1);
+  const expected = adminSeedEmail();
+  if (email !== expected || sig.length !== signAdmin(email).length) return null;
+  const left = Buffer.from(sig);
+  const right = Buffer.from(signAdmin(email));
+  if (!timingSafeEqual(left, right)) return null;
+  return email;
+}
+
+export function loginAdmin(emailRaw: string, password: string): boolean {
   const email = adminSeedEmail();
   const expected = adminSeedPassword();
-  if (!email || !expected) return null;
-  if (emailRaw.trim().toLowerCase() !== email) return null;
-  if (!sameSecret(password, expected)) return null;
-  await ensureSeedAdmin();
-  return findUserByEmail(email);
+  if (!email || !expected) return false;
+  if (emailRaw.trim().toLowerCase() !== email) return false;
+  return sameSecret(password, expected);
 }
 
 export async function requireAdmin(req: Request): Promise<AuthUser | Response> {
-  if (!adminConfigured()) {
-    return Response.json({ detail: "Admin required" }, { status: 401 });
-  }
-  const user = await getUser(req);
-  if (!user || user.role !== "admin" || user.email.toLowerCase() !== adminSeedEmail()) {
-    return Response.json({ detail: "Admin required" }, { status: 401 });
-  }
-  return user;
+  const email = parseAdminSession(req);
+  if (!email) return Response.json({ detail: "Admin required" }, { status: 401 });
+  return { id: 0, email, role: "admin" };
 }
 
 export function isAuthResponse(value: AuthUser | Response): value is Response {
@@ -139,24 +165,6 @@ export function isAuthResponse(value: AuthUser | Response): value is Response {
 
 export function normalizeLoginEmail(raw: string): string {
   return raw.trim().toLowerCase();
-}
-
-export async function ensureSeedAdmin(): Promise<void> {
-  const email = adminSeedEmail();
-  const password = adminSeedPassword();
-  if (!email || !password) return;
-  const q = sql();
-  const hash = hashPassword(password);
-  const existing = await q`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
-  if (!existing.length) {
-    await q`
-      INSERT INTO users (email, password_hash, role) VALUES (${email}, ${hash}, 'admin')
-    `;
-    return;
-  }
-  await q`
-    UPDATE users SET password_hash = ${hash}, role = 'admin' WHERE email = ${email}
-  `;
 }
 
 export function authJson(data: unknown, cookie: string, status = 200): Response {

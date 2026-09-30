@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ensureSeedAdmin } from "./auth";
 import { dataDir, sql } from "./db";
 import {
   DEFAULT_BASKET_ROUTES,
@@ -215,8 +214,6 @@ export async function bootstrap(): Promise<void> {
       `;
     }
   }
-
-  await ensureSeedAdmin();
 
   for (const r of basket) {
     await q`
