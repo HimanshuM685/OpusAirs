@@ -95,7 +95,7 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
   const grouped = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
   const flights = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
   for (const row of raw) {
-    if (["sold_out", "cancelled", "blocked", "missing"].includes(row.status)) continue;
+    if (row.status !== "ok") continue;
     const parts = splitFareComponents(row);
     if (!parts) continue;
     const flightKey = [

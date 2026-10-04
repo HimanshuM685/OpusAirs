@@ -1,20 +1,11 @@
-import { mkdirSync } from "node:fs";
-import { runPipeline } from "../lib/collect";
-import { coverageExitCode } from "../lib/collect/policy";
+import { loadEnvConfig } from "@next/env";
+import { bootstrap } from "../lib/bootstrap";
+import { sql } from "../lib/db";
+import { scheduleSnapshots } from "../lib/collect/scheduler";
 
-mkdirSync("data/logs", { recursive: true });
-
-try {
-  const result = await runPipeline({ scrape: true, full: true });
-  console.log(JSON.stringify(result.coverage ?? { skipped: result.skipped, attempted: result.attempted }));
-  process.exit(
-    coverageExitCode({
-      threw: false,
-      pendingAtStart: result.pending_at_start ?? 0,
-      attempted: result.attempted ?? 0,
-    }),
-  );
-} catch (err) {
-  console.error(err);
-  process.exit(coverageExitCode({ threw: true, pendingAtStart: 1, attempted: 0 }));
+loadEnvConfig(process.cwd());
+async function main() {
+  await bootstrap();
+  console.log(JSON.stringify({ job_ids: await scheduleSnapshots(sql()) }));
 }
+void main().catch((err) => { console.error(err); process.exitCode = 1; });

@@ -3,6 +3,7 @@ import { FARE_CLASS } from "./bootstrap";
 import { cleanQuotes } from "./cleaning";
 import type { sql as sqlFn } from "./db";
 import { isoDate } from "./db";
+import { istDate } from "./collect/policy";
 
 export type QuoteIn = {
   source?: string;
@@ -16,12 +17,16 @@ export type QuoteIn = {
   fare_class?: string;
   lead_time_days?: number | null;
   collected_on?: string | null;
+  collected_at?: string;
   base_fare?: number | null;
   taxes?: number | null;
   udf?: number | null;
   convenience?: number | null;
   total_fare?: number | null;
   status?: string;
+  source_rank?: number;
+  notes?: string;
+  snapshot_at?: string | null;
 };
 
 export type TripType = "one_way" | "round_trip";
@@ -55,7 +60,8 @@ export function sourceRank(source?: string | null): number {
   if (s.includes("akasa") || s === "qp") return 16;
   if (s.includes("spice") || s === "sg") return 18;
   if (s.includes("easemytrip") || s.includes("cleartrip")) return 30;
-  if (s === "manual" || s === "csv") return 40;
+  if (s === "manual" || s === "csv" || s === "file_drop") return 40;
+  if (s === "synthetic" || s === "synthetic_demo") return 100;
   return 90;
 }
 
@@ -89,8 +95,8 @@ export type CollectionEvent = QuoteIn & {
   source_rank?: number;
 };
 
-function toEvent(q: QuoteIn): CollectionEvent {
-  const collected_on = q.collected_on || new Date().toISOString().slice(0, 10);
+export function toEvent(q: QuoteIn): CollectionEvent {
+  const collected_on = isoDate(q.collected_on || istDate());
   let lead = q.lead_time_days;
   if (lead == null) {
     const dep = new Date(`${q.dep_date}T00:00:00Z`);
@@ -109,11 +115,11 @@ function toEvent(q: QuoteIn): CollectionEvent {
       (q.fare_class || FARE_CLASS).replace(/_RT$/i, "").trim().slice(0, 32) || FARE_CLASS,
     lead_time_days: Number(lead),
     collected_on,
-    collected_at: new Date().toISOString(),
+    collected_at: q.collected_at && Number.isFinite(Date.parse(q.collected_at)) ? new Date(q.collected_at).toISOString() : new Date().toISOString(),
     status: ((q.status || "ok").trim() || "ok").slice(0, 32),
     trip_type,
     return_date: q.return_date ? isoDate(q.return_date) : null,
-    source_rank: sourceRank(q.source),
+    source_rank: q.source_rank ?? sourceRank(q.source),
   };
 }
 
@@ -146,13 +152,13 @@ export async function upsertEvents(
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
           lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency,
-          trip_type, return_date, source_rank
+           trip_type, return_date, source_rank, notes, snapshot_at
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
           ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
           ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR',
-          ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}
+           ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}, ${ev.notes || ""}, ${ev.snapshot_at ?? null}
         )
       `;
       counts.inserted += 1;
@@ -168,7 +174,8 @@ export async function upsertEvents(
           collected_at = ${ev.collected_at},
           run_id = ${runId},
           trip_type = ${ev.trip_type},
-          return_date = ${ev.return_date ?? null}
+           return_date = ${ev.return_date ?? null},
+           source_rank = ${ev.source_rank ?? sourceRank(ev.source)}, notes = ${ev.notes || ""}, snapshot_at = ${ev.snapshot_at ?? null}
         WHERE id = ${existing[0].id}
       `;
       counts.updated += 1;
@@ -287,7 +294,8 @@ export function parseCsvQuotes(text: string): QuoteIn[] {
       fare_class: cell(row, "fare_class", "cabin") || FARE_CLASS,
       collected_on:
         asDate(cell(row, "collected_on", "collected", "quote_date")) ||
-        new Date().toISOString().slice(0, 10),
+        istDate(),
+      collected_at: cell(row, "collected_at", "observation_time") || undefined,
       base_fare: optFloat(cell(row, "base_fare", "base")),
       taxes: optFloat(cell(row, "taxes", "tax")),
       udf: optFloat(cell(row, "udf")),

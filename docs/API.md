@@ -86,7 +86,7 @@ Compares fares across carriers operating the selected city pair.
 - `origin` (required): Origin airport code (e.g. `DEL`)
 - `dest` (required): Destination airport code (e.g. `BOM`)
 
-If `quote_count` is 0 and the caller has an `opus_session` cookie, the API scrapes that pair (skipped if scraped in the last 15 minutes) and returns `fetched: true`.
+Search reads the warehouse only and returns `fetched: false`. Empty results do not trigger HTTP collection.
 
 **Example Response:**
 ```json
@@ -178,33 +178,39 @@ Returns pricing curves and mean fare by advance purchase lead-time bucket.
 ### 4. Admin, Scraping & Ingestion
 
 #### `GET /v1/health/collection`
-Returns status of recent collection and scraper executions per source.
+Admin cookie required. Returns slot coverage, quality, blocked sources, job progress, and per-source results.
 
 **Example Response:**
 ```json
-[
-  {
-    "source": "indigo",
-    "last_started_at": "2026-09-10T00:00:00.000Z",
-    "last_finished_at": "2026-09-10T00:03:15.000Z",
-    "status": "ok",
-    "quotes_ok": 18,
-    "quotes_missing": 2,
-    "quotes_sold_out": 0,
-    "quotes_blocked": 0,
-    "notes": "Finished portal scrape"
-  }
-]
+{
+  "last_snapshot_at": "2026-10-05T00:30:00.000Z",
+  "snapshot_slot": "0600",
+  "coverage": 0.7,
+  "cell_coverage": 0.8,
+  "imputed_share": 0.2,
+  "quality": "partial",
+  "vintage": "final",
+  "blocked_sources": [],
+  "progress": { "done": 80, "missing": 4 },
+  "job": { "id": "UUID", "status": "ok" },
+  "sources": []
+}
 ```
 
 #### `POST /v1/collect/run`
-Admin cookie required. Body `{ "origin": "CCU", "dest": "BOM" }` scrapes that pair; omit O/D to scrape the full basket. `scrape=true|false` query still works.
+Admin cookie or ingest API key required. Returns **202 `{ "job_id": "UUID" }`** after durably enqueueing a full-basket adhoc snapshot. Optional `{ "origin": "CCU", "dest": "BOM" }` adds a pair without removing basket routes. `scrape=false` uses offline sources only; `full=true` never overrides `SCRAPE_ENABLED=false`. `{ "demo": true }` includes explicitly enabled synthetic demo data. Run `npm run collect:worker` to process queued collection jobs.
+
+#### `GET /v1/collect/sources`
+Admin cookie. Adapter registry with configured enabled state, effective environment gate, priority, host, and live robots verdict. No HTTP occurs when scraping is disabled.
+
+#### `POST /v1/collect/sources`
+Admin cookie. Body `{ "id": "file_drop", "enabled": true }` persists the adapter control. Policy-skipped hosts cannot be enabled.
 
 #### `POST /v1/ingest/dump`
 Admin cookie. Body `{ "text": "...", "rebuild_index": true }`. Accepts JSON, CSV, or prose (prose needs `GEMINI_API_KEY`).
 
 #### `GET /v1/ingest/needed`
-Admin cookie. Basket × one_way/round_trip × T+1/7/21 gaps (missing or older than 7 days), plus copy-paste CSV lines.
+Admin cookie. Basket × ECONOMY/one_way × T+1/7/15/21/30/45 × 0600/1800 IST gaps (empty or older than seven days), plus copy-paste CSV lines. Synthetic/imputed snapshots do not satisfy an observed gap.
 
 #### `POST /v1/ingest/quotes`
 Ingests an array of raw quote objects.

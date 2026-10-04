@@ -8,6 +8,8 @@ export type FarePoint = {
   day: string;
   lead: number;
   fare: number;
+  imputed?: boolean;
+  synthetic?: boolean;
 };
 
 export type IndexPoint = {
@@ -19,7 +21,8 @@ export type IndexPoint = {
   value: number;
   imputed_share: number;
   coverage: number;
-  vintage: "provisional" | "final";
+  vintage: "provisional" | "final" | "demo";
+  quality: "low" | "partial" | "good";
   n_routes: number;
   n_quotes: number;
 };
@@ -64,7 +67,7 @@ type Cell = { fare: number; imputed: boolean; method: string | null };
 function fillDay(
   day: string,
   days: string[],
-  observed: Map<string, number>,
+  observed: Map<string, Cell>,
   basket: BasketW[],
 ): Map<string, Cell> {
   const out = new Map<string, Cell>();
@@ -72,10 +75,10 @@ function fillDay(
   for (const route of basket) {
     for (const lead of LEAD_BINS) {
       const key = `${route.origin}|${route.destination}|${lead}`;
-      const fare = observed.get(`${key}|${day}`);
-      if (fare != null) {
-        out.set(key, { fare, imputed: false, method: null });
-        observedFares.push(fare);
+      const cell = observed.get(`${key}|${day}`);
+      if (cell != null) {
+        out.set(key, cell);
+        observedFares.push(cell.fare);
       }
     }
   }
@@ -96,9 +99,9 @@ function fillDay(
       for (let back = 1; back <= 7; back++) {
         const prev = dayOffset(day, -back);
         if (!days.includes(prev)) continue;
-        const fare = observed.get(`${key}|${prev}`);
-        if (fare != null) {
-          out.set(key, { fare, imputed: true, method: "carry_forward" });
+        const cell = observed.get(`${key}|${prev}`);
+        if (cell != null) {
+          out.set(key, { fare: cell.fare, imputed: true, method: "carry_forward" });
           break;
         }
       }
@@ -149,13 +152,13 @@ function monthStart(day: string): string {
 
 export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: string): IndexPoint[] {
   if (!basket.length) return [];
-  const observed = new Map<string, number>();
+  const observed = new Map<string, Cell>();
   for (const p of points) {
     if (!(p.fare > 0)) continue;
     const lead = nearestBin(p.lead);
     const key = `${p.origin}|${p.destination}|${lead}|${p.day}`;
     const prev = observed.get(key);
-    if (prev == null || p.fare < prev) observed.set(key, p.fare);
+    if (prev == null || p.fare < prev.fare) observed.set(key, { fare: p.fare, imputed: Boolean(p.imputed || p.synthetic), method: p.synthetic ? "synthetic_demo" : p.imputed ? "snapshot_imputation" : null });
   }
   const days = [...new Set(points.map((p) => p.day))].sort();
   if (!days.length) return [];
@@ -169,7 +172,8 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
     timing: number | null;
     imputed_share: number;
     coverage: number;
-    vintage: "provisional" | "final";
+    vintage: "provisional" | "final" | "demo";
+    quality: "low" | "partial" | "good";
     n_routes: number;
     n_quotes: number;
     routes: { origin: string; destination: string; rel: number; share: number; weight: number }[];
@@ -219,7 +223,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
     let timeNum = 0;
     let timeDen = 0;
     let imputedW = 0;
-    let observedW = 0;
+    let observedRoutesW = 0;
     let cellW = 0;
     const rels: number[] = [];
     const routes: { origin: string; destination: string; rel: number; share: number; weight: number }[] = [];
@@ -234,7 +238,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       laspNum += route.weight * rel;
       laspDen += route.weight;
       imputedW += route.weight * cell.share;
-      observedW += route.weight * (1 - cell.share);
+      if (cell.share === 0) observedRoutesW += route.weight;
       rels.push(rel);
       routes.push({ origin: route.origin, destination: route.destination, rel, share: cell.share, weight: route.weight });
       routePrice.set(`${day}|${key}`, cell.price);
@@ -251,7 +255,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       }
     }
     if (laspDen <= 0) continue;
-    const coverage = cellW > 0 ? observedW / cellW : 0;
+    const coverage = cellW > 0 ? observedRoutesW / cellW : 0;
     daily.push({
       day,
       laspeyres: (100 * laspNum) / laspDen,
@@ -260,7 +264,8 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       timing: timeDen > 0 ? (100 * timeNum) / timeDen : null,
       imputed_share: cellW > 0 ? imputedW / cellW : 0,
       coverage,
-      vintage: coverage < 0.6 ? "provisional" : "final",
+      vintage: points.some((p) => p.day === day && p.synthetic) ? "demo" : coverage < 0.6 ? "provisional" : "final",
+      quality: coverage < 0.6 ? "low" : coverage < 0.8 ? "partial" : "good",
       n_routes: routes.length,
       n_quotes: nQuotes,
       routes,
@@ -284,6 +289,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       imputed_share: round4(d.imputed_share),
       coverage: round4(d.coverage),
       vintage: d.vintage,
+      quality: d.quality,
       n_routes: d.n_routes,
       n_quotes: d.n_quotes,
     };
@@ -304,6 +310,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
         imputed_share: round4(route.share),
         coverage: round4(1 - route.share),
         vintage: d.vintage,
+        quality: d.quality,
         n_routes: 1,
         n_quotes: d.n_quotes,
       });
@@ -338,7 +345,8 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
         value,
         imputed_share: list.reduce((s, r) => s + r.imputed_share, 0) / list.length,
         coverage: list.reduce((s, r) => s + r.coverage, 0) / list.length,
-        vintage: list.some((r) => r.vintage === "provisional") ? "provisional" : "final",
+        vintage: list.some((r) => r.vintage === "demo") ? "demo" : list.some((r) => r.vintage === "provisional") ? "provisional" : "final",
+        quality: list.some((r) => r.quality === "low") ? "low" : list.some((r) => r.quality === "partial") ? "partial" : "good",
         n_routes: Math.max(...list.map((r) => r.n_routes)),
         n_quotes: list.reduce((s, r) => s + r.n_quotes, 0),
       });

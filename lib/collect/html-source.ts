@@ -1,62 +1,64 @@
-import { fetchText } from "./http";
+import { CHALLENGE, PoliteHttp, skippedHost, type HttpAttempt } from "./http";
 import { parseItineraries, validQuote } from "./parse";
-import { leadDays } from "./policy";
-import { originAllowed } from "./robots";
-import type { CollectJob, CollectOutcome, SourceCollector } from "./types";
-
-const CHALLENGE = /captcha|recaptcha|hcaptcha|cf-challenge|verify you are human|access denied|unusual traffic/i;
+import { robotsVerdict } from "./robots";
+import type { CollectCell, CollectResult, SourceAdapter } from "./types";
 
 export function defineHtmlSource(spec: {
   id: string;
   carrier: string;
   origin: string;
   path: string;
-}): SourceCollector {
+  sourceRank?: number;
+}, http = new PoliteHttp()): SourceAdapter {
+  const rank = spec.sourceRank ?? 20;
+  const skipped = skippedHost(new URL(spec.origin).hostname);
   return {
     id: spec.id,
-    carrier: spec.carrier,
-    async collect(job: CollectJob): Promise<CollectOutcome> {
+    sourceRank: rank,
+    kind: skipped ? "skip" : "html",
+    host: new URL(spec.origin).host,
+    searchPath: spec.path,
+    skippedReason: skipped ? "Search crawling excluded by host policy; use operator ingest or partner feeds." : undefined,
+    enabled: () => !skipped && process.env.SCRAPE_ENABLED === "true",
+    async allowedPath(path) { return (await robotsVerdict(new URL(path, spec.origin).href, http)).verdict === "allow"; },
+    async collect(cell: CollectCell): Promise<CollectResult> {
+      const attempts: HttpAttempt[] = [];
+      const outcome = (status: CollectResult["status"], notes: string, quotes: CollectResult["quotes"] = []): CollectResult => ({ source: spec.id, sourceRank: rank, status, notes, quotes, attempts });
+      if (skipped) return outcome("blocked_robots", "host_policy_skip");
+      if (process.env.SCRAPE_ENABLED !== "true") return outcome("blocked", "scrape_disabled");
       const url = new URL(spec.path, spec.origin);
-      url.searchParams.set("from", job.origin);
-      url.searchParams.set("to", job.destination);
-      url.searchParams.set("date", job.dep_date);
-      url.searchParams.set("trip", job.trip_type);
-      if (job.return_date) url.searchParams.set("return", job.return_date);
+      url.searchParams.set("from", cell.origin);
+      url.searchParams.set("to", cell.destination);
+      url.searchParams.set("date", cell.depDate);
+      url.searchParams.set("trip", cell.tripType);
       const href = url.toString();
-      const host = url.host;
-      const ua = process.env.USER_AGENT || "OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)";
-      if (!(await originAllowed(href, ua))) {
-        return { status: "blocked", reason: "robots.txt", host, http: null, quotes: [] };
-      }
-      const res = await fetchText(href, ua);
-      if (res.transient) {
-        return { status: "blocked", reason: res.error || "transient", host, http: res.status || null, quotes: [], transient: true };
-      }
-      if (res.status === 401 || res.status === 403 || res.status === 429 || CHALLENGE.test(res.text)) {
-        return { status: "blocked", reason: "challenge", host, http: res.status, quotes: [] };
-      }
+      const verdict = await robotsVerdict(href, http, (a) => attempts.push(a));
+      if (verdict.verdict !== "allow") return outcome("blocked_robots", verdict.notes);
+      const res = await http.request(href, (a) => attempts.push(a));
+      if (CHALLENGE.test(res.text)) return outcome("blocked", "challenge_page");
+      if ([401, 403].includes(res.status) || (res.status >= 300 && res.status < 400)) return outcome("blocked", res.error);
+      if (res.transient || res.status === 0 || res.status >= 400) return outcome("error", res.error);
+      if (/sold[ -]?out|no seats available/i.test(res.text)) return outcome("sold_out", "sold_out");
       const legs = parseItineraries(res.text);
       const quotes = legs
         .map((leg) => ({
           source: spec.id,
-          origin: job.origin,
-          destination: job.destination,
+           origin: cell.origin,
+           destination: cell.destination,
           carrier: spec.carrier,
           flight_no: leg.flight_no,
-          dep_date: job.dep_date,
-          return_date: job.return_date,
-          trip_type: job.trip_type,
+           dep_date: cell.depDate,
+           trip_type: cell.tripType,
           fare_class: leg.fare_class,
-          lead_time_days: leadDays(job.collected_on, job.dep_date),
-          collected_on: job.collected_on,
+           lead_time_days: cell.leadTimeDays,
           total_fare: leg.total_fare,
           status: "ok",
         }))
         .filter((q) => validQuote(q));
       if (!quotes.length) {
-        return { status: "missing", reason: "no itinerary", host, http: res.status, quotes: [] };
+        return outcome("missing", "no_itinerary");
       }
-      return { status: "ok", reason: "", host, http: res.status, quotes };
+      return outcome("ok", "", quotes);
     },
   };
 }

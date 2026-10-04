@@ -14,13 +14,18 @@ export async function enqueue(
   q: Q,
   type: JobType,
   payload: unknown,
-  run: () => Promise<Record<string, unknown>>,
+  run?: () => Promise<Record<string, unknown>>,
+  dedupeKey?: string,
 ): Promise<string> {
   const id = randomUUID();
-  await q`
-    INSERT INTO pipeline_jobs (id, type, status, payload)
-    VALUES (${id}, ${type}, 'queued', ${JSON.stringify(payload ?? {})}::jsonb)
+  const rows = await q`
+    INSERT INTO pipeline_jobs (id, type, status, payload, dedupe_key)
+    VALUES (${id}, ${type}, 'queued', ${JSON.stringify(payload ?? {})}::jsonb, ${dedupeKey ?? null})
+    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
+    RETURNING id
   `;
+  const jobId = String(rows[0].id);
+  if (!run || jobId !== id) return jobId;
   setImmediate(async () => {
     await q`UPDATE pipeline_jobs SET status = 'running', started_at = NOW() WHERE id = ${id}`;
     try {
@@ -30,7 +35,7 @@ export async function enqueue(
         SET status = 'ok', finished_at = NOW(), stats = ${JSON.stringify(stats)}::jsonb
         WHERE id = ${id}
       `;
-      if (type === "rebuild") {
+      if (["rebuild", "ingest", "collect"].includes(type)) {
         clearIndexCache();
         for (const fn of listeners) fn();
       }
@@ -42,7 +47,7 @@ export async function enqueue(
       `;
     }
   });
-  return id;
+  return jobId;
 }
 
 export async function readJob(q: Q, id: string) {

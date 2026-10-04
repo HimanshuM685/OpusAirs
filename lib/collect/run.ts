@@ -1,212 +1,127 @@
 import { constructIndex } from "../apix";
+import { randomUUID } from "node:crypto";
 import { bootstrap } from "../bootstrap";
 import { cleanQuotes } from "../cleaning";
 import { sql } from "../db";
-import { upsertEvents, type CollectionEvent, type QuoteIn } from "../ingest";
+import { toEvent, upsertEvents } from "../ingest";
+import { clearIndexCache } from "../http-cache";
+import { snapshotCoverage } from "../snapshot";
 import { enabledCollectors } from "./sources";
-import {
-  acquireLock,
-  claimNext,
-  countStatus,
-  expandJobs,
-  finishJob,
-  blockPendingSource,
-  jobSummary,
-  reclaimStale,
-  recordAttempt,
-  releaseLock,
-  rememberRoutes,
-} from "./jobs";
-import { degradedSources } from "./policy";
-import type { CollectJob } from "./types";
+import { acquireLock, claimNext, cellResultStatus, expandJobs, finishJob, jobSummary, reclaimStale, recordAttempt, releaseLock } from "./jobs";
+import { istDate, leadDays } from "./policy";
+import { resetRobotsCache } from "./robots";
+import type { CollectCell, CollectJob, CollectResult, SourceAdapter } from "./types";
 
 export type PipelineOpts = {
   scrape?: boolean;
   routes?: { origin: string; destination: string }[];
   budget?: number;
   full?: boolean;
-  force?: boolean;
+  slot?: string;
+  snapshotAt?: string;
+  day?: string;
+  demo?: boolean;
 };
 
-function maxHours(): number {
-  const n = Number(process.env.COLLECT_MAX_HOURS || 18);
-  return Number.isFinite(n) && n > 0 ? n : 18;
-}
-
-async function alert(text: string): Promise<void> {
-  const url = process.env.ALERT_WEBHOOK;
-  if (!url) return;
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-      signal: AbortSignal.timeout(10000),
-    });
-  } catch (err) {
-    console.error("alert webhook failed", err);
+// Each host has a single worker. A denial closes all adapters sharing that host for this slot.
+export async function drainAdapters<T>(adapters: SourceAdapter[], next: (a: SourceAdapter) => Promise<T | null>,
+  cell: (job: T) => CollectCell, save: (job: T, result: CollectResult, adapter: SourceAdapter) => Promise<void>,
+  closed = new Set<string>()): Promise<void> {
+  const groups = new Map<string, SourceAdapter[]>();
+  for (const a of adapters) {
+    const key = a.host || a.id;
+    groups.set(key, [...(groups.get(key) || []), a]);
   }
+  await Promise.all([...groups.entries()].map(async ([host, sources]) => {
+    for (const adapter of sources) {
+      let job: T | null;
+      while ((job = await next(adapter)) != null) {
+        let result: CollectResult;
+        if (closed.has(host)) result = { source: adapter.id, sourceRank: adapter.sourceRank, status: "blocked", quotes: [], notes: "host_closed_this_slot" };
+        else {
+          try { result = await adapter.collect(cell(job)); }
+          catch (err) { result = { source: adapter.id, sourceRank: adapter.sourceRank, status: "error", quotes: [], notes: String(err).slice(0, 500) }; }
+          if (result.status === "blocked" || result.status === "blocked_robots") closed.add(host);
+        }
+        await save(job, result, adapter);
+      }
+    }
+  }));
 }
 
-export async function runPipeline(opts?: PipelineOpts) {
+export async function runPipeline(opts: PipelineOpts = {}) {
   await bootstrap();
   const q = sql();
-  if (opts?.scrape !== false && !opts?.force && process.env.SCRAPE_ENABLED !== "true") {
-    return {
-      collected: {},
-      cleaned: 0,
-      index_rows: 0,
-      attempted: 0,
-      pending_at_start: 0,
-      skipped: true,
-      coverage: null,
-      reason: "SCRAPE_ENABLED is not true",
-    };
-  }
-  if (opts?.scrape === false) {
-    const cleaned = await cleanQuotes(q);
-    const indexed = await constructIndex(q);
-    return { collected: {}, cleaned, index_rows: indexed, attempted: 0, pending_at_start: 0, skipped: false, coverage: null };
-  }
-
-  const hours = maxHours();
-  const lock = await acquireLock(q, hours);
-  if (lock === "busy") {
-    return { skipped: true, reason: "collect already running", attempted: 0, pending_at_start: 0, coverage: null };
-  }
-
-  const day = new Date().toISOString().slice(0, 10);
-  const started = Date.now();
-  let attempted = 0;
-  let pendingAtStart = 0;
-  const tally = new Map<string, { ok: number; missing: number; blocked: number; quotes: number; attempted: number }>();
-  const bump = (source: string) => {
-    const row = tally.get(source) ?? { ok: 0, missing: 0, blocked: 0, quotes: 0, attempted: 0 };
-    tally.set(source, row);
-    return row;
-  };
-
+  const snapshotAt = opts.snapshotAt || new Date().toISOString();
+  const day = opts.day || istDate(new Date(snapshotAt));
+  const slot = opts.slot || "adhoc";
+  const hours = Math.max(1, Number(process.env.COLLECT_MAX_HOURS) || 18);
+  const owner = randomUUID();
+  if (await acquireLock(q, 5 / 60, owner) === "busy") throw new Error("Collection lock busy; worker will retry queued job");
+  const heartbeat = setInterval(() => {
+    void q`UPDATE collect_lock SET started_at = NOW() WHERE id = 1 AND owner = ${owner}`.catch(console.error);
+  }, 30000);
+  heartbeat.unref();
   try {
-    await reclaimStale(q);
-    const sources = await enabledCollectors(q);
-    await expandJobs(q, { collectedOn: day, sources: sources.map((s) => s.id), routes: opts?.routes });
-    pendingAtStart = await countStatus(q, day, "pending");
-    const byId = new Map(sources.map((s) => [s.id, s]));
-    const closed = new Set<string>();
-    const budget = opts?.full ? Number.POSITIVE_INFINITY : (opts?.budget ?? Number.POSITIVE_INFINITY);
-
-    while (attempted < budget && Date.now() - started < hours * 3600 * 1000) {
-      const job = await claimNext(q, day);
-      if (!job) break;
-      attempted += 1;
-      const collector = byId.get(job.source);
-      const row = bump(job.source);
-      row.attempted += 1;
-      if (closed.has(job.source)) {
-        await finishJob(q, job.id, "blocked", "source closed");
-        row.blocked += 1;
-        continue;
-      }
-      if (!collector) {
-        await finishJob(q, job.id, "failed", "unknown source");
-        await recordAttempt(q, { jobId: job.id, source: job.source, host: "", status: "failed", http: null, quotes: 0, error: "unknown source" });
-        continue;
-      }
-      try {
-        const outcome = await collector.collect(job);
-        await recordAttempt(q, {
-          jobId: job.id,
-          source: job.source,
-          host: outcome.host,
-          status: outcome.transient ? "retry" : outcome.status,
-          http: outcome.http,
-          quotes: outcome.quotes.length,
-          error: outcome.reason,
-        });
-        if (outcome.transient) {
-          const status = job.attempts >= 3 ? "failed" : "pending";
-          await finishJob(q, job.id, status, outcome.reason);
-          continue;
+    resetRobotsCache();
+    let adapters = await enabledCollectors(q, day, opts.demo === true);
+    if (opts.scrape === false || day !== istDate()) adapters = adapters.filter((a) => a.kind !== "html" && a.kind !== "api");
+    // Disabled adapters do not remove basket cells: snapshot completion still imputes every gap.
+    const cells = await expandJobs(q, { collectedOn: day, snapshotAt, slot, sources: adapters.map((a) => a.id), routes: opts.routes });
+    await reclaimStale(q, snapshotAt);
+    const pendingAtStart = (await jobSummary(q, day, snapshotAt)).pending || 0;
+    const blocked = (await q`SELECT DISTINCT source FROM collect_jobs WHERE snapshot_at = ${snapshotAt} AND status IN ('blocked', 'blocked_robots')`) as { source: string }[];
+    const closed = new Set(blocked.map((r) => adapters.find((a) => a.id === r.source)?.host || r.source));
+    const started = Date.now();
+    let attempted = 0;
+    await drainAdapters<CollectJob>(adapters,
+      async (adapter) => {
+        if (attempted >= (opts.budget ?? Infinity) || Date.now() - started > hours * 3600000) return null;
+        // Reserve budget before awaiting SQL so concurrent host workers cannot exceed the cap.
+        attempted++;
+        const job = await claimNext(q, snapshotAt, adapter.id);
+        if (!job) attempted--;
+        return job;
+      },
+      (job) => ({ origin: job.origin, destination: job.destination, depDate: job.dep_date,
+        leadTimeDays: leadDays(day, job.dep_date), fareClass: "ECONOMY", tripType: "one_way" }),
+      async (job, result, adapter) => {
+        for (const attempt of result.attempts || []) {
+          await recordAttempt(q, { jobId: job.id, source: adapter.id, host: attempt.host,
+            status: attempt.error || "http_ok", http: attempt.status || null, quotes: 0, error: attempt.error });
+          await q`INSERT INTO collection_runs (started_at, finished_at, source, status, snapshot_at, notes)
+            VALUES (${attempt.at}, ${attempt.at}, ${adapter.id}, 'http_attempt', ${snapshotAt}, ${`job=${job.id} host=${attempt.host} http=${attempt.status} ${attempt.error}`})`;
         }
-        if (outcome.status === "ok") {
-          const events = outcome.quotes.map((quote) => toEvent(job, quote));
-          await upsertEvents(q, events, null);
-          await rememberRoutes(q, events, day);
-          row.ok += 1;
-          row.quotes += events.length;
-          await finishJob(q, job.id, "done", "");
-        } else if (outcome.status === "missing") {
-          row.missing += 1;
-          await finishJob(q, job.id, "missing", outcome.reason);
-        } else {
-          row.blocked += 1;
-          await finishJob(q, job.id, "blocked", outcome.reason);
-          if (outcome.reason === "robots.txt" || outcome.reason === "challenge") {
-            closed.add(job.source);
-            row.blocked += await blockPendingSource(q, day, job.source, outcome.reason);
-          }
+        const quotes = result.status === "ok" ? result.quotes : [];
+        const rows = await q`
+          INSERT INTO collection_runs (started_at, finished_at, source, status, snapshot_at,
+            quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, quotes_blocked_robots, quotes_errors, notes)
+          VALUES (NOW(), NOW(), ${adapter.id}, ${result.status}, ${snapshotAt},
+            ${quotes.length}, ${result.status === "missing" ? 1 : 0}, ${result.status === "sold_out" ? 1 : 0},
+            ${["blocked", "blocked_robots"].includes(result.status) ? 1 : 0}, ${result.status === "blocked_robots" ? 1 : 0},
+            ${result.status === "error" ? 1 : 0}, ${(result.notes || "").slice(0, 1000)}) RETURNING id
+        `;
+        const input = quotes.length ? quotes : [{ source: result.source, origin: job.origin, destination: job.destination,
+          carrier: "NA", flight_no: "NA", dep_date: job.dep_date, total_fare: null }];
+        // Existing manual observations already carry their own audit provenance. Never rewrite them merely by reading.
+        if (adapter.kind !== "manual" || !quotes.length) {
+          await upsertEvents(q, input.map((quote) => toEvent({ ...quote, source: result.source,
+            source_rank: result.sourceRank, collected_on: day, lead_time_days: leadDays(day, job.dep_date),
+            snapshot_at: snapshotAt, fare_class: quote.fare_class || "ECONOMY", trip_type: "one_way",
+            status: result.status, notes: result.notes })), Number(rows[0].id));
         }
-      } catch (err) {
-        const message = String(err).slice(0, 200);
-        const status = job.attempts >= 3 ? "failed" : "pending";
-        await finishJob(q, job.id, status, message);
-        await recordAttempt(q, { jobId: job.id, source: job.source, host: "", status: "retry", http: null, quotes: 0, error: message });
-      }
-    }
-
+        await recordAttempt(q, { jobId: job.id, source: adapter.id, host: adapter.host || "local",
+          status: result.status, http: null, quotes: quotes.length, error: result.notes || "" });
+        await finishJob(q, job.id, cellResultStatus(result.status), result.notes);
+      }, closed);
     const cleaned = await cleanQuotes(q);
-    const indexed = await constructIndex(q);
-    for (const [source, counts] of tally) {
-      const note = `jobs ok=${counts.ok} missing=${counts.missing} blocked=${counts.blocked} quotes=${counts.quotes}`;
-      await q`
-        INSERT INTO collection_runs (
-          started_at, finished_at, source, status, quotes_ok, quotes_missing, quotes_sold_out, quotes_blocked, notes
-        ) VALUES (
-          ${new Date(started).toISOString()}, ${new Date().toISOString()}, ${source}, 'ok',
-          ${counts.quotes}, ${counts.missing}, 0, ${counts.blocked}, ${note.slice(0, 1000)}
-        )
-      `;
-    }
-    const jobs = await jobSummary(q, day);
-    const degraded = degradedSources(
-      [...tally.entries()].map(([source, c]) => ({ source, blocked: c.blocked, attempted: c.attempted })),
-    );
-    const coverage = { collected_on: day, attempted, pending_at_start: pendingAtStart, jobs, degraded };
-    console.log(`collect coverage ${JSON.stringify(coverage)}`);
-    if (degraded.length) await alert(`OpusAirs collect degraded: ${degraded.join(", ")} blocked > 50%`);
-    return {
-      skipped: false,
-      attempted,
-      pending_at_start: pendingAtStart,
-      cleaned,
-      index_rows: indexed,
-      coverage,
-      collected: Object.fromEntries([...tally.entries()].map(([k, v]) => [k, v.quotes])),
-    };
-  } finally {
-    await releaseLock(q);
-  }
-}
-
-function toEvent(job: CollectJob, quote: QuoteIn): CollectionEvent {
-  return {
-    source: job.source,
-    origin: job.origin,
-    destination: job.destination,
-    carrier: quote.carrier,
-    flight_no: quote.flight_no || "NA",
-    dep_date: job.dep_date,
-    return_date: job.return_date,
-    trip_type: job.trip_type,
-    fare_class: quote.fare_class || "ECONOMY",
-    lead_time_days: quote.lead_time_days ?? 0,
-    collected_on: job.collected_on,
-    collected_at: new Date().toISOString(),
-    status: "ok",
-    base_fare: quote.base_fare,
-    taxes: quote.taxes,
-    udf: quote.udf,
-    convenience: quote.convenience,
-    total_fare: quote.total_fare,
-  };
+    const indexRows = await constructIndex(q, { day, slot, snapshotAt, includeSynthetic: opts.demo === true });
+    clearIndexCache();
+    const coverage = await snapshotCoverage(q, snapshotAt);
+    const jobs = await jobSummary(q, day, snapshotAt);
+    const blockedSources = (await q`SELECT DISTINCT source FROM collect_jobs WHERE snapshot_at = ${snapshotAt}
+      AND status IN ('blocked', 'blocked_robots')`) as { source: string }[];
+    return { skipped: false, attempted, pending_at_start: pendingAtStart, cells, cleaned, index_rows: indexRows,
+      snapshot_at: snapshotAt, snapshot_slot: slot, coverage: { ...coverage, jobs, blocked_sources: blockedSources.map((r) => r.source) } };
+  } finally { clearInterval(heartbeat); await releaseLock(q, owner); }
 }

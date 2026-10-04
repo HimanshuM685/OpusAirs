@@ -1,4 +1,8 @@
-export const HORIZON_DAYS = [1, 7, 14, 21, 30] as const;
+export const HORIZON_DAYS = [1, 7, 15, 21, 30, 45] as const;
+
+export function istDate(now = new Date()): string {
+  return new Date(now.getTime() + 5.5 * 3600000).toISOString().slice(0, 10);
+}
 
 export function addDays(iso: string, days: number): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);

@@ -3,12 +3,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runner
       args:
         DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon postgres URI}
-    environment:
+    environment: &app-environment
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon postgres URI}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL for the seeded admin account}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD for the seeded admin account}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to a long random string}
+      SCRAPE_ENABLED: ${SCRAPE_ENABLED:-false}
+      SYNTHETIC_DEMO_ENABLED: ${SYNTHETIC_DEMO_ENABLED:-false}
+      BOT_DOMAIN: ${BOT_DOMAIN:-example.invalid}
+      BOT_CONTACT: ${BOT_CONTACT:-contact@example.invalid}
+      SNAPSHOT_HOURS: ${SNAPSHOT_HOURS:-6,18}
+      COLLECT_MAX_RPM_PER_HOST: ${COLLECT_MAX_RPM_PER_HOST:-8}
+      COLLECT_JITTER_MS: ${COLLECT_JITTER_MS:-3000-8000}
+      COLLECT_MAX_CONCURRENT_HOSTS: ${COLLECT_MAX_CONCURRENT_HOSTS:-3}
     ports:
       - "3000:3000"
+
+  collection-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: collection-worker
+    environment: *app-environment
+    restart: unless-stopped
+    volumes:
+      - ./data/drops:/app/data/drops:ro

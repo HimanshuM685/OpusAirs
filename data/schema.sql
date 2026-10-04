@@ -2,6 +2,11 @@
 -- create_all() also builds this on API boot. Use this file as the contract
 -- for manual loads (psql, Neon SQL editor, spreadsheet export).
 
+CREATE TABLE IF NOT EXISTS scrape_sources (
+  id VARCHAR(64) PRIMARY KEY, name VARCHAR(128) NOT NULL, carrier VARCHAR(8),
+  enabled BOOLEAN NOT NULL DEFAULT false, start_url TEXT, search_url_template TEXT
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -203,3 +208,26 @@ CREATE TABLE IF NOT EXISTS index_revisions (
   published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (series, frequency, period_date, vintage)
 );
+
+-- Slot-aware collection upgrade; quotes_raw's existing unique key is retained.
+ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS notes VARCHAR(1000) NOT NULL DEFAULT '';
+ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS snapshot_at TIMESTAMPTZ;
+ALTER TABLE collection_runs ADD COLUMN IF NOT EXISTS snapshot_at TIMESTAMPTZ;
+ALTER TABLE collection_runs ADD COLUMN IF NOT EXISTS quotes_blocked_robots INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE collection_runs ADD COLUMN IF NOT EXISTS quotes_errors INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS snapshot_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS snapshot_slot VARCHAR(16) NOT NULL DEFAULT 'legacy';
+DO $$ DECLARE c RECORD; BEGIN
+  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'collect_jobs'::regclass
+    AND contype = 'u' AND pg_get_constraintdef(oid) NOT LIKE '%snapshot_at%'
+  LOOP EXECUTE format('ALTER TABLE collect_jobs DROP CONSTRAINT %I', c.conname); END LOOP;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_collect_jobs_snapshot ON collect_jobs
+  (snapshot_at, source, origin, destination, dep_date, trip_type);
+ALTER TABLE quote_snapshots ALTER COLUMN total_fare DROP NOT NULL;
+ALTER TABLE quote_snapshots ADD COLUMN IF NOT EXISTS is_synthetic BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
+ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pipeline_jobs_dedupe ON pipeline_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL;
+ALTER TABLE collect_lock ADD COLUMN IF NOT EXISTS owner TEXT;
+ALTER TABLE index_values ADD COLUMN IF NOT EXISTS quality VARCHAR(16) NOT NULL DEFAULT 'good';

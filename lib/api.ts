@@ -74,6 +74,33 @@ export type CollectionHealth = {
   quotes_sold_out: number;
   quotes_blocked: number;
   notes: string;
+  quotes_blocked_robots?: number;
+  quotes_errors?: number;
+};
+
+export type CollectionSummary = {
+  sources: CollectionHealth[];
+  last_snapshot_at: string | null;
+  snapshot_slot: string | null;
+  coverage: number;
+  cell_coverage: number;
+  imputed_share: number;
+  quality: string;
+  vintage: string;
+  target_met: boolean;
+  cells: number;
+  observed_cells: number;
+  unavailable_cells: number;
+  blocked_sources: string[];
+  scrape_enabled: boolean;
+  progress: Record<string, number>;
+  job: { id: string; status: string; error?: string | null } | null;
+};
+
+export type AdapterHealth = {
+  id: string; kind: string; host: string | null; source_rank: number; enabled: boolean; runnable: boolean;
+  skipped_reason: string | null;
+  robots: { verdict: string; notes: string; checked_at: string | null };
 };
 
 export type BacktestRow = {

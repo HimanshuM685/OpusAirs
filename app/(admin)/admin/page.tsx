@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, type CollectionHealth } from "@/lib/api";
+import { api, type CollectionHealth, type CollectionSummary } from "@/lib/api";
 
 export default function AdminOverviewPage() {
   const [health, setHealth] = useState<CollectionHealth[]>([]);
@@ -10,8 +10,8 @@ export default function AdminOverviewPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<CollectionHealth[]>("/v1/health/collection")
-      .then(setHealth)
+    api<CollectionSummary>("/v1/health/collection")
+      .then((summary) => setHealth(summary.sources))
       .catch((e) => setErr(String(e)));
     api<{ id: string; type: string; status: string; started_at?: string; finished_at?: string }[]>("/v1/jobs")
       .then(setJobs)
@@ -89,7 +89,7 @@ export default function AdminOverviewPage() {
                 <td style={{ fontWeight: 600 }}>{r.source}</td>
                 <td>
                   <span
-                    className={`badge ${r.status === "done" ? "badge-ok" : r.status === "running" ? "badge-warn" : "badge-err"}`}
+                    className={`badge ${r.status === "ok" ? "badge-ok" : r.status === "running" ? "badge-warn" : "badge-err"}`}
                   >
                     {r.status}
                   </span>

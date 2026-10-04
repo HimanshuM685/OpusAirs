@@ -23,7 +23,11 @@ import { APIX_BASE_DATE, bootstrap, loadPsdBasket } from "./bootstrap";
 import { readCache, writeCache } from "./http-cache";
 import { enqueue, readJob, recentJobs } from "./jobs";
 import { cleanQuotes } from "./cleaning";
-import { runPipeline } from "./collect";
+import { collectors } from "./collect/sources";
+import { robotsVerdict } from "./collect/robots";
+import { istDate } from "./collect/policy";
+import { collectionHealth } from "./collect/health";
+import { snapshotCoverage } from "./snapshot";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
 import { ingestQuotes, parseCsvQuotes, displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
 import { neededQuotes } from "./needed";
@@ -230,31 +234,13 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "GET" && path === "health/collection") {
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
-    const rows = (await q`SELECT * FROM collection_runs ORDER BY started_at DESC`) as Record<string, unknown>[];
-    const latest = new Map<string, Record<string, unknown>>();
-    for (const r of rows) {
-      const src = String(r.source);
-      if (!latest.has(src)) latest.set(src, r);
-    }
-    return json(
-      [...latest.values()].map((r) => ({
-        source: r.source,
-        last_started_at: isoDateTime(r.started_at),
-        last_finished_at: isoDateTime(r.finished_at),
-        status: r.status,
-        quotes_ok: r.quotes_ok,
-        quotes_missing: r.quotes_missing,
-        quotes_sold_out: r.quotes_sold_out,
-        quotes_blocked: r.quotes_blocked,
-        notes: r.notes,
-      })),
-    );
+    return json(await collectionHealth(q));
   }
 
   if (req.method === "GET" && path === "collect/jobs") {
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
-    const day = sp.get("date") || new Date().toISOString().slice(0, 10);
+    const day = sp.get("date") || istDate();
     const rows = (await q`
       SELECT status, COUNT(*)::int AS n FROM collect_jobs WHERE collected_on = ${day} GROUP BY status
     `) as { status: string; n: number }[];
@@ -363,31 +349,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       })) as (Record<string, unknown> & { total_fare?: number })[];
     }
 
-    let carriers = await searchRows();
-    let fetched = false;
-    if (!carriers.length && trip === "one_way") {
-      const user = await getUser(req);
-      if (user) {
-        const like = `%origin=${origin} dest=${dest}%`;
-        const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-        const recent = (await q`
-          SELECT id FROM collection_runs
-          WHERE notes LIKE ${like}
-            AND finished_at IS NOT NULL
-            AND finished_at > ${since}
-          LIMIT 1
-        `) as { id: number }[];
-        if (!recent.length) {
-          await runPipeline({
-            scrape: true,
-            routes: [{ origin, destination: dest }],
-            budget: 15,
-          });
-          fetched = true;
-          carriers = await searchRows();
-        }
-      }
-    }
+    const carriers = await searchRows();
 
     return json({
       origin,
@@ -395,7 +357,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       cheapest: carriers[0]?.total_fare ?? null,
       carriers,
       quote_count: carriers.length,
-      fetched,
+      fetched: false,
       trip_type: trip,
     });
   }
@@ -439,30 +401,50 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "POST" && path === "collect/run") {
     const denied = await requireWriter(req);
     if (denied) return denied;
-    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean } = {};
+    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean; demo?: boolean } = {};
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text) as typeof body;
     } catch {
-      /* empty body ok */
+      return json({ detail: "Invalid JSON" }, 400);
     }
     const scrape = body.scrape !== false && sp.get("scrape") !== "false";
     const origin = iata(body.origin || sp.get("origin"));
     const dest = iata(body.dest || sp.get("dest"));
+    if ((origin || dest) && (!validIata(origin) || !validIata(dest))) return json({ detail: "origin and dest must be 3-letter IATA codes" }, 400);
+    if (body.demo && process.env.SYNTHETIC_DEMO_ENABLED !== "true") return json({ detail: "Set SYNTHETIC_DEMO_ENABLED=true to enable demo snapshots" }, 400);
     const routes = validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
-    const id = await enqueue(q, "collect", body, async () => {
-      const forced = body.full === true;
-      if (scrape === false) return { skipped: true };
-      if (!forced && process.env.SCRAPE_ENABLED !== "true") return { skipped: true };
-      return await runPipeline({
-        scrape: true,
-        routes,
-        budget: forced ? undefined : routes ? 15 : 80,
-        full: forced,
-        force: forced,
-      });
-    });
+    const snapshotAt = new Date().toISOString();
+    const id = await enqueue(q, "collect", { scrape, routes, demo: body.demo === true,
+      full: true, slot: "adhoc", snapshotAt, day: istDate(new Date(snapshotAt)) });
     return json({ job_id: id }, 202);
+  }
+
+  if (req.method === "GET" && path === "collect/sources") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const configured = (await q`SELECT id, enabled FROM scrape_sources`) as { id: string; enabled: boolean }[];
+    const byId = new Map(configured.map((s) => [s.id, s.enabled]));
+    const sources = await Promise.all(collectors(q, istDate()).map(async (a) => {
+      const enabled = byId.get(a.id) === true;
+      const robots = a.kind === "skip" ? { verdict: "deny", notes: a.skippedReason, checked_at: null }
+        : a.host && a.searchPath && enabled ? await robotsVerdict(`https://${a.host}${a.searchPath}`)
+        : { verdict: a.host ? "disabled" : "not_applicable", notes: a.host ? "adapter disabled" : "offline source", checked_at: null };
+      return { id: a.id, kind: a.kind, host: a.host || null, source_rank: a.sourceRank, enabled,
+        runnable: enabled && a.enabled(), skipped_reason: a.skippedReason || null, robots };
+    }));
+    return json({ scrape_enabled: process.env.SCRAPE_ENABLED === "true", sources });
+  }
+
+  if (req.method === "POST" && path === "collect/sources") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const body = (await req.json()) as { id?: string; enabled?: boolean };
+    const adapter = collectors(q, istDate()).find((a) => a.id === body.id);
+    if (!adapter || typeof body.enabled !== "boolean") return json({ detail: "Known adapter id and boolean enabled required" }, 400);
+    if (adapter.kind === "skip" && body.enabled) return json({ detail: adapter.skippedReason }, 409);
+    await q`UPDATE scrape_sources SET enabled = ${body.enabled} WHERE id = ${adapter.id}`;
+    return json({ id: adapter.id, enabled: body.enabled });
   }
 
   if (req.method === "POST" && path === "ingest/dump") {
@@ -614,22 +596,25 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
 
   if (req.method === "GET" && path === "health") {
     const idx = (await q`
-      SELECT period_date, coverage, imputed_share FROM index_values
+      SELECT period_date, coverage, imputed_share, quality, vintage FROM index_values
       WHERE series = 'apix_laspeyres' AND frequency = 'daily' AND origin IS NULL
       ORDER BY period_date DESC LIMIT 1
-    `) as { period_date: string; coverage: number; imputed_share: number }[];
+    `) as { period_date: string; coverage: number; imputed_share: number; quality: string; vintage: string }[];
     const snap = (await q`SELECT snapshot_at FROM quote_snapshots ORDER BY snapshot_at DESC LIMIT 1`) as { snapshot_at: string }[];
     const job = (await q`SELECT id, status FROM pipeline_jobs ORDER BY created_at DESC LIMIT 1`) as { id: string; status: string }[];
     const blocked = (await q`
       SELECT source FROM collection_runs WHERE quotes_blocked > 0 ORDER BY started_at DESC LIMIT 8
     `) as { source: string }[];
     const row = idx[0];
+    const slotMetrics = snap[0] ? await snapshotCoverage(q, new Date(snap[0].snapshot_at).toISOString()) : null;
     return json({
       ok: Boolean(row),
       last_snapshot_at: snap[0]?.snapshot_at ?? null,
       last_index_date: row ? isoDate(row.period_date) : null,
-      coverage: row ? Number(row.coverage) : 0,
-      imputed_share: row ? Number(row.imputed_share) : 0,
+      coverage: slotMetrics?.coverage ?? 0,
+      imputed_share: slotMetrics?.imputed_share ?? 1,
+      quality: slotMetrics?.quality ?? "low",
+      vintage: slotMetrics?.vintage ?? "provisional",
       blocked_sources: [...new Set(blocked.map((r) => r.source))],
       job: job[0] ? { id: job[0].id, status: job[0].status } : null,
     });

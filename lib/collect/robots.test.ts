@@ -21,4 +21,17 @@ describe("robotsAllows", () => {
     assert.equal(robotsAllows(text, "/search", UA), true);
     assert.equal(robotsAllows(text, "/book", UA), false);
   });
+
+  it("merges adjacent user-agents and uses the most specific matching group", () => {
+    const text = "User-agent: *\nDisallow: /\nUser-agent: OtherBot\nUser-agent: OpusAirs-APIx-Bot\nDisallow: /search\nAllow: /public\nUser-agent: OpusAirs\nAllow: /search";
+    assert.equal(robotsAllows(text, "/search", "OpusAirs-APIx-Bot/1.0"), false);
+    assert.equal(robotsAllows(text, "/public", "OpusAirs-APIx-Bot/1.0"), true);
+  });
+
+  it("handles wildcard, end anchor, query paths, and equal-length allow precedence", () => {
+    const text = "User-agent: *\nDisallow: /*?fare=*$\nDisallow: /search\nAllow: /search\n";
+    assert.equal(robotsAllows(text, "/flights?fare=123", UA), false);
+    assert.equal(robotsAllows(text, "/search", UA), true);
+    assert.equal(robotsAllows("User-agent: *\nDisallow: /search", "/%73earch", UA), false);
+  });
 });
