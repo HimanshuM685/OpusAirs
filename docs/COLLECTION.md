@@ -169,6 +169,9 @@ imputed share, vintage, quality, unavailable cells, blocked sources, latest job,
 progress, and aggregated `sources`. `/admin/scrape` displays these plus persistent
 adapter controls and live robots verdicts. `GET/POST /v1/collect/sources` require
 an admin cookie; a policy-skipped source cannot be enabled.
+Closed hosts are not retried by the admin robots audit during the same slot.
+When live HTTP is enabled, an optional `ALERT_WEBHOOK` reports sources blocked on
+more than half their cells; it never changes the host closure or collection gates.
 
 ## Worker, scheduler, recovery, and demo
 
@@ -207,6 +210,28 @@ SYNTHETIC_DEMO_ENABLED=true
 Enable `synthetic_demo` in admin source controls, select **Demo snapshot**, then
 **Run snapshot now**. Its quotes are deterministic and tagged `source=synthetic`.
 Only an explicit `demo:true` job can include them in snapshots/index compilation;
-their vintage is **demo**, never final, and observed coverage stays zero. Ordinary
+snapshots using them have **demo** vintage, never final, and synthetic fares
+contribute zero observed coverage. Ordinary
 official rebuilds exclude synthetic snapshots. Manual and file-drop quotes retain
 their real-observation provenance and priority over synthetic quotes.
+
+## Tests
+
+`npm test` runs mocked transport/robots tests, worklist and IST scheduler tests,
+host-closure tests, and snapshot/index provenance tests. It does not contact portals.
+
+Optional real PostgreSQL integration verifies both schema definitions, runtime
+bootstrap, slot uniqueness, durable enqueue, raw block notes, the entire offline
+demo pipeline, disabled-source recovery, and official/demo isolation:
+
+```bash
+docker run --detach --rm --name opusairs-collection-test --tmpfs /var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=opusairs-test postgres:17-alpine
+# Wait for the disposable database to be ready.
+docker exec opusairs-collection-test pg_isready -U postgres
+COLLECT_TEST_POSTGRES_CONTAINER=opusairs-collection-test npx tsx --test lib/collect/warehouse.test.ts
+docker stop opusairs-collection-test
+```
+
+The opt-in test only accepts the `opusairs-collection-test` container naming prefix.
+Its database is disposable; do not use it for real warehouse data.

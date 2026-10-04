@@ -231,3 +231,4 @@ ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_pipeline_jobs_dedupe ON pipeline_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL;
 ALTER TABLE collect_lock ADD COLUMN IF NOT EXISTS owner TEXT;
 ALTER TABLE index_values ADD COLUMN IF NOT EXISTS quality VARCHAR(16) NOT NULL DEFAULT 'good';
+ALTER TABLE scrape_sources ALTER COLUMN enabled SET DEFAULT false;

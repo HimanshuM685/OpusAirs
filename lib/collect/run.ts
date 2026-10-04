@@ -6,9 +6,9 @@ import { sql } from "../db";
 import { toEvent, upsertEvents } from "../ingest";
 import { clearIndexCache } from "../http-cache";
 import { snapshotCoverage } from "../snapshot";
-import { enabledCollectors } from "./sources";
+import { collectors, enabledCollectors } from "./sources";
 import { acquireLock, claimNext, cellResultStatus, expandJobs, finishJob, jobSummary, reclaimStale, recordAttempt, releaseLock } from "./jobs";
-import { istDate, leadDays } from "./policy";
+import { degradedSources, istDate, leadDays } from "./policy";
 import { resetRobotsCache } from "./robots";
 import type { CollectCell, CollectJob, CollectResult, SourceAdapter } from "./types";
 
@@ -49,9 +49,9 @@ export async function drainAdapters<T>(adapters: SourceAdapter[], next: (a: Sour
   }));
 }
 
-export async function runPipeline(opts: PipelineOpts = {}) {
-  await bootstrap();
-  const q = sql();
+export async function runPipeline(opts: PipelineOpts = {}, database?: ReturnType<typeof sql>) {
+  await bootstrap(database);
+  const q = database || sql();
   const snapshotAt = opts.snapshotAt || new Date().toISOString();
   const day = opts.day || istDate(new Date(snapshotAt));
   const slot = opts.slot || "adhoc";
@@ -69,6 +69,15 @@ export async function runPipeline(opts: PipelineOpts = {}) {
     // Disabled adapters do not remove basket cells: snapshot completion still imputes every gap.
     const cells = await expandJobs(q, { collectedOn: day, snapshotAt, slot, sources: adapters.map((a) => a.id), routes: opts.routes });
     await reclaimStale(q, snapshotAt);
+    const remaining = (await q`SELECT DISTINCT source FROM collect_jobs WHERE snapshot_at = ${snapshotAt} AND status = 'pending'`) as { source: string }[];
+    const registry = collectors(q, day);
+    for (const { source } of remaining) {
+      if (adapters.some((a) => a.id === source)) continue;
+      const rank = registry.find((a) => a.id === source)?.sourceRank ?? 90;
+      // Resume never leaves a now-disabled source pending forever or refetches it.
+      adapters.push({ id: source, sourceRank: rank, kind: "skip", enabled: () => false, allowedPath: async () => false,
+        collect: async () => ({ source, sourceRank: rank, status: "blocked", quotes: [], notes: "adapter_disabled_for_slot" }) });
+    }
     const pendingAtStart = (await jobSummary(q, day, snapshotAt)).pending || 0;
     const blocked = (await q`SELECT DISTINCT source FROM collect_jobs WHERE snapshot_at = ${snapshotAt} AND status IN ('blocked', 'blocked_robots')`) as { source: string }[];
     const closed = new Set(blocked.map((r) => adapters.find((a) => a.id === r.source)?.host || r.source));
@@ -121,6 +130,17 @@ export async function runPipeline(opts: PipelineOpts = {}) {
     const jobs = await jobSummary(q, day, snapshotAt);
     const blockedSources = (await q`SELECT DISTINCT source FROM collect_jobs WHERE snapshot_at = ${snapshotAt}
       AND status IN ('blocked', 'blocked_robots')`) as { source: string }[];
+    const rates = (await q`SELECT source, COUNT(*)::int AS attempted,
+      COUNT(*) FILTER (WHERE status IN ('blocked', 'blocked_robots'))::int AS blocked
+      FROM collect_jobs WHERE snapshot_at = ${snapshotAt} AND status <> 'pending' GROUP BY source`) as { source: string; attempted: number; blocked: number }[];
+    const degraded = degradedSources(rates.map((r) => ({ source: r.source, attempted: Number(r.attempted), blocked: Number(r.blocked) })));
+    if (degraded.length && process.env.ALERT_WEBHOOK && process.env.SCRAPE_ENABLED === "true") {
+      try {
+        await fetch(process.env.ALERT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: `OpusAirs collect degraded: ${degraded.join(", ")} blocked > 50%` }),
+          signal: AbortSignal.timeout(10000) });
+      } catch (err) { console.error("alert webhook failed", err); }
+    }
     return { skipped: false, attempted, pending_at_start: pendingAtStart, cells, cleaned, index_rows: indexRows,
       snapshot_at: snapshotAt, snapshot_slot: slot, coverage: { ...coverage, jobs, blocked_sources: blockedSources.map((r) => r.source) } };
   } finally { clearInterval(heartbeat); await releaseLock(q, owner); }

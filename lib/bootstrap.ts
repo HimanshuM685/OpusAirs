@@ -81,7 +81,7 @@ const DDL = [
     id VARCHAR(64) PRIMARY KEY,
     name VARCHAR(128) NOT NULL,
     carrier VARCHAR(8),
-    enabled BOOLEAN NOT NULL DEFAULT true,
+    enabled BOOLEAN NOT NULL DEFAULT false,
     start_url TEXT,
     search_url_template TEXT
   )`,
@@ -273,80 +273,78 @@ const DDL = [
   `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ`,
   `ALTER TABLE collect_lock ADD COLUMN IF NOT EXISTS owner TEXT`,
   `ALTER TABLE index_values ADD COLUMN IF NOT EXISTS quality VARCHAR(16) NOT NULL DEFAULT 'good'`,
+  `ALTER TABLE scrape_sources ALTER COLUMN enabled SET DEFAULT false`,
 ];
 
 let bootstrapped = false;
 
-export async function bootstrap(): Promise<void> {
+export async function bootstrap(db?: ReturnType<typeof sql>): Promise<void> {
   if (bootstrapped) return;
-  const q = sql();
+  const q = db || sql();
+  // Web and collection worker can start together. Serialize schema + seeds in one
+  // transaction, using an xact lock (session locks are unsuitable for Neon HTTP).
+  const queries = [q`SELECT pg_advisory_xact_lock(77110001)`];
   for (const stmt of DDL) {
     const strings = Object.assign([stmt], { raw: [stmt] }) as unknown as TemplateStringsArray;
-    await q(strings);
+    queries.push(q(strings));
   }
 
   const basket = loadPsdBasket();
   for (const r of basket) {
-    const existing = await q`
-      SELECT id FROM basket_routes WHERE origin = ${r.origin} AND destination = ${r.destination} LIMIT 1
-    `;
-    if (!existing.length) {
-      await q`
-        INSERT INTO basket_routes (origin, destination, raw_passengers, weight, note)
-        VALUES (${r.origin}, ${r.destination}, ${r.raw_passengers}, ${r.weight}, ${r.note})
-      `;
-    }
+    queries.push(q`
+      INSERT INTO basket_routes (origin, destination, raw_passengers, weight, note)
+      SELECT ${r.origin}, ${r.destination}, ${r.raw_passengers}, ${r.weight}, ${r.note}
+      WHERE NOT EXISTS (SELECT 1 FROM basket_routes WHERE origin = ${r.origin} AND destination = ${r.destination})
+    `);
   }
 
   for (const r of basket) {
-    await q`
+    queries.push(q`
       INSERT INTO collect_routes (origin, destination, priority, discovered_on)
       VALUES (${r.origin}, ${r.destination}, 0, ${new Date().toISOString().slice(0, 10)})
       ON CONFLICT (origin, destination) DO NOTHING
-    `;
+    `);
   }
 
   // 2. Scrape sources seed
-    for (const s of DEFAULT_SCRAPE_SOURCES) {
-      await q`
-        INSERT INTO scrape_sources (id, name, carrier, enabled, start_url, search_url_template)
-        VALUES (${s.id}, ${s.name}, ${s.carrier}, ${s.enabled}, ${s.start_url}, ${s.search_url_template})
-        ON CONFLICT (id) DO NOTHING
-      `;
-    }
-
-  // 3. DGCA Benchmark seed
-  const dgcaCount = (await q`SELECT COUNT(*) as count FROM dgca_benchmark`) as { count: string | number }[];
-  if (Number(dgcaCount[0]?.count || 0) === 0) {
-    let benchmarks = DEFAULT_DGCA_BENCHMARK;
-    try {
-      const dgcaPath = join(dataDir(), "dgca_benchmark.csv");
-      const text = readFileSync(dgcaPath, "utf8");
-      const parsed: typeof DEFAULT_DGCA_BENCHMARK = [];
-      for (const line of text.trim().split(/\r?\n/).slice(1)) {
-        if (!line.trim()) continue;
-        const parts = line.split(",");
-        parsed.push({
-          month: parts[0].trim(),
-          origin: parts[1].trim() || null,
-          destination: parts[2].trim() || null,
-          metric: parts[3].trim(),
-          value: Number(parts[4]),
-          note: parts.slice(5).join(",").replace(/^"|"$/g, "").trim(),
-        });
-      }
-      if (parsed.length) benchmarks = parsed;
-    } catch {
-      /* fallback to DEFAULT_DGCA_BENCHMARK */
-    }
-
-    for (const b of benchmarks) {
-      await q`
-        INSERT INTO dgca_benchmark (month, origin, destination, metric, value, note)
-        VALUES (${b.month}, ${b.origin}, ${b.destination}, ${b.metric}, ${b.value}, ${b.note})
-      `;
-    }
+  for (const s of DEFAULT_SCRAPE_SOURCES) {
+    queries.push(q`
+      INSERT INTO scrape_sources (id, name, carrier, enabled, start_url, search_url_template)
+      VALUES (${s.id}, ${s.name}, ${s.carrier}, ${s.enabled}, ${s.start_url}, ${s.search_url_template})
+      ON CONFLICT (id) DO NOTHING
+    `);
   }
 
+  // 3. DGCA Benchmark seed
+  let benchmarks = DEFAULT_DGCA_BENCHMARK;
+  try {
+    const dgcaPath = join(dataDir(), "dgca_benchmark.csv");
+    const text = readFileSync(dgcaPath, "utf8");
+    const parsed: typeof DEFAULT_DGCA_BENCHMARK = [];
+    for (const line of text.trim().split(/\r?\n/).slice(1)) {
+      if (!line.trim()) continue;
+      const parts = line.split(",");
+      parsed.push({
+        month: parts[0].trim(),
+        origin: parts[1].trim() || null,
+        destination: parts[2].trim() || null,
+        metric: parts[3].trim(),
+        value: Number(parts[4]),
+        note: parts.slice(5).join(",").replace(/^"|"$/g, "").trim(),
+      });
+    }
+    if (parsed.length) benchmarks = parsed;
+  } catch {
+    /* fallback to DEFAULT_DGCA_BENCHMARK */
+  }
+
+  queries.push(q`
+    INSERT INTO dgca_benchmark (month, origin, destination, metric, value, note)
+    SELECT x.month::date, x.origin, x.destination, x.metric, x.value, x.note
+    FROM jsonb_to_recordset(${JSON.stringify(benchmarks)}::jsonb)
+      AS x(month text, origin text, destination text, metric text, value double precision, note text)
+    WHERE NOT EXISTS (SELECT 1 FROM dgca_benchmark)
+  `);
+  await q.transaction(queries, { isolationLevel: "ReadCommitted" });
   bootstrapped = true;
 }

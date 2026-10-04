@@ -18,7 +18,7 @@ export async function runCollectJobs(q: ReturnType<typeof sqlFn>): Promise<numbe
     }, 30000);
     heartbeat.unref();
     try {
-      const stats = await runPipeline(job.payload);
+      const stats = await runPipeline(job.payload, q);
       const pending = (stats.coverage.jobs.pending || 0) > 0;
       await q`UPDATE pipeline_jobs SET status = ${pending ? "queued" : "ok"}, finished_at = ${pending ? null : new Date().toISOString()}, stats = ${JSON.stringify(stats)}::jsonb WHERE id = ${job.id}`;
       done++;

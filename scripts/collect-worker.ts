@@ -9,16 +9,16 @@ async function main() {
   await bootstrap();
   const q = sql();
   do {
-  try {
-    await scheduleSnapshots(q);
-    const completed = await runCollectJobs(q);
-    if (completed) console.log(JSON.stringify({ completed }));
-  } catch (err) {
-    console.error(err);
-    if (process.argv.includes("--once")) process.exitCode = 1;
-  }
-  if (process.argv.includes("--once")) break;
-  await new Promise((r) => setTimeout(r, 30000));
+    try {
+      await scheduleSnapshots(q);
+      const completed = await runCollectJobs(q);
+      if (completed) console.log(JSON.stringify({ completed }));
+    } catch (err) {
+      console.error(err);
+      if (process.argv.includes("--once")) process.exitCode = 1;
+    }
+    if (process.argv.includes("--once")) break;
+    await new Promise((r) => setTimeout(r, 30000));
   } while (true);
 }
 void main().catch((err) => { console.error(err); process.exitCode = 1; });

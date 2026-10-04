@@ -67,7 +67,7 @@ export default function ScrapePage() {
         </p>
         <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 0" }}>
           <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
-          Demo snapshot (requires SYNTHETIC_DEMO_ENABLED=true; never an official vintage)
+          Include synthetic demo fares (requires SYNTHETIC_DEMO_ENABLED=true; synthetic fares never enter an official vintage)
         </label>
         <button className="primary" type="button" disabled={busy} onClick={() => void runSnapshot()}>
           {busy ? "Working…" : "Run snapshot now"}
@@ -99,13 +99,13 @@ export default function ScrapePage() {
       <section className="panel" aria-labelledby="adapters-heading" style={{ overflowX: "auto" }}>
         <h2 id="adapters-heading">Source adapters</h2>
         <table>
-          <thead><tr><th scope="col">Source</th><th scope="col">Priority</th><th scope="col">Robots verdict</th><th scope="col">Collection</th></tr></thead>
+          <thead><tr><th scope="col">Source</th><th scope="col">Priority</th><th scope="col">Robots / host gate</th><th scope="col">Collection</th></tr></thead>
           <tbody>{adapters.map((a) => (
             <tr key={a.id}>
               <td><strong>{a.id}</strong><br /><small>{a.host || a.kind}</small>{a.skipped_reason && <p className="sub">{a.skipped_reason}</p>}</td>
               <td>{a.source_rank}</td>
               <td>{a.robots.verdict.replace(/_/g, " ")}<br /><small>{a.robots.notes}</small>{a.robots.checked_at && <p className="sub">Checked {new Date(a.robots.checked_at).toLocaleTimeString()}</p>}</td>
-              <td><button type="button" disabled={busy || a.kind === "skip"} onClick={() => void toggle(a)} aria-label={`${a.enabled ? "Disable" : "Enable"} ${a.id}`}>{a.enabled ? "Disable" : "Enable"}</button><br /><small>{a.kind === "skip" ? "Skipped by policy" : a.runnable ? "Available" : "Environment gate closed"}</small></td>
+              <td><button type="button" disabled={busy || a.kind === "skip"} onClick={() => void toggle(a)} aria-label={`${a.enabled ? "Disable" : "Enable"} ${a.id}`}>{a.enabled ? "Disable" : "Enable"}</button><br /><small>{a.kind === "skip" ? "Skipped by policy" : a.robots.verdict === "blocked" ? "Closed for this slot" : a.runnable ? "Available" : "Environment gate closed"}</small></td>
             </tr>
           ))}</tbody>
         </table>

@@ -152,13 +152,13 @@ export async function upsertEvents(
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
           lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency,
-           trip_type, return_date, source_rank, notes, snapshot_at
+          trip_type, return_date, source_rank, notes, snapshot_at
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
           ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
           ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR',
-           ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}, ${ev.notes || ""}, ${ev.snapshot_at ?? null}
+          ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}, ${ev.notes || ""}, ${ev.snapshot_at ?? null}
         )
       `;
       counts.inserted += 1;
@@ -174,8 +174,8 @@ export async function upsertEvents(
           collected_at = ${ev.collected_at},
           run_id = ${runId},
           trip_type = ${ev.trip_type},
-           return_date = ${ev.return_date ?? null},
-           source_rank = ${ev.source_rank ?? sourceRank(ev.source)}, notes = ${ev.notes || ""}, snapshot_at = ${ev.snapshot_at ?? null}
+          return_date = ${ev.return_date ?? null},
+          source_rank = ${ev.source_rank ?? sourceRank(ev.source)}, notes = ${ev.notes || ""}, snapshot_at = ${ev.snapshot_at ?? null}
         WHERE id = ${existing[0].id}
       `;
       counts.updated += 1;

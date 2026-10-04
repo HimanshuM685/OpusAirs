@@ -43,14 +43,14 @@ export function defineHtmlSource(spec: {
       const quotes = legs
         .map((leg) => ({
           source: spec.id,
-           origin: cell.origin,
-           destination: cell.destination,
+          origin: cell.origin,
+          destination: cell.destination,
           carrier: spec.carrier,
           flight_no: leg.flight_no,
-           dep_date: cell.depDate,
-           trip_type: cell.tripType,
+          dep_date: cell.depDate,
+          trip_type: cell.tripType,
           fare_class: leg.fare_class,
-           lead_time_days: cell.leadTimeDays,
+          lead_time_days: cell.leadTimeDays,
           total_fare: leg.total_fare,
           status: "ok",
         }))

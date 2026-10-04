@@ -425,13 +425,18 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     if (isAuthResponse(admin)) return admin;
     const configured = (await q`SELECT id, enabled FROM scrape_sources`) as { id: string; enabled: boolean }[];
     const byId = new Map(configured.map((s) => [s.id, s.enabled]));
+    const blocked = (await q`SELECT DISTINCT source FROM collect_jobs WHERE status IN ('blocked', 'blocked_robots')
+      AND snapshot_at = (SELECT (payload->>'snapshotAt')::timestamptz FROM pipeline_jobs
+        WHERE type = 'collect' ORDER BY created_at DESC LIMIT 1)`) as { source: string }[];
+    const closed = new Set(blocked.map((r) => r.source));
     const sources = await Promise.all(collectors(q, istDate()).map(async (a) => {
       const enabled = byId.get(a.id) === true;
       const robots = a.kind === "skip" ? { verdict: "deny", notes: a.skippedReason, checked_at: null }
+        : closed.has(a.id) ? { verdict: "blocked", notes: "Host closed for this slot; see collection results. No audit retry.", checked_at: null }
         : a.host && a.searchPath && enabled ? await robotsVerdict(`https://${a.host}${a.searchPath}`)
         : { verdict: a.host ? "disabled" : "not_applicable", notes: a.host ? "adapter disabled" : "offline source", checked_at: null };
       return { id: a.id, kind: a.kind, host: a.host || null, source_rank: a.sourceRank, enabled,
-        runnable: enabled && a.enabled(), skipped_reason: a.skippedReason || null, robots };
+        runnable: enabled && a.enabled() && !closed.has(a.id), skipped_reason: a.skippedReason || null, robots };
     }));
     return json({ scrape_enabled: process.env.SCRAPE_ENABLED === "true", sources });
   }
