@@ -10,36 +10,41 @@ OpusAirs is a full-stack Next.js application designed to run on Vercel, Docker, 
 # Database (PostgreSQL / Neon) - REQUIRED
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
 
-# Admin Authentication (Hidden Operator Suite at /admin)
-ADMIN_EMAIL=admin@local
-ADMIN_PASSWORD=change_this_to_a_secure_password
-SESSION_SECRET=change_this_long_random_string
+# Neon Auth (public Google/email; Google-only operators)
+NEON_AUTH_BASE_URL=https://ep-xxxxx.neonauth.region.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=replace_with_a_random_secret_of_at_least_32_characters
+ADMIN_EMAILS=operator@example.com
 
 # Reference Parameters
 APIX_BASE_DATE=2026-08-01
 SCRAPE_ENABLED=false
 
 # Collector Settings
-USER_AGENT=OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)
-LIVE_RATE_LIMIT_SECONDS=8
+BOT_DOMAIN=your-domain.example
+BOT_CONTACT=contact@your-domain.example
+COLLECT_MAX_RPM_PER_HOST=8
 
 # Port
 PORT=3000
 ```
+
+Use Node.js 22 (minimum 20.9); Neon Auth requires Next.js 16. Generate the cookie secret with `openssl rand -hex 32`. No default URL/secret or legacy admin password is used.
+
+In Neon Console, enable Google OAuth and public email/password for the chosen branch. Add local/production app origins to trusted origins and configure Google's redirect URI using the hosted Neon `/callback/google` URL shown by Neon. The application completes Google sign-in at `/auth/callback`. Operators require a verified email in `ADMIN_EMAILS` and a completed Google OAuth session. Password sessions never grant admin access; an empty allowlist denies everyone.
 
 ---
 
 ## 2. Local Run
 
 ```bash
-npm install
+npm ci
 npm run build
 npm run start
 ```
 
 - Public User App: `http://localhost:3000`
 - Flight Search: `http://localhost:3000/search`
-- Hidden Admin Suite: `http://localhost:3000/admin` (unlock with `ADMIN_EMAIL` & `ADMIN_PASSWORD`)
+- Hidden Admin Suite: `http://localhost:3000/admin` (Google sign-in with a verified allowlisted email)
 - REST API: `http://localhost:3000/v1/index`
 
 ---
@@ -47,7 +52,7 @@ npm run start
 ## 3. Docker Deployment
 
 ```bash
-docker compose up --build -d
+docker compose --env-file .env.local up --build -d
 ```
 
 ---
@@ -55,5 +60,6 @@ docker compose up --build -d
 ## 4. Vercel Cloud Deployment
 
 1. Connect repository to Vercel.
-2. In Project Settings > Environment Variables, define `DATABASE_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SESSION_SECRET`, and `APIX_BASE_DATE=2026-08-01`.
-3. Deploy. Schema migration and initial data seeding into DB run automatically on the first `/v1` request.
+2. Select Node.js 22. Define `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_EMAILS`, and `APIX_BASE_DATE=2026-08-01` in Project Settings > Environment Variables.
+3. Configure Google/email-password and the deployment's trusted origin in Neon Console.
+4. Deploy with a normal install or `npm ci` (no `--legacy-peer-deps`). Schema migration and initial data seeding run automatically on warehouse `/v1` requests; authentication uses Neon Auth independently.

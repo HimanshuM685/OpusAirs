@@ -6,18 +6,27 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "test": "tsx --test lib/collect/*.test.ts lib/index-math.test.ts",
+    "test": "tsx --test lib/auth/*.test.ts lib/collect/*.test.ts lib/index-math.test.ts",
     "collect:daily": "tsx scripts/collect-daily.ts",
     "collect:worker": "tsx scripts/collect-worker.ts"
   },
   "dependencies": {
-    "@neondatabase/auth": "^0.5.0-beta",
+    "@better-auth/api-key": "1.6.23",
+    "@neondatabase/auth": "0.5.0-beta",
     "@neondatabase/serverless": "^1.1.0",
-    "next": "^15.2.0",
+    "next": "^16.4.0",
     "playwright-core": "^1.64.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "overrides": {
+    "@better-auth/api-key": "$@better-auth/api-key",
+    "@better-auth/core": "1.6.23",
+    "better-auth": "1.6.23"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

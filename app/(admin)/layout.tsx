@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { authClient } from "@/lib/auth/client";
+import { authClient, googleCallback } from "@/lib/auth/client";
+import { GoogleIcon } from "@/components/google-icon";
 
 const navLinks = [
   { href: "/admin", label: "Overview" },
@@ -12,29 +13,6 @@ const navLinks = [
   { href: "/admin/backtest", label: "DGCA Backtest" },
   { href: "/admin/bulletin", label: "Bulletin" },
 ];
-
-function GoogleIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path
-        fill="#4285F4"
-        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.36 24 12 24z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-      />
-    </svg>
-  );
-}
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -81,7 +59,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     try {
       const res = await authClient.signIn.social({
         provider: "google",
-        callbackURL: typeof window !== "undefined" ? window.location.origin + "/admin" : "/admin",
+        callbackURL: googleCallback(pathname),
       });
       if (res?.error) {
         setError(res.error.message || "Google sign in failed. Please try again.");
@@ -95,11 +73,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   async function handleLogout() {
     try {
-      await authClient.signOut();
-    } catch {
-      // Ignore
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message || "Sign out failed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign out failed.");
+      return;
     }
-    await fetch("/v1/admin/logout", { method: "POST", credentials: "include" });
     setAuthState({
       loading: false,
       authenticated: false,
@@ -117,7 +96,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Not signed in with Google
+  // No managed Neon session.
   if (!authState.authenticated) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "var(--bg-base)" }}>
@@ -174,7 +153,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Signed in with Google, but email is NOT authorized in ADMIN_EMAILS
+  // A public/password session or a non-allowlisted Google account cannot access admin.
   if (!authState.isAdmin) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "var(--bg-base)" }}>
@@ -182,7 +161,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>⛔</div>
           <h1 style={{ marginTop: 0, fontSize: "22px", color: "var(--danger)" }}>Access Denied</h1>
           <p style={{ fontSize: "14px", lineHeight: "1.6", color: "var(--text-secondary)", margin: "14px 0" }}>
-            Signed in as <strong>{authState.email}</strong> via Google, but this account is not in the operator whitelist.
+            Signed in as <strong>{authState.email}</strong>. {authState.detail}
           </p>
           <div style={{ background: "var(--bg-elevated)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "13px", color: "var(--text-muted)", marginBottom: "24px" }}>
             To grant access, add <code>{authState.email}</code> to <code>ADMIN_EMAILS</code> in your deployment environment variables.
@@ -196,7 +175,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               disabled={submitting}
               style={{ width: "100%" }}
             >
-              Sign in with another Google account
+              Continue with an authorized Google account
             </button>
             <button
               type="button"
@@ -206,6 +185,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               Sign out
             </button>
           </div>
+
+          {error && <p className="auth-error" role="alert">{error}</p>}
 
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
             <Link href="/" style={{ color: "var(--brand-primary)", textDecoration: "none", fontSize: "13px", fontWeight: 500 }}>
@@ -237,6 +218,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </Link>
         ))}
         <div style={{ marginTop: "auto", paddingTop: 24 }}>
+          {error && <p className="auth-error" role="alert">{error}</p>}
           <button type="button" onClick={() => void handleLogout()} style={{ width: "100%", cursor: "pointer" }}>
             Sign out
           </button>

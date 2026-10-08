@@ -19,6 +19,7 @@ type Me = { authenticated: boolean; user?: { email: string; role: string } };
 export default function UserLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   function loadMe() {
     fetch("/v1/auth/me", { credentials: "include", cache: "no-store" })
@@ -34,12 +35,14 @@ export default function UserLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   async function logout() {
+    setLogoutError(null);
     try {
-      await authClient.signOut();
-    } catch {
-      // Ignore
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message || "Sign out failed.");
+    } catch (err) {
+      setLogoutError(err instanceof Error ? err.message : "Sign out failed.");
+      return;
     }
-    await fetch("/v1/auth/logout", { method: "POST", credentials: "include" });
     setMe({ authenticated: false });
     window.dispatchEvent(new Event("auth-changed"));
   }
@@ -129,6 +132,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
             </div>
           </nav>
         </header>
+        {logoutError && <p className="auth-error" role="alert">{logoutError}</p>}
 
         <main className="user-main">{children}</main>
       </div>

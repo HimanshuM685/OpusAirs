@@ -263,20 +263,23 @@ Compares computed APIx against the DGCA TMU published 72-route benchmark (`data/
 
 ### 5. Auth
 
-#### `POST /v1/auth/register`
-Creates a `users` row (email + scrypt hash). Sets `opus_session` cookie.
+#### `/api/auth/[...path]`
+The Neon Auth SDK proxy handles Google OAuth, email sign-up/sign-in, email verification, session retrieval, and sign-out. Public UI recommends Google; email/password is secondary and uses Neon-managed credentials only.
 
-#### `POST /v1/auth/login`
-Email + password. Cookie `opus_session=id.hmac`.
+Google initiation uses `authClient.signIn.social({ provider: "google", callbackURL: "https://YOUR_APP/auth/callback?next=/search" })`. `/auth/callback` verifies the challenge-bound login with Neon, preserves Neon-issued cookies, and records signed Google-session evidence bound to the managed user/session. Admin return target is `/admin`.
 
-#### `POST /v1/auth/logout`
-Clears the session cookie.
+`authClient.signIn.email(...)` and `authClient.signUp.email(...)` provide public email/password access. `authClient.signOut()` revokes the Neon session and clears Google/legacy proofs. Providers and trusted origins must be enabled/configured in Neon Console.
+
+All admin-only endpoints require a live Neon session, completed Google OAuth evidence, a verified email, and exact case-insensitive membership in `ADMIN_EMAILS`. Allowlisted password users and upstream admin roles cannot bypass this policy. "Admin cookie" in the endpoint descriptions means this authorized Neon Google session, not legacy `opus_admin`. Documented `INGEST_API_KEY` machine-ingestion access remains available where specified.
 
 #### `GET /v1/auth/me`
-`{ authenticated, user?: { id, email, role } }`
+`{ authenticated, user?: { id, email, role, provider, emailVerified, name, image } }`. Role is computed server-side; provider is `google` only with valid Google-session evidence, otherwise `other`. Reads bypass Neon's session-data cache.
 
-#### `POST /v1/admin/login`
-Same as login but requires `role=admin`. Body `{ "email", "password" }`.
+#### `GET /v1/admin/check`
+`{ authenticated, isAdmin, email?, name?, detail? }`. Uses the same policy as protected admin endpoints; no email-only or legacy role fallback.
 
-#### `POST /v1/admin/logout` / `GET /v1/admin/check`
-Logout and `{ authenticated }` for admin role.
+#### `POST /v1/auth/logout` / `POST /v1/admin/logout`
+Compatibility endpoints forward to Neon sign-out and clear Google/legacy cookies.
+
+#### Legacy `POST /v1/auth/login`, `/v1/auth/register`, `/v1/admin/login`
+Return **410**; use the Neon SDK proxy. Legacy local password rows and `opus_session`/`opus_admin` cookies no longer authenticate.

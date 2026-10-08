@@ -13,7 +13,8 @@ function quotesFromJson(value: unknown): QuoteIn[] {
 function loadDotEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const file of [".env", ".env.local"]) {
-    const p = join(process.cwd(), file);
+    // Local env files are runtime configuration, not deployment assets.
+    const p = join(/* turbopackIgnore: true */ process.cwd(), file);
     if (!existsSync(p)) continue;
     for (const line of readFileSync(p, "utf8").split(/\r?\n/)) {
       const t = line.trim();

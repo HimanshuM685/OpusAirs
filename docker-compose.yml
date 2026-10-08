@@ -8,9 +8,9 @@ services:
         DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon postgres URI}
     environment: &app-environment
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon postgres URI}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL for the seeded admin account}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD for the seeded admin account}
-      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to a long random string}
+      NEON_AUTH_BASE_URL: ${NEON_AUTH_BASE_URL:?Set NEON_AUTH_BASE_URL from Neon Console}
+      NEON_AUTH_COOKIE_SECRET: ${NEON_AUTH_COOKIE_SECRET:?Set a random secret of at least 32 characters}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       SCRAPE_ENABLED: ${SCRAPE_ENABLED:-false}
       SYNTHETIC_DEMO_ENABLED: ${SYNTHETIC_DEMO_ENABLED:-false}
       BOT_DOMAIN: ${BOT_DOMAIN:-example.invalid}

@@ -84,7 +84,7 @@ OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18.x or 20.x
+- Node.js 20.9+ (Node.js 22 recommended); Next.js 16 is required by Neon Auth
 - A Neon PostgreSQL database account (or standard PostgreSQL instance)
 
 ### 1. Installation
@@ -106,10 +106,9 @@ Edit `.env.local` with your database connection string and Neon Auth credentials
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
 
-# Neon Auth (Managed Better Auth) - Google OAuth
+# Neon Auth (Managed Better Auth) - Google and public email/password
 NEON_AUTH_BASE_URL=https://ep-xxxxx.neonauth.region.aws.neon.tech/neondb/auth
 NEON_AUTH_COOKIE_SECRET=change_this_to_at_least_32_characters_secret_string
-SESSION_SECRET=change_this_to_at_least_32_characters_secret_string
 
 # Whitelisted Google accounts permitted operator access to /admin
 ADMIN_EMAILS=admin@example.com,operator@example.com
@@ -122,6 +121,12 @@ SNAPSHOT_HOURS=6,18
 APIX_BASE_DATE=2026-08-01
 ```
 
+In Neon Console, enable Auth for the database branch, configure Google OAuth, and enable email/password sign-in. Add `http://localhost:3000` and your HTTPS deployment origin to trusted origins. Use Google's authorized redirect URI shown by Neon (the hosted Neon `/callback/google` endpoint); the app finishes OAuth at `/auth/callback`.
+
+Generate `NEON_AUTH_COOKIE_SECRET` with `openssl rand -hex 32`. This dedicated secret and `NEON_AUTH_BASE_URL` are required; no default Auth URL/secret is used. Admin authorization requires a verified email in `ADMIN_EMAILS` **and** a completed Google OAuth session. An allowlisted password login or an upstream `role=admin` alone never grants operator access. Empty `ADMIN_EMAILS` denies all operators.
+
+Dependencies pin the Better Auth API-key plugin/core to the SDK's `1.6.23` line to prevent incompatible transitive peer upgrades. Install with `npm ci`; no `--legacy-peer-deps` or `--force` is required.
+
 ### 3. Run Development Server
 
 ```bash
@@ -131,9 +136,11 @@ npm run dev
 - Public User Interface: [http://localhost:3000](http://localhost:3000)
 - User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
 - Flight Search & Compare: [http://localhost:3000/search](http://localhost:3000/search)
-- User Sign In / Register: [http://localhost:3000/login](http://localhost:3000/login) & [http://localhost:3000/register](http://localhost:3000/register) (Google account via Neon Auth)
+- User Sign In / Register: [http://localhost:3000/login](http://localhost:3000/login) & [http://localhost:3000/register](http://localhost:3000/register) (Google recommended; Neon email/password secondary)
 - Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (Google OAuth sign-in; granted if account email is listed in `ADMIN_EMAILS`)
 - API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index)
+
+Legacy local password accounts and `opus_session`/`opus_admin` cookies no longer authenticate. Existing users should sign in or register through Neon Auth. Warehouse data remains intact.
 
 ---
 

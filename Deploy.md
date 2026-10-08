@@ -15,11 +15,11 @@ Create `.env.local` for local deployment, or configure these environment variabl
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
 
 # ------------------------------------------------------------------------------
-# Admin Authentication (Hidden Operator Suite at /admin)
+# Neon Auth (public Google/email; Google-only operator suite at /admin)
 # ------------------------------------------------------------------------------
-ADMIN_EMAIL=admin@local
-ADMIN_PASSWORD=change_this_to_a_secure_password
-SESSION_SECRET=change_this_long_random_string
+NEON_AUTH_BASE_URL=https://ep-xxxxx.neonauth.region.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=replace_with_a_random_secret_of_at_least_32_characters
+ADMIN_EMAILS=operator@example.com
 
 # ------------------------------------------------------------------------------
 # Data & Index Settings
@@ -30,8 +30,9 @@ SCRAPE_ENABLED=false
 # ------------------------------------------------------------------------------
 # Scraper Politeness & Rate Limits
 # ------------------------------------------------------------------------------
-USER_AGENT=OpusAirs-APIx-Research/1.0 (+https://mospi.gov.in)
-LIVE_RATE_LIMIT_SECONDS=8
+BOT_DOMAIN=your-domain.example
+BOT_CONTACT=contact@your-domain.example
+COLLECT_MAX_RPM_PER_HOST=8
 
 # ------------------------------------------------------------------------------
 # Web Server Port
@@ -39,13 +40,19 @@ LIVE_RATE_LIMIT_SECONDS=8
 PORT=3000
 ```
 
+Use Node.js 22 (minimum 20.9) and the committed dependency lockfile. Neon Auth requires Next.js 16; install normally with `npm ci`, without peer-dependency bypass flags.
+
+Enable Google OAuth and public email/password in Neon Console for the selected branch. Configure Google's authorized redirect URI exactly as shown by Neon (the hosted Neon `/callback/google` endpoint). Add local and HTTPS production app origins to Neon's trusted origins. Application Google login returns through `/auth/callback`, where Neon exchanges the verifier for its session cookies.
+
+Generate `NEON_AUTH_COOKIE_SECRET` with `openssl rand -hex 32`. Admin access requires a verified allowlisted email **and a completed Google OAuth session**; email/password cannot grant admin, even for allowlisted accounts. No seeded admin password, legacy cookie, or upstream admin role grants access. Empty `ADMIN_EMAILS` denies operators.
+
 ---
 
 ## 2. Local Node.js Deployment
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
 # Build for production
 npm run build
@@ -68,14 +75,14 @@ OpusAirs includes a multi-stage `Dockerfile` and `docker-compose.yml`.
 
 ### Using Docker Compose:
 ```bash
-# Ensure DATABASE_URL is defined in .env.local or shell
-docker compose up --build -d
+# Ensure database and auth variables are defined in .env.local or shell
+docker compose --env-file .env.local up --build -d
 ```
 
 ### Manual Docker Build:
 ```bash
 docker build -t opusairs .
-docker run -p 3000:3000 -e DATABASE_URL="postgresql://..." opusairs
+docker run -p 3000:3000 --env-file .env.local opusairs
 ```
 
 ---
@@ -86,10 +93,12 @@ docker run -p 3000:3000 -e DATABASE_URL="postgresql://..." opusairs
 2. **Import project** in [Vercel](https://vercel.com).
 3. **Configure Environment Variables** in Vercel Project Settings:
    - `DATABASE_URL`: Your Neon connection string (ensure `?sslmode=require` is appended).
-   - `ADMIN_EMAIL`: Operator email (e.g. `admin@local`).
-   - `ADMIN_PASSWORD`: Secure operator password.
-   - `SESSION_SECRET`: Cookie HMAC secret.
+    - `NEON_AUTH_BASE_URL`: HTTPS Auth URL from the same Neon branch.
+    - `NEON_AUTH_COOKIE_SECRET`: Random secret, at least 32 characters.
+    - `ADMIN_EMAILS`: Comma-separated Google operator emails; empty denies access.
    - `APIX_BASE_DATE`: `2026-08-01`.
 4. **Deploy**:
+    - Select Node.js 22 and use the normal install command or `npm ci`.
+    - Enable Auth/Google/email-password in Neon Console and add the deployed origin to trusted origins.
    - Vercel automatically runs Next.js build.
    - Database tables are automatically provisioned on the first API call via `lib/bootstrap.ts`.

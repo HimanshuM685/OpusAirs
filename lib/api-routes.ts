@@ -1,24 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { constructIndex } from "./apix";
-import {
-  authJson,
-  adminConfigured,
-  adminSeedEmail,
-  createUser,
-  findUserByEmail,
-  getUser,
-  isAdminEmail,
-  isAuthResponse,
-  loginAdmin,
-  makeAdminCookie,
-  makeAdminLogoutCookie,
-  makeLogoutCookie,
-  makeSessionCookie,
-  normalizeLoginEmail,
-  requireAdmin,
-  verifyPassword,
-} from "./auth";
+import { getUser, isAuthResponse, requireAdmin } from "./auth";
+import { clearProofs } from "./auth/policy";
+import { getAuth } from "./auth/server";
 import { computeBacktest } from "./backtest";
 import { APIX_BASE_DATE, bootstrap, loadPsdBasket } from "./bootstrap";
 import { readCache, writeCache } from "./http-cache";
@@ -75,23 +60,24 @@ function validIata(code: string): boolean {
   return /^[A-Z]{3}$/.test(code);
 }
 
-async function loginResponse(emailRaw: string | undefined, password: string | undefined, adminOnly: boolean) {
-  const email = normalizeLoginEmail(emailRaw || "");
-  if (!email || !password) return json({ detail: "Email and password required" }, 400);
-  if (adminSeedEmail() && email === adminSeedEmail()) {
-    return json({ detail: "Invalid email or password" }, 401);
-  }
-  const user = await findUserByEmail(email);
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    return json({ detail: "Invalid email or password" }, 401);
-  }
-  if (adminOnly && user.role !== "admin") {
-    return json({ detail: "Admin required" }, 403);
-  }
-  return authJson({ success: true, user: { id: user.id, email: user.email, role: user.role } }, makeSessionCookie(user.id));
-}
-
 export async function handleV1(req: Request, parts: string[]): Promise<Response> {
+  // Session reads and sign-out do not depend on warehouse bootstrap/database access.
+  const authPath = parts.join("/");
+  if (req.method === "POST" && ["auth/login", "auth/register", "admin/login"].includes(authPath)) {
+    return json({ detail: "Use Neon Auth at /api/auth; admin access requires Google sign-in" }, 410);
+  }
+  if (req.method === "POST" && ["auth/logout", "admin/logout"].includes(authPath)) {
+    const response = await getAuth().handler().POST(req, { params: Promise.resolve({ path: ["sign-out"] }) });
+    clearProofs(response);
+    return response;
+  }
+  if (req.method === "GET" && ["auth/me", "admin/check"].includes(authPath)) {
+    const user = await getUser(req);
+    if (authPath === "auth/me") return json(user ? { authenticated: true, user } : { authenticated: false });
+    const isAdmin = user?.role === "admin";
+    return json({ authenticated: Boolean(user), isAdmin, email: user?.email, name: user?.name,
+      detail: user && !isAdmin ? "Admin access requires a verified Google sign-in and an email listed in ADMIN_EMAILS." : undefined });
+  }
   await bootstrap();
   const q = sql();
   const url = new URL(req.url);
@@ -539,79 +525,6 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       return { index_rows, vintage };
     });
     return json({ job_id: id }, 202);
-  }
-
-  if (req.method === "POST" && path === "auth/register") {
-    try {
-      const body = (await req.json()) as { email?: string; password?: string };
-      const email = (body.email || "").trim().toLowerCase();
-      const password = body.password || "";
-      if (!email.includes("@") || password.length < 6) {
-        return json({ detail: "Valid email and password (min 6 chars) required" }, 400);
-      }
-      if (adminSeedEmail() && email === adminSeedEmail()) {
-        return json({ detail: "Email already registered" }, 409);
-      }
-      if (await findUserByEmail(email)) {
-        return json({ detail: "Email already registered" }, 409);
-      }
-      const user = await createUser(email, password);
-      return authJson({ success: true, user }, makeSessionCookie(user.id), 201);
-    } catch {
-      return json({ detail: "Invalid request" }, 400);
-    }
-  }
-
-  if (req.method === "POST" && path === "auth/login") {
-    try {
-      const body = (await req.json()) as { email?: string; password?: string };
-      return await loginResponse(body.email, body.password, false);
-    } catch {
-      return json({ detail: "Invalid request" }, 400);
-    }
-  }
-
-  if (req.method === "POST" && path === "auth/logout") {
-    return authJson({ success: true }, makeLogoutCookie());
-  }
-
-  if (req.method === "GET" && path === "auth/me") {
-    const user = await getUser(req);
-    if (!user) return json({ authenticated: false }, 200);
-    return json({ authenticated: true, user });
-  }
-
-  if (req.method === "POST" && path === "admin/login") {
-    try {
-      const body = (await req.json()) as { email?: string; password?: string };
-      if (!adminConfigured()) return json({ detail: "Admin is not configured" }, 401);
-      if (!loginAdmin(body.email || "", body.password || "")) {
-        return json({ detail: "Invalid email or password" }, 401);
-      }
-      return authJson(
-        { success: true, user: { email: adminSeedEmail(), role: "admin" } },
-        makeAdminCookie(),
-      );
-    } catch {
-      return json({ detail: "Invalid request" }, 400);
-    }
-  }
-
-  if (req.method === "POST" && path === "admin/logout") {
-    return authJson({ success: true }, makeAdminLogoutCookie());
-  }
-
-  if (req.method === "GET" && path === "admin/check") {
-    const user = await getUser(req);
-    if (!user) return json({ authenticated: false, isAdmin: false });
-    const isAdmin = isAdminEmail(user.email) || user.role === "admin";
-    return json({
-      authenticated: true,
-      isAdmin,
-      email: user.email,
-      name: user.name,
-      detail: isAdmin ? undefined : `Account ${user.email} is not in the ADMIN_EMAILS whitelist.`,
-    });
   }
 
   if (req.method === "GET" && path === "health") {
