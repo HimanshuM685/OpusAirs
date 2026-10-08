@@ -92,7 +92,7 @@ docker run -p 3000:3000 --env-file .env.local opusairs
 1. **Push repository** to GitHub / GitLab / Bitbucket.
 2. **Import project** in [Vercel](https://vercel.com).
 3. **Configure Environment Variables** in Vercel Project Settings:
-   - `DATABASE_URL`: Your Neon connection string (ensure `?sslmode=require` is appended).
+    - `DATABASE_URL`: Your Neon connection string (ensure `?sslmode=require` is appended).
     - `NEON_AUTH_BASE_URL`: HTTPS Auth URL from the same Neon branch.
     - `NEON_AUTH_COOKIE_SECRET`: Random secret, at least 32 characters.
     - `ADMIN_EMAILS`: Comma-separated Google operator emails; empty denies access.
@@ -101,4 +101,12 @@ docker run -p 3000:3000 --env-file .env.local opusairs
     - Select Node.js 22 and use the normal install command or `npm ci`.
     - Enable Auth/Google/email-password in Neon Console and add the deployed origin to trusted origins.
    - Vercel automatically runs Next.js build.
-   - Database tables are automatically provisioned on the first API call via `lib/bootstrap.ts`.
+    - Database tables are automatically provisioned on the first API call via `lib/bootstrap.ts`.
+
+### Troubleshooting Google sign-in failures
+
+Auth configuration is checked when a request arrives, so a successful build does not confirm that production auth variables are set. Local `.env` values do not configure Vercel. Select the **Production** scope for both `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET`, then redeploy after changing them.
+
+- **503 `AUTH_NOT_CONFIGURED`**: The JSON response identifies `variable` and `problem` (`missing`, `invalid`, or `too_short`). Use the HTTPS Auth URL from Neon Console, not a PostgreSQL connection string. Generate the dedicated secret with `openssl rand -hex 32`; `SESSION_SECRET` is not a substitute.
+- **500 `AUTH_INTERNAL_ERROR`**: Open this request's Vercel Runtime Logs and look for `[auth] Unexpected route failure`, which includes the exception. Configuration errors log only the variable name/problem, never its value.
+- **Signed in but admin denied**: Check verified Google authentication and `ADMIN_EMAILS`. The allowlist is evaluated after login; it does not cause Google sign-in initiation to return 500.

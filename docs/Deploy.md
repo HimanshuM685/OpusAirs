@@ -63,3 +63,10 @@ docker compose --env-file .env.local up --build -d
 2. Select Node.js 22. Define `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `ADMIN_EMAILS`, and `APIX_BASE_DATE=2026-08-01` in Project Settings > Environment Variables.
 3. Configure Google/email-password and the deployment's trusted origin in Neon Console.
 4. Deploy with a normal install or `npm ci` (no `--legacy-peer-deps`). Schema migration and initial data seeding run automatically on warehouse `/v1` requests; authentication uses Neon Auth independently.
+
+### Auth runtime errors
+
+Set auth variables in Vercel's **Production** scope and redeploy after changes. Local `.env` settings and a passing build do not supply production runtime configuration.
+
+- **503 `AUTH_NOT_CONFIGURED`** identifies the missing/invalid `variable` and `problem`. Set `NEON_AUTH_BASE_URL` to the HTTPS URL from Neon Console and `NEON_AUTH_COOKIE_SECRET` to a dedicated random secret of at least 32 characters (`openssl rand -hex 32`). `SESSION_SECRET` is not used.
+- **500 `AUTH_INTERNAL_ERROR`** logs `[auth] Unexpected route failure` in that invocation's Vercel Runtime Logs. Share the exception/stack when diagnosing; configuration values are not returned in errors.

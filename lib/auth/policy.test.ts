@@ -64,6 +64,9 @@ describe("auth configuration and redirects", () => {
     assert.throws(() => authConfig({ NEON_AUTH_BASE_URL: "https://auth.example/auth", NEON_AUTH_COOKIE_SECRET: "short" }), /32 characters/);
     assert.equal(authConfig({ NEON_AUTH_BASE_URL: "https://auth.example/auth", NEON_AUTH_COOKIE_SECRET: secret }).cookies.secret, secret);
   });
+  it("normalizes pasted Auth URL whitespace and trailing slashes before constructing upstream endpoints", () => {
+    assert.equal(authConfig({ NEON_AUTH_BASE_URL: " https://auth.example/auth/ \n", NEON_AUTH_COOKIE_SECRET: secret }).baseUrl, "https://auth.example/auth");
+  });
   it("preserves local return paths and blocks external or recursive auth redirects", () => {
     assert.equal(safeReturnPath("/admin/ingest?tab=csv"), "/admin/ingest?tab=csv");
     for (const path of [null, "https://attacker.invalid", "//attacker.invalid", "/\\attacker.invalid", "/api/auth/sign-out", "/auth/callback", "/../api/auth/get-session", "/search\r\nLocation: evil"]) {
