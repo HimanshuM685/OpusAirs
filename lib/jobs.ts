@@ -3,7 +3,7 @@ import type { sql as sqlFn } from "./db";
 import { clearIndexCache } from "./http-cache";
 
 type Q = ReturnType<typeof sqlFn>;
-export type JobType = "ingest" | "collect" | "clean" | "rebuild" | "bulletin" | "snapshot";
+export type JobType = "ingest" | "collect" | "discover" | "clean" | "rebuild" | "bulletin" | "snapshot";
 
 const listeners = new Set<() => void>();
 export function onJobOk(fn: () => void): void {

@@ -152,6 +152,8 @@ function monthStart(day: string): string {
 
 export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: string): IndexPoint[] {
   if (!basket.length) return [];
+  const basketPairs = new Set(basket.map((r) => `${r.origin}|${r.destination}`));
+  points = points.filter((p) => basketPairs.has(`${p.origin}|${p.destination}`));
   const observed = new Map<string, Cell>();
   for (const p of points) {
     if (!(p.fare > 0)) continue;
@@ -238,7 +240,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       laspNum += route.weight * rel;
       laspDen += route.weight;
       imputedW += route.weight * cell.share;
-      if (cell.share === 0) observedRoutesW += route.weight;
+      observedRoutesW += route.weight * (1 - cell.share);
       rels.push(rel);
       routes.push({ origin: route.origin, destination: route.destination, rel, share: cell.share, weight: route.weight });
       routePrice.set(`${day}|${key}`, cell.price);
@@ -255,7 +257,7 @@ export function compileIndex(points: FarePoint[], basket: BasketW[], baseDate: s
       }
     }
     if (laspDen <= 0) continue;
-    const coverage = cellW > 0 ? observedRoutesW / cellW : 0;
+    const coverage = cellW > 0 ? Math.round(Math.min(1, observedRoutesW / cellW) * 1e12) / 1e12 : 0;
     daily.push({
       day,
       laspeyres: (100 * laspNum) / laspDen,

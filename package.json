@@ -11,8 +11,10 @@
     "collect:worker": "tsx scripts/collect-worker.ts"
   },
   "dependencies": {
+    "@neondatabase/auth": "^0.5.0-beta",
     "@neondatabase/serverless": "^1.1.0",
     "next": "^15.2.0",
+    "playwright-core": "^1.64.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0"

@@ -1,66 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { authClient } from "@/lib/auth/client";
+
+function GoogleIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.36 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+      />
+    </svg>
+  );
+}
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function handleGoogleSignUp() {
     setErr(null);
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      setErr("Please enter a valid email address.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErr("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErr("Passwords do not match. Please verify.");
-      return;
-    }
-
     setSubmitting(true);
     try {
-      const res = await fetch("/v1/auth/register", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail, password }),
+      const res = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: typeof window !== "undefined" ? window.location.origin + "/search" : "/search",
       });
-      const data = (await res.json()) as { detail?: string; success?: boolean };
-      if (!res.ok || !data.success) {
-        setErr(data.detail || "Could not complete registration.");
+      if (res?.error) {
+        setErr(res.error.message || "Google registration failed. Please try again.");
         setSubmitting(false);
-        return;
       }
-
-      setSuccess(true);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("auth-changed"));
-      }
-
-      setTimeout(() => {
-        router.push("/search");
-        router.refresh();
-      }, 500);
-    } catch {
-      setErr("Network or server connection error. Please try again.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Error initiating Google authentication");
       setSubmitting(false);
     }
   }
@@ -69,13 +53,11 @@ export default function RegisterPage() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-header">
-          <div className="auth-icon">
-            ✈️
+          <div className="auth-icon" style={{ background: "rgba(11, 59, 42, 0.1)", color: "var(--brand-primary)" }}>
+            ✨
           </div>
-          <h1>Create an Account</h1>
-          <p>
-            Track real-time airfares, compare domestic carriers, and monitor price index trends.
-          </p>
+          <h1>Create Your Account</h1>
+          <p>Join OpusAirs with your Google account to access real-time airfare analytics and price comparisons.</p>
         </div>
 
         {err && (
@@ -85,103 +67,55 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {success && (
-          <div
+        <div style={{ marginTop: "24px" }}>
+          <button
+            type="button"
+            onClick={handleGoogleSignUp}
+            disabled={submitting}
             style={{
-              background: "var(--accent-green-dim)",
-              color: "var(--accent-green)",
-              border: "1px solid rgba(11, 59, 42, 0.25)",
-              borderRadius: "var(--radius-sm)",
-              padding: "10px 14px",
-              fontSize: "13px",
-              marginBottom: "20px",
+              width: "100%",
               display: "flex",
               alignItems: "center",
-              gap: "8px",
+              justifyContent: "center",
+              gap: "12px",
+              padding: "14px 20px",
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "#0c1212",
+              background: "#ffffff",
+              border: "1px solid #d1d5db",
+              borderRadius: "8px",
+              cursor: submitting ? "not-allowed" : "pointer",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+              transition: "all 0.2s ease",
             }}
           >
-            <span>✓</span>
-            <span>Account created! Redirecting to flights...</span>
-          </div>
-        )}
-
-        <form className="auth-form" onSubmit={onSubmit}>
-          <div className="auth-field">
-            <label htmlFor="reg-email">Email Address</label>
-            <input
-              id="reg-email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div className="auth-field">
-            <label htmlFor="reg-password">Password</label>
-            <div className="auth-password-wrap">
-              <input
-                id="reg-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                required
-                minLength={6}
-              />
-              <button
-                type="button"
-                className="auth-password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
-            <span className="auth-hint">Must be at least 6 characters</span>
-          </div>
-
-          <div className="auth-field">
-            <label htmlFor="reg-confirm">Confirm Password</label>
-            <div className="auth-password-wrap">
-              <input
-                id="reg-confirm"
-                type={showConfirm ? "text" : "password"}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your password"
-                required
-                minLength={6}
-              />
-              <button
-                type="button"
-                className="auth-password-toggle"
-                onClick={() => setShowConfirm(!showConfirm)}
-                aria-label={showConfirm ? "Hide password" : "Show password"}
-              >
-                {showConfirm ? "🙈" : "👁️"}
-              </button>
-            </div>
-          </div>
-
-          <button
-            className="btn btn-primary auth-btn"
-            type="submit"
-            disabled={submitting || success}
-          >
-            {submitting ? "Creating Account..." : "Create Account →"}
+            <GoogleIcon />
+            <span>{submitting ? "Redirecting to Google…" : "Sign up with Google"}</span>
           </button>
-        </form>
+        </div>
 
-        <div className="auth-footer">
+        <div style={{ marginTop: "24px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
+            <span>✈️</span>
+            <span>Compare real-time airline fares with Indian domestic route benchmarks</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
+            <span>📈</span>
+            <span>Analyze price gains over 30-day, 3-month, and 6-month windows</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
+            <span>🛡️</span>
+            <span>Managed Better Auth powered by Neon Auth</span>
+          </div>
+        </div>
+
+        <div className="auth-footer" style={{ marginTop: "28px" }}>
           <p>
-            Already have an account? <Link href="/login">Sign in</Link>
+            Already have an account?{" "}
+            <Link href="/login" className="auth-footer-link">
+              Sign in with Google
+            </Link>
           </p>
         </div>
       </div>

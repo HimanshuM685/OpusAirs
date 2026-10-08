@@ -8,6 +8,9 @@ export type CollectCell = {
   leadTimeDays: number;
   fareClass: "ECONOMY";
   tripType: "one_way";
+  weight?: number;
+  inBasket?: boolean;
+  carrier?: string;
 };
 
 export type RawQuote = QuoteIn;
@@ -19,6 +22,7 @@ export type CollectResult = {
   quotes: RawQuote[];
   notes?: string;
   attempts?: HttpAttempt[];
+  parserMiss?: boolean;
 };
 
 export interface SourceAdapter {
@@ -28,6 +32,10 @@ export interface SourceAdapter {
   host?: string;
   searchPath?: string;
   skippedReason?: string;
+  carrier?: string;
+  searchUrl?(cell: CollectCell): string;
+  parseHtml?(html: string, cell: CollectCell): CollectResult;
+  discoveryPath?: string;
   enabled(): boolean;
   allowedPath(path: string): Promise<boolean>;
   collect(cell: CollectCell): Promise<CollectResult>;

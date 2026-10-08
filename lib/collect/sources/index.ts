@@ -11,7 +11,8 @@ import { fileDrop } from "./file_drop";
 import { syntheticDemo } from "./synthetic_demo";
 
 export function collectors(q: ReturnType<typeof sqlFn>, day: string, http: PoliteHttp = sharedHttp()): SourceAdapter[] {
-  return [manual(q, day), fileDrop(day), syntheticDemo, indigo, airindia(http), airindiaExpress(http), akasa(http), spicejet(http)];
+  const all = [manual(q, day), fileDrop(day), syntheticDemo, indigo, airindia(http), airindiaExpress(http), akasa(http), spicejet(http)];
+  return all.map((a) => ({ ...a, discoveryPath: process.env[`DISCOVER_${a.id.toUpperCase()}_PATH`] }));
 }
 
 export function selectAdapters(all: SourceAdapter[], enabledIds: Set<string>, live = process.env.SCRAPE_ENABLED === "true", demo = false): SourceAdapter[] {

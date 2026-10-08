@@ -3,6 +3,7 @@ import type { sql as sqlFn } from "./db";
 import { isoDate } from "./db";
 import { compileIndex, type FarePoint } from "./index-math";
 import { buildSnapshots, type SnapshotOptions } from "./snapshot";
+import { catalogRoutes } from "./collect/catalog";
 
 export { jevons } from "./index-math";
 
@@ -33,7 +34,14 @@ export async function constructIndex(q: ReturnType<typeof sqlFn>, options: Snaps
     imputed: Boolean(r.is_imputed),
     synthetic: r.is_synthetic,
   }));
-  const rows = compileIndex(points, await loadBasket(q), APIX_BASE_DATE);
+  const basket = await loadBasket(q);
+  const rows = compileIndex(points, basket, APIX_BASE_DATE);
+  const nationalPairs = new Set(basket.map((r) => `${r.origin}|${r.destination}`));
+  const extras = new Map((await catalogRoutes(q)).filter((r) => !nationalPairs.has(`${r.origin}|${r.destination}`))
+    .map((r) => [`${r.origin}|${r.destination}`, r]));
+  for (const route of extras.values()) {
+    rows.push(...compileIndex(points, [{ ...route, weight: 1 }], APIX_BASE_DATE).filter((r) => r.series === "apix_route"));
+  }
   for (const row of rows) {
     await q`
       INSERT INTO index_values (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { GradientWave } from "@/components/ui/gradient-wave";
+import { authClient } from "@/lib/auth/client";
 
 const navLinks = [
   ["/dashboard", "Dashboard"],
@@ -33,8 +34,14 @@ export default function UserLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   async function logout() {
+    try {
+      await authClient.signOut();
+    } catch {
+      // Ignore
+    }
     await fetch("/v1/auth/logout", { method: "POST", credentials: "include" });
     setMe({ authenticated: false });
+    window.dispatchEvent(new Event("auth-changed"));
   }
 
   return (
@@ -61,10 +68,64 @@ export default function UserLayout({ children }: { children: ReactNode }) {
               ))}
             </div>
 
-            <div className="floating-pill-actions">
-              <Link href="/dashboard" className="nav-btn-solid">
-                Dashboard
-              </Link>
+            <div className="floating-pill-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {me?.authenticated && me.user ? (
+                <>
+                  <span
+                    className="topnav-email"
+                    title={me.user.email}
+                    style={{ fontSize: "12px", color: "var(--text-secondary)", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    {me.user.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-secondary)",
+                      borderRadius: "6px",
+                      padding: "5px 10px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    style={{
+                      color: "var(--text-primary)",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="nav-btn-solid"
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Register
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </header>

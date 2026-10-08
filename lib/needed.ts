@@ -17,7 +17,9 @@ export async function neededQuotes(q: ReturnType<typeof sqlFn>): Promise<NeededC
   const today = istDate();
   const weekAgo = addDays(today, -7);
   const last = new Map(rows.map((r) => [`${r.origin}|${r.destination}|${r.lead_time_bin}|${r.snapshot_slot}`, isoDate(r.last_on)]));
-  return basket.flatMap((route) => LEAD_TIMES.flatMap((lead) => ["0600", "1800"].flatMap((slot) => {
+  const slots = [...new Set((process.env.SNAPSHOT_HOURS || '6').split(',').map((h) => h.trim()))]
+    .filter((h) => h === '6' || h === '18').map((h) => h === '6' ? '0600' : '1800');
+  return basket.flatMap((route) => LEAD_TIMES.flatMap((lead) => slots.flatMap((slot) => {
     const date = last.get(`${route.origin}|${route.destination}|${lead}|${slot}`) || null;
     if (date && date >= weekAgo) return [];
     return [{ origin: route.origin, destination: route.destination, trip_type: "one_way" as const, fare_class: "ECONOMY" as const,

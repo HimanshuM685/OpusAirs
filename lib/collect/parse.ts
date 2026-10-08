@@ -70,11 +70,37 @@ export function validQuote(input: {
   total_fare?: number | null;
 }): boolean {
   return Boolean(
-    input.origin &&
-      input.destination &&
+    input.origin && /^[A-Z]{3}$/.test(input.origin) &&
+      input.destination && /^[A-Z]{3}$/.test(input.destination) && input.origin !== input.destination &&
       input.dep_date &&
       /^\d{4}-\d{2}-\d{2}$/.test(input.dep_date) &&
       input.total_fare != null &&
-      Number.isFinite(input.total_fare),
+      Number.isFinite(input.total_fare) && input.total_fare > 0,
   );
+}
+
+// Agent output is untrusted input. Reuse the same cabin/flight/fare rules as HTML extraction.
+export function parseQuoteRows(data: unknown, cells: import("./types").CollectCell[], carrier: string): import("../ingest").QuoteIn[] {
+  if (!Array.isArray(data)) return [];
+  const accepted: import("../ingest").QuoteIn[] = [];
+  for (const input of data) {
+    if (!input || typeof input !== "object") continue;
+    const r = input as Record<string, unknown>;
+    if (typeof r.origin !== "string" || typeof r.destination !== "string" || typeof r.dep_date !== "string"
+      || r.carrier !== carrier || r.fare_class !== "ECONOMY" || (r.trip_type != null && r.trip_type !== "one_way") || r.return_date) continue;
+    const cell = cells.find((c) => c.origin === r.origin && c.destination === r.destination && c.depDate === r.dep_date);
+    if (!cell) continue;
+    const flight = typeof r.flight_no === "string" ? flightOf(r.flight_no) : null;
+    if (r.status === "sold_out") {
+      accepted.push({ origin: cell.origin, destination: cell.destination, dep_date: cell.depDate,
+        carrier, flight_no: flight || "NA", fare_class: "ECONOMY", trip_type: "one_way", status: "sold_out", total_fare: null, parser_accepted: true });
+      continue;
+    }
+    const fare = typeof r.total_fare === "number" ? fareOf(String(r.total_fare)) : null;
+    if (r.status !== "ok" || !flight?.startsWith(carrier) || fare == null) continue;
+    const quote = { origin: cell.origin, destination: cell.destination, dep_date: cell.depDate,
+      carrier, flight_no: flight, fare_class: "ECONOMY", trip_type: "one_way", status: "ok", total_fare: fare, parser_accepted: true };
+    if (validQuote(quote)) accepted.push(quote);
+  }
+  return accepted;
 }

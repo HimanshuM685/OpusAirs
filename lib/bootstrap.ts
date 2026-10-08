@@ -57,8 +57,8 @@ export async function loadBasket(q: ReturnType<typeof sql>): Promise<RouteSpec[]
     merged.set(`${origin}|${destination}`, { ...row, origin, destination, raw_passengers: Number(row.raw_passengers), weight: Number(row.weight) });
   }
   const routes = [...merged.values()].filter((r) => r.origin !== r.destination);
-  const total = routes.reduce((n, r) => n + Math.max(0, r.raw_passengers), 0);
-  return routes.map((r) => ({ ...r, weight: total > 0 ? Math.max(0, r.raw_passengers) / total : 1 / routes.length }));
+  const total = routes.reduce((n, r) => n + Math.max(0, r.weight), 0);
+  return routes.map((r) => ({ ...r, weight: total > 0 ? Math.max(0, r.weight) / total : 1 / routes.length }));
 }
 
 const DDL = [
@@ -274,6 +274,23 @@ const DDL = [
   `ALTER TABLE collect_lock ADD COLUMN IF NOT EXISTS owner TEXT`,
   `ALTER TABLE index_values ADD COLUMN IF NOT EXISTS quality VARCHAR(16) NOT NULL DEFAULT 'good'`,
   `ALTER TABLE scrape_sources ALTER COLUMN enabled SET DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS route_catalog (
+    origin text NOT NULL, destination text NOT NULL, carrier text NOT NULL,
+    flight_no text NOT NULL DEFAULT '', dow_mask int NOT NULL DEFAULT 127,
+    active boolean NOT NULL DEFAULT true, source text NOT NULL, refreshed_on date NOT NULL,
+    PRIMARY KEY (origin, destination, carrier, flight_no)
+  )`,
+  `CREATE TABLE IF NOT EXISTS collect_budget (
+    run_id uuid PRIMARY KEY, sessions_opened int NOT NULL DEFAULT 0,
+    sessions_deleted int NOT NULL DEFAULT 0, agent_runs int NOT NULL DEFAULT 0,
+    tinyfish_disabled boolean NOT NULL DEFAULT false, notes text
+  )`,
+  `ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS session_attempts int NOT NULL DEFAULT 0`,
+  `ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS airlines jsonb NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS started_at timestamptz NOT NULL DEFAULT NOW()`,
+  `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS vintage_note text`,
+  `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS parser_accepted boolean NOT NULL DEFAULT true`,
+  `ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS work_order int NOT NULL DEFAULT 0`,
 ];
 
 let bootstrapped = false;
@@ -295,6 +312,11 @@ export async function bootstrap(db?: ReturnType<typeof sql>): Promise<void> {
       INSERT INTO basket_routes (origin, destination, raw_passengers, weight, note)
       SELECT ${r.origin}, ${r.destination}, ${r.raw_passengers}, ${r.weight}, ${r.note}
       WHERE NOT EXISTS (SELECT 1 FROM basket_routes WHERE origin = ${r.origin} AND destination = ${r.destination})
+    `);
+    queries.push(q`
+      INSERT INTO route_catalog (origin, destination, carrier, flight_no, source, refreshed_on)
+      VALUES (${r.origin}, ${r.destination}, 'NA', '', 'schedule_file', CURRENT_DATE)
+      ON CONFLICT (origin, destination, carrier, flight_no) DO NOTHING
     `);
   }
 

@@ -49,7 +49,7 @@ describe("snapshot coverage and provenance", () => {
   it("morning operator observations can carry forward but never become evening observations", () => {
     const quotes = LEAD_BINS.map((lead) => quote({ lead_time_days: lead, collected_at: "2026-10-05T00:40:00Z" }));
     const morning = pickSnapshotCells(basket, quotes, day, at, false, [], "0600");
-    assert.equal(coverageForCells(basket, morning).coverage, 0.7);
+    assert.ok(Math.abs(coverageForCells(basket, morning).coverage - 0.7) < 1e-9);
     const previous = morning.map((c) => ({ ...c, collected_on: day, snapshot_at: at }));
     const evening = pickSnapshotCells(basket, quotes, day, `${day}T12:30:00.000Z`, false, previous, "1800");
     assert.equal(coverageForCells(basket, evening).coverage, 0);
@@ -66,5 +66,10 @@ describe("snapshot coverage and provenance", () => {
       fare: c.total_fare!, imputed: true, synthetic: true })), basket, day);
     assert.ok(rows.length > 0 && rows.every((r) => r.vintage === "demo"));
     assert.ok(rows.every((r) => r.coverage === 0));
+  });
+  it("coverage is weighted non-imputed lead-bin share and rejected Agent JSON is excluded", () => {
+    const cells = pickSnapshotCells(basket, [quote(), quote({ lead_time_days: 7, source: 'agent:airindia', parser_accepted: false, total_fare: 1000 })], day, at);
+    assert.ok(Math.abs(coverageForCells(basket, cells).coverage - 0.7 / 6) < 1e-9);
+    assert.equal(cells.find((c) => c.destination === 'BOM' && c.lead_time_bin === 7)?.is_imputed, 1);
   });
 });

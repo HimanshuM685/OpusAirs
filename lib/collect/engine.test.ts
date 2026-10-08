@@ -80,8 +80,8 @@ describe("basket and IST scheduling", () => {
   it("generates every route times six lead bins, economy one-way only", () => {
     const work = buildWorklist([{ origin: "DEL", destination: "BOM" }, { origin: "BOM", destination: "DEL" }], "2026-12-31");
     assert.equal(work.length, 12);
-    for (const origin of ["DEL", "BOM"]) assert.deepEqual(work.filter((c) => c.origin === origin).map((c) => c.leadTimeDays), [1, 7, 15, 21, 30, 45]);
-    assert.equal(work[0].depDate, "2027-01-01");
+    for (const origin of ["DEL", "BOM"]) assert.deepEqual(work.filter((c) => c.origin === origin).map((c) => c.leadTimeDays), [21, 7, 1, 15, 30, 45]);
+    assert.equal(work.find((c) => c.leadTimeDays === 1)?.depDate, "2027-01-01");
     assert.ok(work.every((c) => c.fareClass === "ECONOMY" && c.tripType === "one_way"));
   });
 
@@ -89,7 +89,7 @@ describe("basket and IST scheduling", () => {
     assert.equal(istDate(new Date("2026-10-04T20:00:00Z")), "2026-10-05");
     assert.deepEqual(dueSnapshots(new Date("2026-10-05T00:29:59Z")), []);
     assert.deepEqual(dueSnapshots(new Date("2026-10-05T00:30:00Z")).map((s) => s.slot), ["0600"]);
-    const both = dueSnapshots(new Date("2026-10-05T12:30:00Z"));
+    const both = dueSnapshots(new Date("2026-10-05T12:30:00Z"), "6,18");
     assert.deepEqual(both.map((s) => s.slot), ["0600", "1800"]);
     assert.notEqual(both[0].snapshotAt, both[1].snapshotAt);
   });

@@ -59,4 +59,10 @@ describe("index math", () => {
     const next = chainStep(100, [{ origin: "DEL", destination: "BOM", weight: 1 }], now, prev);
     assert.ok(Math.abs(next - 110) < 1e-9);
   });
+  it("catalog-only route fares cannot change national index or basket imputation", () => {
+    const points = [1, 7, 15, 21, 30, 45].map((lead) => fare("DEL", "BOM", "2026-10-08", lead, 5000));
+    const before = compileIndex(points, basket, "2026-10-08");
+    const withCatalog = [...points, ...[1, 7, 15, 21, 30, 45].map((lead) => fare("CCU", "MAA", "2026-10-08", lead, 50000))];
+    assert.deepEqual(compileIndex(withCatalog, basket, "2026-10-08"), before);
+  });
 });

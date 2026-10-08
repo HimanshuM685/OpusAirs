@@ -102,12 +102,18 @@ Copy the example environment file:
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your database connection string and operator credentials:
+Edit `.env.local` with your database connection string and Neon Auth credentials:
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require
-ADMIN_EMAIL=admin@local
-ADMIN_PASSWORD=change_this_to_a_secure_password
-SESSION_SECRET=change_this_long_random_string
+
+# Neon Auth (Managed Better Auth) - Google OAuth
+NEON_AUTH_BASE_URL=https://ep-xxxxx.neonauth.region.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=change_this_to_at_least_32_characters_secret_string
+SESSION_SECRET=change_this_to_at_least_32_characters_secret_string
+
+# Whitelisted Google accounts permitted operator access to /admin
+ADMIN_EMAILS=admin@example.com,operator@example.com
+
 SCRAPE_ENABLED=false
 INGEST_API_KEY=
 CPI_AIR_WEIGHT=0.004
@@ -125,7 +131,8 @@ npm run dev
 - Public User Interface: [http://localhost:3000](http://localhost:3000)
 - User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
 - Flight Search & Compare: [http://localhost:3000/search](http://localhost:3000/search)
-- Hidden Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (admin email + password from `users` table; seeded as `ADMIN_EMAIL`)
+- User Sign In / Register: [http://localhost:3000/login](http://localhost:3000/login) & [http://localhost:3000/register](http://localhost:3000/register) (Google account via Neon Auth)
+- Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (Google OAuth sign-in; granted if account email is listed in `ADMIN_EMAILS`)
 - API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index)
 
 ---

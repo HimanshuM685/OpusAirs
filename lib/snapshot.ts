@@ -4,13 +4,14 @@ import type { sql as sqlFn } from "./db";
 import { isoDate } from "./db";
 import { sourceRank } from "./ingest";
 import { addDays, istDate } from "./collect/policy";
+import { snapshotRoutes } from "./collect/catalog";
 
 type Q = ReturnType<typeof sqlFn>;
 export type SnapshotOptions = { day?: string; slot?: string; snapshotAt?: string; includeSynthetic?: boolean };
 export type SnapshotQuote = {
   id?: number; raw_id?: number; origin: string; destination: string; lead_time_days: number; carrier: string;
   source: string; source_rank?: number; fare_class?: string; trip_type?: string;
-  total_fare: number; collected_on: string; collected_at?: string; is_outlier?: number; snapshot_at?: string | null;
+  total_fare: number; collected_on: string; collected_at?: string; is_outlier?: number; snapshot_at?: string | null; parser_accepted?: boolean;
 };
 export type SnapshotCell = {
   origin: string; destination: string; lead_time_bin: number; carrier: string | null;
@@ -33,14 +34,16 @@ const eligible = (q: SnapshotQuote, includeSynthetic: boolean) => (q.fare_class 
   && (q.trip_type || "one_way") === "one_way" && Number(q.total_fare) > 0 && (includeSynthetic || !synthetic(q));
 
 export function pickSnapshotCells(basket: { origin: string; destination: string }[], quotes: SnapshotQuote[],
-  day: string, snapshotAt: string, includeSynthetic = false, previous: (SnapshotCell & { collected_on: string; snapshot_at?: string })[] = [], slot = "adhoc"): SnapshotCell[] {
+  day: string, snapshotAt: string, includeSynthetic = false, previous: (SnapshotCell & { collected_on: string; snapshot_at?: string })[] = [], slot = "adhoc",
+  nationalPairs = new Set(basket.map((r) => `${r.origin}|${r.destination}`))): SnapshotCell[] {
+  snapshotAt = new Date(snapshotAt).toISOString();
   const pairs = new Set(basket.map((r) => `${r.origin}|${r.destination}`));
-  const current = quotes.filter((q) => eligible(q, includeSynthetic) && isoDate(q.collected_on) === day
+  const current = quotes.filter((q) => q.parser_accepted !== false && eligible(q, includeSynthetic) && isoDate(q.collected_on) === day
     && (!q.snapshot_at || new Date(q.snapshot_at).toISOString() === snapshotAt) && pairs.has(`${q.origin}|${q.destination}`)
     && (!(slot === "0600" || slot === "1800") || !["manual", "csv", "file_drop"].includes(q.source) || !q.collected_at
       || (istDate(new Date(q.collected_at)) === day && slotForNow(new Date(q.collected_at)) === slot)));
   const clean = current.filter((q) => !q.is_outlier && !synthetic(q));
-  const sortedFares = clean.map((q) => Number(q.total_fare)).sort((a, b) => a - b);
+  const sortedFares = clean.filter((q) => nationalPairs.has(`${q.origin}|${q.destination}`)).map((q) => Number(q.total_fare)).sort((a, b) => a - b);
   const mid = Math.floor(sortedFares.length / 2);
   const median = !sortedFares.length ? null : sortedFares.length % 2 ? sortedFares[mid] : (sortedFares[mid - 1] + sortedFares[mid]) / 2;
   return basket.flatMap((r) => LEAD_BINS.map((lead) => {
@@ -72,11 +75,11 @@ export function coverageForCells(basket: { origin: string; destination: string; 
     total += weight;
     const count = LEAD_BINS.filter((lead) => cells.some((c) => c.origin === route.origin && c.destination === route.destination
       && c.lead_time_bin === lead && !c.is_imputed && !c.is_synthetic && c.total_fare != null)).length;
-    if (count === LEAD_BINS.length) observed += weight;
+    observed += weight * count / LEAD_BINS.length;
     observedCells += weight * count / LEAD_BINS.length;
   }
-  const coverage = total ? observed / total : 0;
-  const cellCoverage = total ? observedCells / total : 0;
+  const coverage = total ? Math.round(Math.min(1, observed / total) * 1e12) / 1e12 : 0;
+  const cellCoverage = total ? Math.round(Math.min(1, observedCells / total) * 1e12) / 1e12 : 0;
   return { coverage, cell_coverage: cellCoverage, imputed_share: 1 - cellCoverage,
     vintage: cells.some((c) => c.is_synthetic) ? "demo" : coverage < 0.6 ? "provisional" : "final",
     quality: coverage < 0.6 ? "low" : coverage < 0.8 ? "partial" : "good",
@@ -89,13 +92,14 @@ export async function buildSnapshots(q: Q, options: SnapshotOptions | string = {
   const opts = typeof options === "string" ? { slot: options } : options;
   const day = opts.day || istDate();
   const slot = opts.slot || "adhoc";
-  const at = opts.snapshotAt || snapshotStamp(day, slot);
+  const at = new Date(opts.snapshotAt || snapshotStamp(day, slot)).toISOString();
   const basket = await loadBasket(q);
-  const rows = (await q`SELECT c.*, r.collected_at, r.snapshot_at FROM quotes_clean c JOIN quotes_raw r ON r.id = c.raw_id
+  const routes = await snapshotRoutes(q);
+  const rows = (await q`SELECT c.*, r.collected_at, r.snapshot_at, r.parser_accepted FROM quotes_clean c JOIN quotes_raw r ON r.id = c.raw_id
     WHERE UPPER(c.fare_class) = 'ECONOMY' AND COALESCE(c.trip_type, 'one_way') = 'one_way' AND c.collected_on = ${day}`) as SnapshotQuote[];
   const previous = (await q`SELECT * FROM quote_snapshots WHERE collected_on >= ${addDays(day, -7)} AND snapshot_at < ${at}`) as (SnapshotCell & { collected_on: string })[];
   for (const row of previous) row.collected_on = isoDate(row.collected_on);
-  const cells = pickSnapshotCells(basket, rows, day, at, opts.includeSynthetic, previous, slot);
+  const cells = pickSnapshotCells(routes, rows, day, at, opts.includeSynthetic, previous, slot, new Set(basket.map((r) => `${r.origin}|${r.destination}`)));
   await q`
     INSERT INTO quote_snapshots (snapshot_at, snapshot_slot, origin, destination, lead_time_bin, carrier, source, source_rank,
       fare_class, trip_type, total_fare, collected_on, quote_id, is_imputed, impute_method, is_synthetic)

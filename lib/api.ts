@@ -95,6 +95,11 @@ export type CollectionSummary = {
   scrape_enabled: boolean;
   progress: Record<string, number>;
   job: { id: string; status: string; error?: string | null } | null;
+  tinyfish_enabled: boolean; tinyfish_disabled: boolean; budget_notes: string | null;
+  sessions_opened: number; sessions_deleted: number; session_attempts: number;
+  agent_runs: number; max_sessions: number; max_agent_runs: number;
+  airlines: Record<string, { path?: string; session_id?: string; session_deleted?: boolean; quotes_parsed?: number;
+    blocked_reason?: string; error?: string; agent_id?: string }>;
 };
 
 export type AdapterHealth = {

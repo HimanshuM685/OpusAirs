@@ -37,7 +37,7 @@ export class PoliteHttp {
   constructor(options: Options = {}) {
     const [min, max] = (process.env.COLLECT_JITTER_MS || "3000-8000").split("-").map(Number);
     this.opts = {
-      fetch: options.fetch ?? fetch,
+      fetch: options.fetch ?? ((input, init) => fetch(input, init)),
       now: options.now ?? Date.now,
       sleep: options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
       random: options.random ?? Math.random,

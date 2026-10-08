@@ -27,6 +27,7 @@ export type QuoteIn = {
   source_rank?: number;
   notes?: string;
   snapshot_at?: string | null;
+  parser_accepted?: boolean;
 };
 
 export type TripType = "one_way" | "round_trip";
@@ -54,6 +55,8 @@ const CARRIER_CODES: Record<string, string> = {
 
 export function sourceRank(source?: string | null): number {
   const s = (source || "").toLowerCase();
+  if (s.startsWith("tinyfish:")) return 25;
+  if (s.startsWith("agent:")) return 28;
   if (s.includes("indigo") && !s.includes("express")) return 10;
   if (s === "airindia" || s === "ai") return 12;
   if (s.includes("express") || s === "ix" || s.includes("aiexpress")) return 14;
@@ -61,7 +64,7 @@ export function sourceRank(source?: string | null): number {
   if (s.includes("spice") || s === "sg") return 18;
   if (s.includes("easemytrip") || s.includes("cleartrip")) return 30;
   if (s === "manual" || s === "csv" || s === "file_drop") return 40;
-  if (s === "synthetic" || s === "synthetic_demo") return 100;
+  if (s === "synthetic" || s === "synthetic_demo") return 90;
   return 90;
 }
 
@@ -120,6 +123,7 @@ export function toEvent(q: QuoteIn): CollectionEvent {
     trip_type,
     return_date: q.return_date ? isoDate(q.return_date) : null,
     source_rank: q.source_rank ?? sourceRank(q.source),
+    parser_accepted: q.parser_accepted ?? !q.source?.startsWith("agent:"),
   };
 }
 
@@ -152,13 +156,13 @@ export async function upsertEvents(
         INSERT INTO quotes_raw (
           run_id, source, origin, destination, carrier, flight_no, dep_date, fare_class,
           lead_time_days, collected_on, collected_at, status, base_fare, taxes, udf, convenience, total_fare, currency,
-          trip_type, return_date, source_rank, notes, snapshot_at
+          trip_type, return_date, source_rank, notes, snapshot_at, parser_accepted
         ) VALUES (
           ${runId}, ${ev.source}, ${ev.origin}, ${ev.destination}, ${ev.carrier}, ${ev.flight_no},
           ${isoDate(ev.dep_date)}, ${ev.fare_class}, ${ev.lead_time_days}, ${isoDate(ev.collected_on)}, ${ev.collected_at},
           ${ev.status}, ${ev.base_fare ?? null}, ${ev.taxes ?? null}, ${ev.udf ?? null},
           ${ev.convenience ?? null}, ${ev.total_fare ?? null}, 'INR',
-          ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}, ${ev.notes || ""}, ${ev.snapshot_at ?? null}
+          ${ev.trip_type}, ${ev.return_date ?? null}, ${ev.source_rank ?? sourceRank(ev.source)}, ${ev.notes || ""}, ${ev.snapshot_at ?? null}, ${ev.parser_accepted ?? true}
         )
       `;
       counts.inserted += 1;
@@ -175,7 +179,8 @@ export async function upsertEvents(
           run_id = ${runId},
           trip_type = ${ev.trip_type},
           return_date = ${ev.return_date ?? null},
-          source_rank = ${ev.source_rank ?? sourceRank(ev.source)}, notes = ${ev.notes || ""}, snapshot_at = ${ev.snapshot_at ?? null}
+          source_rank = ${ev.source_rank ?? sourceRank(ev.source)}, notes = ${ev.notes || ""}, snapshot_at = ${ev.snapshot_at ?? null},
+          parser_accepted = ${ev.parser_accepted ?? true}
         WHERE id = ${existing[0].id}
       `;
       counts.updated += 1;

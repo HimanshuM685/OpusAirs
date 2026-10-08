@@ -186,8 +186,8 @@ Admin cookie required. Returns slot coverage, quality, blocked sources, job prog
   "last_snapshot_at": "2026-10-05T00:30:00.000Z",
   "snapshot_slot": "0600",
   "coverage": 0.7,
-  "cell_coverage": 0.8,
-  "imputed_share": 0.2,
+  "cell_coverage": 0.7,
+  "imputed_share": 0.3,
   "quality": "partial",
   "vintage": "final",
   "blocked_sources": [],
@@ -206,11 +206,20 @@ Admin cookie. Adapter registry with configured enabled state, effective environm
 #### `POST /v1/collect/sources`
 Admin cookie. Body `{ "id": "file_drop", "enabled": true }` persists the adapter control. Policy-skipped hosts cannot be enabled.
 
+#### `POST /v1/collect/discover`
+Admin. Enqueues a weekly-style local schedule discovery job and returns **202 `{job_id}`**.
+Reads `data/drops/schedule.csv`; Browser discovery stays off unless explicitly enabled.
+Catalog routes never change national basket weights automatically.
+
+Collection health additionally exposes `sessions_opened`, `sessions_deleted`, `session_attempts`,
+`agent_runs`, caps, Tinyfish disable reason, and per-airline HTTP/browser/agent/skipped path.
+Default pricing schedule is 06:00 IST only; set `SNAPSHOT_HOURS=6,18` to enable 18:00.
+
 #### `POST /v1/ingest/dump`
 Admin cookie. Body `{ "text": "...", "rebuild_index": true }`. Accepts JSON, CSV, or prose (prose needs `GEMINI_API_KEY`).
 
 #### `GET /v1/ingest/needed`
-Admin cookie. Basket × ECONOMY/one_way × T+1/7/15/21/30/45 × 0600/1800 IST gaps (empty or older than seven days), plus copy-paste CSV lines. Synthetic/imputed snapshots do not satisfy an observed gap.
+Admin cookie. Basket × ECONOMY/one_way × T+1/7/15/21/30/45 × configured snapshot slots (0600 by default) gaps (empty or older than seven days), plus copy-paste CSV lines. Synthetic/imputed snapshots do not satisfy an observed gap.
 
 #### `POST /v1/ingest/quotes`
 Ingests an array of raw quote objects.

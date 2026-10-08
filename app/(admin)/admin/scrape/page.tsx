@@ -53,7 +53,7 @@ export default function ScrapePage() {
     <>
       <h1>Basket collection</h1>
       <p className="sub" style={{ maxWidth: 720 }}>
-        One economy, one-way fare per basket route and lead-time bin, at 06:00 and 18:00 IST.
+        One economy, one-way fare per basket route and lead-time bin, at 06:00 IST (18:00 only when configured).
         Disallowed searches and challenges close that host for the slot. Fill gaps through <a href="/admin/ingest">operator ingest</a>.
       </p>
       {err && <p className="err" role="alert">{err}</p>}
@@ -75,16 +75,32 @@ export default function ScrapePage() {
         {health?.job && <p className="sub" style={{ marginTop: 16 }}>Job {health.job.id}: {health.job.status}{health.job.error ? ` — ${health.job.error}` : ""}</p>}
       </section>
 
+      <section className="panel" aria-labelledby="transport-heading" style={{ overflowX: "auto" }}>
+        <h2 id="transport-heading">Airline transport budget</h2>
+        <p className="sub">Tinyfish {health?.tinyfish_enabled ? "enabled" : "off"}{health?.tinyfish_disabled ? " — disabled for this run" : ""}.
+          Sessions {health?.sessions_opened || 0}/{health?.max_sessions ?? 5}; deleted {health?.sessions_deleted || 0}.
+          Agent runs {health?.agent_runs || 0}/{health?.max_agent_runs ?? 5}.</p>
+        {health?.budget_notes && <p className="err" role="status">{health.budget_notes}</p>}
+        <table>
+          <thead><tr><th scope="col">Airline</th><th scope="col">Path used</th><th scope="col">Session</th><th scope="col">Quotes parsed</th><th scope="col">Block / error</th></tr></thead>
+          <tbody>{Object.entries(health?.airlines || {}).map(([id, a]) => <tr key={id}>
+            <td>{id}</td><td><span className={`badge ${a.path === "skipped" ? "badge-err" : "badge-ok"}`}>{a.path || "skipped"}</span></td>
+            <td>{a.session_id || "—"}{a.session_id && <small> ({a.session_deleted ? "deleted" : "open / cleanup pending"})</small>}</td>
+            <td>{a.quotes_parsed || 0}</td><td>{a.blocked_reason || a.error || "—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </section>
+
       <section className="panel" aria-labelledby="coverage-heading">
         <h2 id="coverage-heading">Last snapshot</h2>
         <p className="sub">{health?.last_snapshot_at ? new Date(health.last_snapshot_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "No snapshot yet"} ({health?.snapshot_slot || "—"})</p>
         <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 20, margin: "20px 0" }}>
-          <div><dt>Observed route coverage</dt><dd style={{ fontSize: 28, fontWeight: 600 }}>{((health?.coverage || 0) * 100).toFixed(1)}%</dd></div>
+          <div><dt>Weighted observed cells</dt><dd style={{ fontSize: 28, fontWeight: 600 }}>{((health?.coverage || 0) * 100).toFixed(1)}%</dd></div>
           <div><dt>Observed cells</dt><dd>{health?.observed_cells || 0} / {health?.cells || 0}</dd></div>
           <div><dt>Vintage / quality</dt><dd>{health?.vintage || "provisional"} / {health?.quality || "low"}</dd></div>
           <div><dt>Unpriced gaps</dt><dd>{health?.unavailable_cells || 0}</dd></div>
         </dl>
-        <p className="sub">Target: 80% observed routes. Below 60% stays provisional with low quality. Imputed and synthetic fares do not count as observations.</p>
+        <p className="sub">Target: 80% weighted basket cells observed. Below 60% stays provisional with low quality. Imputed and synthetic fares do not count as observations.</p>
         <p className="sub">Blocked sources: {health?.blocked_sources.join(", ") || "none recorded"}</p>
         <a href="/admin/ingest">Complete missing cells with CSV / JSON</a>
       </section>

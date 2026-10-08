@@ -87,6 +87,8 @@ export type RawQuote = {
   total_fare: number | null;
   trip_type?: string | null;
   return_date?: string | null;
+  source_rank?: number;
+  parser_accepted?: boolean;
 };
 
 export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Promise<number> {
@@ -95,7 +97,7 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
   const grouped = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
   const flights = new Map<string, { raw: RawQuote; parts: NonNullable<ReturnType<typeof splitFareComponents>> }[]>();
   for (const row of raw) {
-    if (row.status !== "ok") continue;
+    if (row.status !== "ok" || row.parser_accepted === false) continue;
     const parts = splitFareComponents(row);
     if (!parts) continue;
     const flightKey = [
@@ -116,6 +118,7 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
     const best = pickBest(
       group.map((item) => ({
         ...item,
+        source_rank: item.raw.source_rank,
         flight_no: item.raw.flight_no,
         base_fare: item.parts.base_fare,
         taxes: item.parts.taxes,
@@ -125,7 +128,8 @@ export async function cleanQuotes(q: ReturnType<typeof import("./db").sql>): Pro
         return_date: item.raw.return_date,
       })),
     );
-    const key = `${best.raw.origin}|${best.raw.destination}|${best.raw.lead_time_days}`;
+    const key = [best.raw.origin, best.raw.destination, best.raw.lead_time_days,
+      best.raw.fare_class.toUpperCase(), best.raw.trip_type || "one_way", isoDate(best.raw.collected_on)].join("|");
     const list = grouped.get(key) ?? [];
     list.push(best);
     grouped.set(key, list);

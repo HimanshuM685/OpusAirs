@@ -8,6 +8,7 @@ import {
   createUser,
   findUserByEmail,
   getUser,
+  isAdminEmail,
   isAuthResponse,
   loginAdmin,
   makeAdminCookie,
@@ -441,6 +442,13 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     return json({ scrape_enabled: process.env.SCRAPE_ENABLED === "true", sources });
   }
 
+  if (req.method === "POST" && path === "collect/discover") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    const id = await enqueue(q, "discover", { day: istDate() });
+    return json({ job_id: id }, 202);
+  }
+
   if (req.method === "POST" && path === "collect/sources") {
     const admin = await requireAdmin(req);
     if (isAuthResponse(admin)) return admin;
@@ -594,9 +602,16 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   }
 
   if (req.method === "GET" && path === "admin/check") {
-    const admin = await requireAdmin(req);
-    if (isAuthResponse(admin)) return json({ authenticated: false });
-    return json({ authenticated: true, email: admin.email });
+    const user = await getUser(req);
+    if (!user) return json({ authenticated: false, isAdmin: false });
+    const isAdmin = isAdminEmail(user.email) || user.role === "admin";
+    return json({
+      authenticated: true,
+      isAdmin,
+      email: user.email,
+      name: user.name,
+      detail: isAdmin ? undefined : `Account ${user.email} is not in the ADMIN_EMAILS whitelist.`,
+    });
   }
 
   if (req.method === "GET" && path === "health") {

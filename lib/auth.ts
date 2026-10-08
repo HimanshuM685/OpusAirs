@@ -1,14 +1,21 @@
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { sql } from "./db";
+import { auth } from "./auth/server";
 
 export const COOKIE_NAME = "opus_session";
 export const ADMIN_COOKIE = "opus_admin";
 
-export type AuthUser = { id: number; email: string; role: string };
+export type AuthUser = {
+  id: number | string;
+  email: string;
+  role: string;
+  name?: string | null;
+  image?: string | null;
+};
 
 function sessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is required to sign session cookies");
+  const secret = process.env.SESSION_SECRET || process.env.NEON_AUTH_COOKIE_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET or NEON_AUTH_COOKIE_SECRET is required to sign session cookies");
   return secret;
 }
 
@@ -27,26 +34,25 @@ export function verifyPassword(password: string, stored: string): boolean {
   return timingSafeEqual(hash, expected);
 }
 
-function sign(id: number): string {
+function sign(id: number | string): string {
   return createHmac("sha256", sessionSecret()).update(String(id)).digest("hex");
 }
 
-export function makeSessionCookie(userId: number): string {
+export function makeSessionCookie(userId: number | string): string {
   return `${COOKIE_NAME}=${userId}.${sign(userId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
 }
 
 export function makeLogoutCookie(): string {
-  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; ${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-export function parseSession(req: Request): number | null {
+export function parseSession(req: Request): number | string | null {
   const cookie = req.headers.get("cookie") || "";
   const match = cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
   if (!match) return null;
   const [idStr, sig] = decodeURIComponent(match[1]).split(".");
-  const id = Number(idStr);
-  if (!id || !sig || sign(id) !== sig) return null;
-  return id;
+  if (!idStr || !sig || sign(idStr) !== sig) return null;
+  return idStr;
 }
 
 export async function findUserByEmail(email: string): Promise<(AuthUser & { password_hash: string }) | null> {
@@ -75,28 +81,23 @@ export async function createUser(email: string, password: string, role = "user")
   return { id: Number(row.id), email: String(row.email), role: String(row.role) };
 }
 
-export async function getUser(req: Request): Promise<AuthUser | null> {
-  const id = parseSession(req);
-  if (!id) return null;
-  const q = sql();
-  const rows = (await q`SELECT id, email, role FROM users WHERE id = ${id} LIMIT 1`) as {
-    id: number;
-    email: string;
-    role: string;
-  }[];
-  const row = rows[0];
-  if (!row) return null;
-  return { id: Number(row.id), email: String(row.email), role: String(row.role) };
+export function getAdminEmails(): string[] {
+  const raw = process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "";
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-export async function requireUser(req: Request): Promise<AuthUser | Response> {
-  const user = await getUser(req);
-  if (!user) return Response.json({ detail: "Sign in required" }, { status: 401 });
-  return user;
+export function isAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const list = getAdminEmails();
+  return list.includes(email.trim().toLowerCase());
 }
 
 export function adminSeedEmail(): string {
-  return (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const list = getAdminEmails();
+  return list[0] || (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 }
 
 export function adminSeedPassword(): string {
@@ -104,13 +105,106 @@ export function adminSeedPassword(): string {
 }
 
 export function adminConfigured(): boolean {
-  return Boolean(adminSeedEmail() && adminSeedPassword());
+  return getAdminEmails().length > 0;
 }
 
-function sameSecret(given: string, expected: string): boolean {
-  const left = createHash("sha256").update(given).digest();
-  const right = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(left, right);
+export async function getUser(req: Request): Promise<AuthUser | null> {
+  // 1. Check Neon Auth managed Better Auth session via server helper
+  try {
+    const sessionRes = await auth.getSession().catch(() => null);
+    if (sessionRes?.data?.user) {
+      const u = sessionRes.data.user;
+      const email = u.email?.trim().toLowerCase() || "";
+      const isAdmin = isAdminEmail(email);
+      return {
+        id: u.id,
+        email,
+        name: u.name || null,
+        image: u.image || null,
+        role: isAdmin ? "admin" : (u.role || "user"),
+      };
+    }
+  } catch {
+    // Continue to database / cookie check
+  }
+
+  // 2. Direct lookup in neon_auth database schema using session cookie
+  const cookieHeader = req.headers.get("cookie") || "";
+  const neonMatch = cookieHeader.match(/(?:better-auth\.session_token|neon-auth\.session-token)=([^;]+)/);
+  if (neonMatch) {
+    try {
+      const rawToken = decodeURIComponent(neonMatch[1]).trim();
+      const token = rawToken.split(".")[0];
+      const q = sql();
+      const rows = (await q`
+        SELECT u.id, u.email, u.name, u.image, u.role
+        FROM neon_auth.session s
+        JOIN neon_auth.user u ON s."userId" = u.id
+        WHERE (s.token = ${token} OR s.token = ${rawToken})
+          AND s."expiresAt" > NOW()
+        LIMIT 1
+      `) as { id: string; email: string; name: string | null; image: string | null; role: string | null }[];
+
+      if (rows.length > 0) {
+        const u = rows[0];
+        const email = u.email.trim().toLowerCase();
+        const isAdmin = isAdminEmail(email);
+        return {
+          id: u.id,
+          email,
+          name: u.name,
+          image: u.image,
+          role: isAdmin ? "admin" : (u.role || "user"),
+        };
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // 3. Check legacy admin session cookie
+  const adminEmail = parseAdminSession(req);
+  if (adminEmail && isAdminEmail(adminEmail)) {
+    return {
+      id: "admin-session",
+      email: adminEmail,
+      name: "Operator",
+      role: "admin",
+    };
+  }
+
+  // 4. Check legacy signed session cookie (users table)
+  const legacyId = parseSession(req);
+  if (legacyId) {
+    const q = sql();
+    try {
+      const rows = (await q`SELECT id, email, role FROM users WHERE id = ${Number(legacyId)} LIMIT 1`) as {
+        id: number;
+        email: string;
+        role: string;
+      }[];
+      const row = rows[0];
+      if (row) {
+        const email = String(row.email).trim().toLowerCase();
+        const isAdmin = isAdminEmail(email);
+        return {
+          id: Number(row.id),
+          email,
+          role: isAdmin ? "admin" : String(row.role),
+        };
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  return null;
+}
+
+export async function requireUser(req: Request): Promise<AuthUser | Response> {
+  const user = await getUser(req);
+  if (!user) return Response.json({ detail: "Sign in required" }, { status: 401 });
+  return user;
 }
 
 function signAdmin(email: string): string {
@@ -124,39 +218,50 @@ export function makeAdminCookie(): string {
 }
 
 export function makeAdminLogoutCookie(): string {
-  return `${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${ADMIN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; ${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
 export function parseAdminSession(req: Request): string | null {
-  if (!adminConfigured()) return null;
   const cookie = req.headers.get("cookie") || "";
   const match = cookie.match(new RegExp(`(?:^|; )${ADMIN_COOKIE}=([^;]*)`));
   if (!match) return null;
   const raw = decodeURIComponent(match[1]);
   const dot = raw.lastIndexOf(".");
   if (dot < 1) return null;
-  const email = raw.slice(0, dot);
+  const email = raw.slice(0, dot).trim().toLowerCase();
   const sig = raw.slice(dot + 1);
-  const expected = adminSeedEmail();
-  if (email !== expected || sig.length !== signAdmin(email).length) return null;
+  if (!isAdminEmail(email)) return null;
+  const expectedSig = signAdmin(email);
+  if (sig.length !== expectedSig.length) return null;
   const left = Buffer.from(sig);
-  const right = Buffer.from(signAdmin(email));
+  const right = Buffer.from(expectedSig);
   if (!timingSafeEqual(left, right)) return null;
   return email;
 }
 
 export function loginAdmin(emailRaw: string, password: string): boolean {
-  const email = adminSeedEmail();
+  const email = emailRaw.trim().toLowerCase();
+  if (!isAdminEmail(email)) return false;
   const expected = adminSeedPassword();
-  if (!email || !expected) return false;
-  if (emailRaw.trim().toLowerCase() !== email) return false;
-  return sameSecret(password, expected);
+  if (!expected) return false;
+  return timingSafeEqual(
+    createHash("sha256").update(password).digest(),
+    createHash("sha256").update(expected).digest(),
+  );
 }
 
 export async function requireAdmin(req: Request): Promise<AuthUser | Response> {
-  const email = parseAdminSession(req);
-  if (!email) return Response.json({ detail: "Admin required" }, { status: 401 });
-  return { id: 0, email, role: "admin" };
+  const user = await getUser(req);
+  if (!user) {
+    return Response.json({ detail: "Sign in required" }, { status: 401 });
+  }
+  if (!isAdminEmail(user.email) && user.role !== "admin") {
+    return Response.json(
+      { detail: `Admin access required. Email (${user.email}) is not in ADMIN_EMAILS.` },
+      { status: 403 },
+    );
+  }
+  return { ...user, role: "admin" };
 }
 
 export function isAuthResponse(value: AuthUser | Response): value is Response {

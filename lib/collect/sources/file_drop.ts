@@ -14,7 +14,7 @@ export function fileDrop(day: string): SourceAdapter {
       throw err;
     }
     const rows: QuoteIn[] = [];
-    for (const file of files.sort().filter((f) => f.toLowerCase().endsWith(".csv"))) {
+    for (const file of files.sort().filter((f) => f.toLowerCase().endsWith(".csv") && f.toLowerCase() !== "schedule.csv")) {
       const path = join(dir, file);
       const stamp = (await stat(path)).mtime.toISOString();
       rows.push(...parseCsvQuotes(await readFile(path, "utf8")).map((q) => ({ ...q, collected_at: q.collected_at || stamp })));

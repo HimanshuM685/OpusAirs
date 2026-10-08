@@ -66,6 +66,7 @@ export type FarePick = {
   convenience: number | null;
   total_fare: number;
   return_date?: string | null;
+  source_rank?: number;
 };
 
 export function completeness(row: FarePick): number {
@@ -81,6 +82,8 @@ export function completeness(row: FarePick): number {
 
 export function pickBest<T extends FarePick>(rows: T[]): T {
   return [...rows].sort((a, b) => {
+    const rank = (a.source_rank ?? 90) - (b.source_rank ?? 90);
+    if (rank) return rank;
     const score = completeness(b) - completeness(a);
     if (score) return score;
     return a.total_fare - b.total_fare;

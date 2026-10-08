@@ -232,3 +232,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_pipeline_jobs_dedupe ON pipeline_jobs (dedu
 ALTER TABLE collect_lock ADD COLUMN IF NOT EXISTS owner TEXT;
 ALTER TABLE index_values ADD COLUMN IF NOT EXISTS quality VARCHAR(16) NOT NULL DEFAULT 'good';
 ALTER TABLE scrape_sources ALTER COLUMN enabled SET DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS route_catalog (
+  origin text NOT NULL,
+  destination text NOT NULL,
+  carrier text NOT NULL,
+  flight_no text NOT NULL DEFAULT '', -- unknown flight numbers use ''; PK columns cannot be NULL
+  dow_mask int NOT NULL DEFAULT 127, -- Mon=1 .. Sun=64
+  active boolean NOT NULL DEFAULT true,
+  source text NOT NULL,
+  refreshed_on date NOT NULL,
+  PRIMARY KEY (origin, destination, carrier, flight_no)
+);
+CREATE TABLE IF NOT EXISTS collect_budget (
+  run_id uuid PRIMARY KEY,
+  sessions_opened int NOT NULL DEFAULT 0,
+  sessions_deleted int NOT NULL DEFAULT 0,
+  agent_runs int NOT NULL DEFAULT 0,
+  tinyfish_disabled boolean NOT NULL DEFAULT false,
+  notes text
+);
+ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS session_attempts int NOT NULL DEFAULT 0;
+ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS airlines jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE collect_budget ADD COLUMN IF NOT EXISTS started_at timestamptz NOT NULL DEFAULT NOW();
+ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS vintage_note text;
+ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS parser_accepted boolean NOT NULL DEFAULT true;
+ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS work_order int NOT NULL DEFAULT 0;
