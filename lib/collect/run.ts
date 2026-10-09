@@ -174,9 +174,7 @@ async function executePipeline(opts: PipelineOpts, q: ReturnType<typeof sql>, se
           status_counts: counts(), last_message: result.notes || "" }, result.status, quotes.length);
     };
     const offline = adapters.filter((a) => !a.carrier && !a.host);
-    await reporter.event({ event: "offline_sources", message: "Reading operator observations and local CSV files" }, { stage: "offline_sources", transport: "offline" });
-    await drainAdapters<CollectJob>(offline, (a) => signal.aborted ? Promise.resolve(null) : claimNext(q, snapshotAt, a.id), cellOf, checkpoint, closed);
-    // v1: airlines strictly sequential; a session is released before the next airline begins.
+    // Airlines first, strictly sequential; a session is released before the next airline begins.
     for (const adapter of adapters.filter((a) => !offline.includes(a))) {
       if (signal.aborted) break;
       const jobs = await pendingJobs(q, snapshotAt, adapter.id);
@@ -221,6 +219,9 @@ async function executePipeline(opts: PipelineOpts, q: ReturnType<typeof sql>, se
           quotes: [], notes: reason || failure || 'no_parseable_quote' }, adapter);
       }
     }
+    // Offline sources only read operator imports; run them after airlines so Tinyfish starts immediately.
+    await reporter.event({ event: "offline_sources", message: "Reading operator observations and local CSV files" }, { stage: "offline_sources", transport: "offline" });
+    await drainAdapters<CollectJob>(offline, (a) => signal.aborted ? Promise.resolve(null) : claimNext(q, snapshotAt, a.id), cellOf, checkpoint, closed);
     if (signal.aborted) { await reporter.flush(true); throw new Error(shutdown?.aborted ? "Collection interrupted; saved observations retained" : "Collection runtime limit reached"); }
     await reporter.event({ event: "job_finalizing", message: "Cleaning observations and rebuilding index" }, { stage: "finalizing", source: "", current_cell: "", completed: completed(), total: totalWork, status_counts: counts() });
     const cleaned = await cleanQuotes(q);
