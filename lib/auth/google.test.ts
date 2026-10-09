@@ -11,3 +11,12 @@ it("preserves Google consent and OAuth parameters while removing account hints",
   for (const target of ["http://accounts.google.com/auth", "https://accounts.google.com.evil.test/auth", "javascript:alert(1)", "https://user:secret@accounts.google.com/auth"])
     assert.throws(() => googleAccountChooser(target));
 });
+
+it("passes through the Neon Auth init hop only on the configured auth host", () => {
+  const base = "https://ep-x.neonauth.example.aws.neon.tech/neondb/auth";
+  const init = `${base}/sign-in/social/init?token=abc`;
+  assert.equal(googleAccountChooser(init, base), init);
+  for (const target of ["https://evil.test/neondb/auth/sign-in/social/init", "https://ep-x.neonauth.example.aws.neon.tech/other/init", "http://ep-x.neonauth.example.aws.neon.tech/neondb/auth/x"])
+    assert.throws(() => googleAccountChooser(target, base));
+  assert.throws(() => googleAccountChooser(init));
+});

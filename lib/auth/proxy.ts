@@ -6,7 +6,7 @@ import { NEON_AUTH_SESSION_DATA_COOKIE_NAME } from "@neondatabase/auth/server";
 
 type Forward = (request: Request, path: string[]) => Promise<Response>;
 
-export async function authProxy(request: Request, path: string[], forward: Forward, secret: string): Promise<Response> {
+export async function authProxy(request: Request, path: string[], forward: Forward, secret: string, authBase?: string): Promise<Response> {
   const endpoint = path.join("/");
   let google = false;
   let next = "/dashboard";
@@ -27,7 +27,7 @@ export async function authProxy(request: Request, path: string[], forward: Forwa
   if (google && response.ok) {
     const body = await response.clone().json().catch(() => null);
     if (typeof body?.url === "string") {
-      try { body.url = googleAccountChooser(body.url); }
+      try { body.url = googleAccountChooser(body.url, authBase); }
       catch { return Response.json({ message: "Google sign-in returned an unexpected authorization URL" }, { status: 502 }); }
       const headers = new Headers(response.headers); headers.delete("content-length"); headers.delete("content-encoding");
       response = Response.json(body, { status: response.status, headers });
