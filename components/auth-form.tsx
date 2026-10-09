@@ -6,7 +6,6 @@ import { authClient, googleCallback } from "@/lib/auth/client";
 import { loginPath } from "@/lib/auth/navigation";
 import { api, clearApiCache } from "@/lib/api";
 import { GoogleIcon } from "./google-icon";
-import { googleAccountChooser } from "@/lib/auth/google";
 
 type Stage = "ready" | "google" | "email" | "verifying" | "redirecting" | "verification-sent" | "signing-out";
 const errors: Record<string, string> = {
@@ -58,7 +57,8 @@ export function AuthForm({ register = false, admin = false, next = "/dashboard",
        if (!result.data?.url) throw new Error("Google sign-in did not return a destination. Please try again.");
        if (signal.aborted) return;
        setStage("redirecting");
-       window.location.assign(googleAccountChooser(result.data.url));
+       // /api/auth proxy already validated this URL against Google and the Neon Auth host.
+       window.location.assign(result.data.url);
     });
   }
 
