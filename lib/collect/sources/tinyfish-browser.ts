@@ -3,8 +3,9 @@ import type { CollectBudget } from "../budget";
 import { tinyfishEnabled } from "../budget";
 import { botUserAgent, CHALLENGE } from "../http";
 import { robotsVerdict, type RobotsVerdict } from "../robots";
-import { abortable, BROWSER_API, indiaProxy, pause, TinyfishApi } from "../tinyfish";
+import { abortable, BROWSER_API, indiaProxy, pause, TinyfishApi, tinyfishError } from "../tinyfish";
 import type { CollectCell, CollectResult, SourceAdapter } from "../types";
+import { collectionRuntime } from "../runtime";
 
 export type BrowserDeps = {
   api?: TinyfishApi;
@@ -33,19 +34,23 @@ export async function collectBrowser(adapter: SourceAdapter, cells: CollectCell[
   if (runSignal.aborted || !await budget.reserve(adapter.id, "browser")) return;
   let id: string | undefined; let browser: Browser | undefined;
   let visits = 0; let parsed = 0; let parserFailures = 0; let complete = false; let blocked: string | undefined;
+  const tinyfishFirst = collectionRuntime()?.transport_mode === "tinyfish";
+  const probeLimit = tinyfishFirst ? Math.min(2, cells.length) : cells.length;
   const seconds = Math.max(5, Math.min(900, Number(process.env.TINYFISH_SESSION_TIMEOUT_S) || 900));
   const controller = new AbortController();
   const signal = AbortSignal.any([runSignal, controller.signal]);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const openedAt = Date.now();
+    await budget.airline(adapter.id, { path: "browser", phase: "tinyfish_browser_create" });
     // Start blank: Tinyfish startup navigation otherwise precedes CDP bot-UA/robots guards.
     const res = await api.request(BROWSER_API, "POST", { timeout_seconds: seconds, proxy_config: indiaProxy }, runSignal);
-    if (!res.ok) { await budget.airline(adapter.id, { error: `tinyfish_http_${res.status}`, path: "skipped" }); return; }
+    if (!res.ok) { await budget.airline(adapter.id, { error: await tinyfishError(res), path: "skipped" }); return; }
     const created = await res.json() as { session_id?: string; cdp_url?: string };
     id = created.session_id;
     if (!id) { await budget.disableTinyfish("session_create_unconfirmed"); return; }
     await budget.opened(adapter.id, id);
+    await budget.airline(adapter.id, { path: "browser", phase: "tinyfish_browser_connected" });
     if (!created.cdp_url?.startsWith("wss://")) throw new Error("invalid_cdp_url");
     timer = setTimeout(() => controller.abort(), Math.max(0, seconds * 1000 - (Date.now() - openedAt)));
     browser = await abortable((deps.connect || (async (url) => {
@@ -70,6 +75,7 @@ export async function collectBrowser(adapter: SourceAdapter, cells: CollectCell[
     await context.route("**/*", guard);
     for (const cell of cells) {
       if (signal.aborted || blocked || budget.state.tinyfish_disabled) break;
+      await budget.airline(adapter.id, { path: "browser", phase: "tinyfish_browser_visit", current_cell: `${cell.origin}-${cell.destination} T+${cell.leadTimeDays}` });
       if (visits) await sleep(2000 + (deps.random || Math.random)() * 2000, signal);
       const url = adapter.searchUrl(cell);
       const verdict = await gate(url);
@@ -78,6 +84,7 @@ export async function collectBrowser(adapter: SourceAdapter, cells: CollectCell[
       try {
         const response = await abortable(page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 }), signal);
         status = response?.status() || 0;
+        await abortable(page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {}), signal);
         html = await abortable(page.content(), signal);
       } catch {
         if (blocked || signal.aborted) break;
@@ -95,8 +102,10 @@ export async function collectBrowser(adapter: SourceAdapter, cells: CollectCell[
       await budget.airline(adapter.id, { browser_visits: visits, quotes_parsed: parsed });
       await save(cell, { ...result, source: `tinyfish:${adapter.id}`, sourceRank: 25,
         quotes: result.quotes.map((q) => ({ ...q, source: `tinyfish:${adapter.id}`, source_rank: 25, parser_accepted: true })) });
+      if (parsed === 0 && parserFailures === visits && visits >= probeLimit) break;
     }
-    complete = !signal.aborted && !blocked && !budget.state.tinyfish_disabled && visits === cells.length && parserFailures === visits;
+    complete = !signal.aborted && !blocked && !budget.state.tinyfish_disabled &&
+      ((visits === cells.length && (tinyfishFirst || parserFailures === visits)) || (parsed === 0 && parserFailures === visits && visits >= probeLimit));
   } catch (err) {
     await budget.airline(adapter.id, { error: signal.aborted ? "run_time_cap" : "browser_session_failed" });
     // Checkpoint failures must surface after cleanup, not silently lose earlier persistence errors.
@@ -105,7 +114,7 @@ export async function collectBrowser(adapter: SourceAdapter, cells: CollectCell[
     if (timer) clearTimeout(timer);
     if (id) await api.deleteSession(adapter.id, id);
     if (browser) await Promise.race([browser.close().catch(() => {}), new Promise<void>((r) => { const t = setTimeout(r, 5000); t.unref(); })]);
-    await budget.airline(adapter.id, { browser_visits: visits, quotes_parsed: parsed, browser_complete: complete,
+    await budget.airline(adapter.id, { browser_visits: visits, quotes_parsed: parsed, parser_misses: parserFailures, browser_complete: complete,
       ...(blocked ? { blocked_reason: blocked } : {}) });
   }
 }

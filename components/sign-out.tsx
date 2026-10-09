@@ -15,7 +15,7 @@ export function SignOut() {
       clearApiCache();
       try { sessionStorage.removeItem("opus-ingest-draft"); } catch { /* optional local draft */ }
       try { localStorage.setItem("opus-signout", String(Date.now())); } catch { /* storage may be disabled */ }
-      window.location.replace("/login");
+      window.location.replace("/login?choose=1");
     } catch (err) { setError(err instanceof Error ? err.message : "Sign out failed. Try again."); setBusy(false); }
   }
   return <div className="signout"><button type="button" disabled={busy} onClick={() => void signOut()}>{busy ? "Signing out…" : "Sign out"}</button>

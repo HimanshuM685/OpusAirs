@@ -3,10 +3,14 @@ import { it, type TestContext } from "node:test";
 import type { sql } from "../db";
 import { collectionSources } from "./registry";
 
-function fixtureQuery(blocked: string[] = []) {
-  return (async (strings: TemplateStringsArray) => strings.join("").includes("scrape_sources")
-    ? ["manual", "airindia", "airindia_express", "akasa", "spicejet", "indigo"].map((id) => ({ id, enabled: id !== "akasa" }))
-    : blocked.map((source) => ({ source }))) as unknown as ReturnType<typeof sql>;
+function fixtureQuery(blocked: string[] = [], mode = "tinyfish") {
+  return (async (strings: TemplateStringsArray) => {
+    const text = strings.join("");
+    if (text.includes("collection_settings")) return [{ transport_mode: mode, max_sessions: 5, max_agent_runs: 5, max_hours: 3 }];
+    return text.includes("scrape_sources")
+      ? ["manual", "airindia", "airindia_express", "akasa", "spicejet", "indigo"].map((id) => ({ id, enabled: id !== "akasa" }))
+      : blocked.map((source) => ({ source }));
+  }) as unknown as ReturnType<typeof sql>;
 }
 
 function scrape(t: TestContext, enabled: boolean) {
@@ -37,9 +41,9 @@ it("source listing preserves policy exclusions, disabled adapters, and persisted
   }
 });
 
-it("closing the live environment gate keeps manual ingestion available", async (t) => {
-  scrape(t, false);
-  const result = await collectionSources(fixtureQuery());
+it("database offline mode keeps manual ingestion available even with legacy live flags set", async (t) => {
+  scrape(t, true);
+  const result = await collectionSources(fixtureQuery([], "offline"));
   assert.equal(result.scrape_enabled, false);
   assert.equal(result.sources.find((source) => source.id === "airindia")?.robots.verdict, "disabled");
   assert.equal(result.sources.find((source) => source.id === "airindia")?.runnable, false);

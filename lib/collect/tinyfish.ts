@@ -1,10 +1,15 @@
 import { botUserAgent } from "./http";
 import { CollectBudget, tinyfishEnabled, type BudgetState } from "./budget";
 import type { sql as sqlFn } from "../db";
+import { safeLogMessage } from "./reporter";
 
 export const BROWSER_API = "https://api.browser.tinyfish.ai";
 export const AGENT_API = "https://agent.tinyfish.ai";
 export const indiaProxy = { type: "tinyfish", country_code: "IN", enabled: true };
+export async function tinyfishError(response: Response): Promise<string> {
+  const body = await response.clone().json().catch(() => null) as { error?: { code?: string; message?: string }; request_id?: string } | null;
+  return safeLogMessage(`Tinyfish HTTP ${response.status}${body?.error?.code ? ` ${body.error.code}` : ""}${body?.error?.message ? `: ${body.error.message}` : ""}${body?.request_id ? ` (request ${body.request_id})` : ""}`);
+}
 export const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal?.aborted) { reject(new Error("run_time_cap")); return; }
   const abort = () => { clearTimeout(timer); reject(new Error("run_time_cap")); };
@@ -72,7 +77,7 @@ export class TinyfishApi {
 export async function recoverOrphanedBudgets(q: ReturnType<typeof sqlFn>): Promise<void> {
   if (!process.env.TINYFISH_API_KEY) return;
   const rows = (await q`SELECT b.* FROM collect_budget b LEFT JOIN pipeline_jobs j ON j.id = b.run_id
-    WHERE (j.id IS NULL OR j.status IN ('ok', 'error') OR COALESCE(j.heartbeat_at, j.started_at) < NOW() - INTERVAL '5 minutes')
+    WHERE (j.id IS NULL OR j.status IN ('ok', 'error', 'cancelled') OR COALESCE(j.heartbeat_at, j.started_at) < NOW() - INTERVAL '5 minutes')
     AND (b.sessions_opened > b.sessions_deleted OR EXISTS (
       SELECT 1 FROM jsonb_each(b.airlines) a WHERE a.value->>'agent_id' IS NOT NULL
         AND NOT COALESCE((a.value->>'agent_terminal')::boolean, false)))`) as BudgetState[];

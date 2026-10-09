@@ -20,6 +20,11 @@ let browser;
 const results = [];
 const health = { ok: true, coverage: .85, quality: "partial", vintage: "provisional", last_snapshot_at: "2026-10-09T00:30:00Z",
   sources: [], blocked_sources: [], progress: {}, cells: 100, observed_cells: 85, unavailable_cells: 15, airlines: {}, job: null };
+const job = { id: "7f06a003-1a54-4697-aa78-70c6220dd945", type: "collect", status: "queued", payload: { transportMode: "tinyfish" },
+  progress: {}, error: null, cancel_requested: false, created_at: new Date().toISOString(), started_at: null, heartbeat_at: null, finished_at: null };
+const monitor = { server_time: new Date().toISOString(), settings: { transport_mode: "tinyfish", max_sessions: 5, max_agent_runs: 5, max_hours: 3 },
+  schedules: [], workers: [], job, jobs: [job], events: [], counts: {}, total: 0, completed: 0, quotes: 0, sources: [], budget: null,
+  adapters: [{ id: "airindia", kind: "html", host: "www.airindia.com", enabled: true, skipped_reason: null }] };
 const airports = ["DEL", "CCU", "BOM", "BLR", "MAA", "HYD", "AMD", "GOI", "PNQ", "COK"];
 const routes = airports.flatMap((origin) => airports.filter((dest) => dest !== origin).map((destination) =>
   ({ origin, destination, weight: .0125, raw_passengers: 120000, latest_index: 106 }))).slice(0, 80);
@@ -75,7 +80,7 @@ try {
     if (path.startsWith("/admin")) await page.getByRole("heading", { name: "Operator sign in" }).waitFor();
   }
   assert.equal(warehouseRequests, 0);
-  for (const path of ["index", "search", "routes", "health/collection", "jobs"]) {
+  for (const path of ["index", "search", "routes", "health/collection", "jobs", "collect/monitor", "collect/control"]) {
     const response = await anon.request.get(`${base}/v1/${path}`);
     assert.equal(response.status(), 401);
     assert.match(response.headers()["cache-control"], /private, no-store/);
@@ -149,36 +154,75 @@ try {
     await context.close();
   }
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" }); await signIn(context, true);
-  const admin = await context.newPage(); const requests = []; await warehouse(admin, requests);
-  await admin.route("**/v1/health/collection", (route) => {
-    requests.push("/v1/health/collection");
-    return route.fulfill({ json: { ...health, scrape_enabled: true, job: {
-      id: "7f06a003-1a54-4697-aa78-70c6220dd945", status: "queued", started_at: null, heartbeat_at: null,
-    } } });
+  const admin = await context.newPage(); const requests = []; const adminErrors = []; const mutations = [];
+  admin.on("pageerror", (error) => adminErrors.push(error.message)); await warehouse(admin, requests);
+  await admin.route("**/v1/collect/monitor**", async (route) => {
+    requests.push("/v1/collect/monitor");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    return route.fulfill({ json: monitor });
   });
-  await admin.route("**/v1/collect/sources", (route) => {
-    requests.push("/v1/collect/sources");
-    return route.fulfill({ json: { sources: [{ id: "airindia", kind: "html", host: "www.airindia.com", source_rank: 12,
-      enabled: true, runnable: true, robots: { verdict: "pending", notes: "The worker checks robots.txt before collecting fares.", checked_at: null } }] } });
+  await admin.route("**/v1/collect/control", (route) => {
+    const body = route.request().postDataJSON(); mutations.push(body);
+    if (body.action === "schedule") monitor.schedules.push({ id: "656bb876-715d-4c9c-8b6b-0571dda2a783", run_at: body.run_at, transport_mode: body.transport_mode, recurrence: body.recurrence, status: "scheduled" });
+    if (body.action === "cancel_schedule") monitor.schedules[0].status = "cancelled";
+    if (body.action === "cancel") job.cancel_requested = true;
+    return route.fulfill({ json: { ok: true } });
   });
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     await admin.setViewportSize(viewport);
     await admin.goto(base + "/admin/scrape");
-    await admin.getByRole("heading", { name: "Waiting for a collection worker" }).waitFor();
-    await admin.getByText("Worker checks robots first", { exact: true }).waitFor();
-    assert.equal(await admin.getByRole("button", { name: "Snapshot queued", exact: true }).isDisabled(), true);
+    await admin.getByRole("heading", { name: "Queued collection" }).waitFor();
+    await admin.getByText("No contributor online.", { exact: true }).waitFor();
+    assert.equal(await admin.getByRole("button", { name: "Collection already active", exact: true }).isDisabled(), true);
     assert.equal(await admin.getByText("Loading adapters…", { exact: true }).count(), 0);
     assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await admin.screenshot({ path: `${output}/experience-admin-${viewport.width}.png`, fullPage: true });
   }
+  // Polling must retain the same form/progress DOM and unsaved settings.
+  await admin.getByLabel("Maximum hours").fill("1.5");
+  await admin.evaluate(() => { window.__runPanel = document.querySelector(".run-progress"); });
+  const polled = admin.waitForResponse((response) => response.url().includes("/collect/monitor"));
+  await polled; await admin.waitForTimeout(250);
+  assert.equal(await admin.getByLabel("Maximum hours").inputValue(), "1.5");
+  assert.equal(await admin.evaluate(() => window.__runPanel === document.querySelector(".run-progress")), true);
+  assert.equal(await admin.getByText("Loading collection monitor…", { exact: true }).count(), 0);
+  const scheduleDate = "2027-01-10T06:00";
+  await admin.getByLabel("Start date and time · IST").fill(scheduleDate);
+  await admin.getByLabel(/^Repeat/).selectOption("daily");
+  await admin.getByRole("button", { name: "Schedule run", exact: true }).click();
+  await admin.getByRole("button", { name: "Cancel schedule", exact: true }).waitFor();
+  assert.equal(mutations.find((body) => body.action === "schedule").run_at, "2027-01-10T00:30:00.000Z");
+  assert.equal(mutations.find((body) => body.action === "schedule").recurrence, "daily");
+  await admin.getByRole("button", { name: "Cancel schedule", exact: true }).click();
+  await admin.getByRole("button", { name: "Cancel schedule", exact: true }).waitFor({ state: "detached" });
+  job.status = "running"; job.started_at = new Date().toISOString(); job.heartbeat_at = new Date(Date.now() - 60000).toISOString();
+  job.progress = { stage: "tinyfish_agent_poll", source: "airindia", transport: "agent", current_cell: "DEL-BOM T+21" };
+  monitor.total = 100; monitor.completed = 25; monitor.counts = { done: 5, missing: 10, blocked_robots: 10, pending: 75 }; monitor.quotes = 5;
+  monitor.events = [{ id: 1, created_at: new Date().toISOString(), source: "airindia", event: "transport_phase", message: "Tinyfish Agent is submitting the selected economy search." }];
+  await admin.getByRole("button", { name: "Refresh", exact: true }).click();
+  await admin.getByRole("heading", { name: "Running collection" }).waitFor();
+  await admin.getByText(/Worker heartbeat is stale/).waitFor();
+  await admin.getByText("Processed includes missing and blocked cells. It does not mean fares were found.").waitFor();
+  await admin.getByRole("button", { name: "Stop this run", exact: true }).click();
+  await admin.getByRole("button", { name: "Stop requested", exact: true }).waitFor();
+  assert.equal(mutations.filter((body) => body.action === "cancel").length, 1);
+  await admin.screenshot({ path: `${output}/experience-admin-running.png`, fullPage: true });
   // Visibility is deterministic here, without relying on headless tab throttling.
   await admin.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
-  const before = requests.length; await admin.waitForTimeout(16000); assert.equal(requests.length, before);
+  await admin.waitForTimeout(300);
+  const before = requests.length; await admin.waitForTimeout(3000); assert.equal(requests.length, before);
   await admin.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
   await admin.waitForTimeout(500); assert.ok(requests.length > before);
-  results.push({ authorizedAdmin: "pass", queuedWorkerInstructions: "pass", adapterGateRendering: "pass", hiddenTabPolling: "paused", resumePolling: "pass" });
+  for (const [status, heading] of [["error", "Failed collection"], ["cancelled", "Cancelled collection"], ["ok", "Completed collection"]]) {
+    job.status = status; job.error = status === "error" ? "Tinyfish API key is not configured on worker" : null;
+    await admin.getByRole("button", { name: "Refresh", exact: true }).click();
+    await admin.getByRole("heading", { name: heading }).waitFor();
+    assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  }
+  assert.ok(!adminErrors.length, adminErrors.join("\n"));
+  results.push({ authorizedAdmin: "pass", queuedWorkerInstructions: "pass", stablePollingDOM: "pass", unsavedSettingsPreserved: "pass", ISTDailySchedule: "pass", cancellation: "pass", staleAndTerminalStates: "pass", hiddenTabPolling: "paused", resumePolling: "pass" });
   await admin.getByRole("button", { name: "Sign out", exact: true }).click();
-  await admin.waitForURL("**/login");
+  await admin.waitForURL("**/login?choose=1");
   const cookies = await context.cookies();
   assert.equal(cookies.some((cookie) => cookie.name === "__Secure-neon-auth.session_token" || cookie.name === "opus_google_session"), false);
   await admin.goto(base + "/admin"); await admin.waitForURL("**/login?**");

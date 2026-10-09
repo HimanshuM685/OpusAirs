@@ -2,6 +2,7 @@ import { CHALLENGE, PoliteHttp, sharedHttp, skippedHost, type HttpAttempt } from
 import { parseItineraries, validQuote } from "./parse";
 import { robotsVerdict } from "./robots";
 import type { CollectCell, CollectResult, SourceAdapter } from "./types";
+import { liveCollectionEnabled } from "./runtime";
 
 export function defineHtmlSource(spec: {
   id: string;
@@ -37,13 +38,13 @@ export function defineHtmlSource(spec: {
     host: new URL(spec.origin).host,
     searchPath: spec.path,
     skippedReason: skipped ? "Search crawling excluded by host policy; use operator ingest or partner feeds." : undefined,
-    enabled: () => !skipped && process.env.SCRAPE_ENABLED === "true",
+    enabled: () => !skipped && liveCollectionEnabled(),
     async allowedPath(path) { return (await robotsVerdict(new URL(path, spec.origin).href, http)).verdict === "allow"; },
     async collect(cell: CollectCell): Promise<CollectResult> {
       const attempts: HttpAttempt[] = [];
       const outcome = (status: CollectResult["status"], notes: string, quotes: CollectResult["quotes"] = []): CollectResult => ({ source: spec.id, sourceRank: rank, status, notes, quotes, attempts });
       if (skipped) return outcome("blocked_robots", "host_policy_skip");
-      if (process.env.SCRAPE_ENABLED !== "true") return outcome("blocked", "scrape_disabled");
+      if (!liveCollectionEnabled()) return outcome("blocked", "scrape_disabled");
       const href = searchUrl(cell);
       const verdict = await robotsVerdict(href, http, (a) => attempts.push(a));
       if (verdict.verdict !== "allow") return outcome("blocked_robots", verdict.notes);

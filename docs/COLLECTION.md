@@ -1,7 +1,7 @@
 # Daily flight pricing collection (v1)
 
 OpusAirs extends its existing Next.js + Neon warehouse:
-`quotes_raw → cleanQuotes → quote_snapshots → index_values`. Tinyfish is an optional
+`quotes_raw → cleanQuotes → quote_snapshots → index_values`. Tinyfish is the default
 worker transport, not a second scraper stack. Public search stays warehouse-only;
 there is no `/v1/tinyfish` endpoint and no CDP connection inside an HTTP request.
 
@@ -33,9 +33,11 @@ median. With no usable reference, retain a nullable-price row with
 
 ## Hard transport rules
 
-* **`SCRAPE_ENABLED=false` and `TINYFISH_ENABLED=false` by default.** File/JSON ingest
-  and `PoliteHttp` remain the cheap/default path. Tinyfish requires both flags, a key,
-  and `TINYFISH_COUNTRY=IN`.
+* Pricing mode is saved in **`collection_settings` via `/admin/scrape`**: Tinyfish
+  (default), HTTP only, or offline. Missing provider credentials/capability never
+  silently switch transport. Tinyfish requires the contributor's private key and
+  `TINYFISH_COUNTRY=IN`. Legacy enable flags apply only outside the pricing runtime,
+  such as opt-in Browser route discovery. Select offline to disable live pricing.
 * Before a fare request, Browser create, or Agent run, evaluate `robotsVerdict` for
   the exact host/path. Deny or robots fetch error writes **blocked_robots**, with
   **zero Browser creates and zero Agent runs**. Tinyfish never receives a disallowed host.
@@ -70,20 +72,21 @@ The worker handles **IndiGo, Air India, AI Express, Akasa, SpiceJet sequentially
 No airline parallelism in v1. Offline sources run first; source controls are persistent.
 
 1. Load schedule/worklist and lawful operator observations without network discovery.
-2. Robots gate, then one `PoliteHttp` HTML probe. A parser hit drains the list through
-   HTTP under jitter; it opens **zero Tinyfish sessions**. A sold-out/missing response
-   is not a reason to purchase Browser calls. Only a JS-shell parser miss qualifies.
-3. If enabled and budget permits, open **one Browser session for that airline**.
+2. Robots gate. Tinyfish mode goes directly to Browser, without an HTTP fare probe.
+   Explicit HTTP mode processes through `PoliteHttp` and never buys Tinyfish calls.
+   Offline mode reads local/operator observations without live airline requests.
+3. In Tinyfish mode, budget permitting, open **one Browser session for that airline**.
    Reuse `browser.contexts()[0].pages()[0]` for every route/bin. Never create a page,
    session, or Agent per cell. Checkpoint each parsed quote immediately.
-4. After Browser deletion, at most **one async Agent run** can process all remaining
-   pairs, only if every Browser visit was a parser failure and there were zero
-   parseable quotes. Partial success, sold-out results, navigation errors, challenges,
-   or an HTTP parser hit never escalate to Agent.
+4. After Browser deletion, at most **one async Agent run** handles unresolved cells
+   when hydrated pages still have parser misses. After two empty hydrated shells,
+   stop probing identical shells and move to Agent. Otherwise finish the Browser
+   pass first. Existing fares/sold-out cells are excluded from Agent input; failures,
+   challenges, and unconfirmed cleanup do not authorize another paid attempt.
 5. Operator CSV/file drops cover leftovers; mark the rest missing and impute.
 
 Default ceilings per run: **5 Browser sessions, 5 Agent attempts** (one each per airline).
-Smaller env caps are supported; reservations persist in `collect_budget` and survive
+Smaller caps and runtime (up to 3 hours) are saved in admin; reservations persist in `collect_budget` and survive
 crashes. Failed/ambiguous creates consume a reservation rather than permitting a
 possibly duplicate paid session. `sessions_opened` counts confirmed sessions,
 `sessions_deleted` confirmed 204 deletes, and `session_attempts` exposes reservations.
@@ -93,7 +96,8 @@ Cost model: ≤5 × 900s = **75 Browser session-minutes/slot**, and ≤5 × 600s
 **50 Agent-minutes/slot** at maximum duration. Browser creation typically takes
 10–30s each (50–150s across five airlines). Session time is billed for the whole
 session; exact dollars require your account's Browser/Agent rates. HTTP success
-costs zero Tinyfish calls. Default one daily slot halves the two-slot budget.
+costs zero Tinyfish calls. Total daily cost scales with schedules you create; no
+pricing schedule is created by default.
 
 ### Browser API
 
@@ -101,7 +105,8 @@ Worker POSTs `https://api.browser.tinyfish.ai` with `X-API-Key`, a ≥60s reques
 timeout, `timeout_seconds=900`, and `{type:"tinyfish",country_code:"IN",enabled:true}`.
 Sessions start blank: Tinyfish startup navigation otherwise precedes CDP bot-UA and
 robots guards. After attaching those guards, `playwright-core` Chromium connects to
-`cdp_url`; the existing page navigates each allowed search URL with `domcontentloaded`.
+`cdp_url`; the existing page navigates each allowed search URL with `domcontentloaded`
+and waits up to 8 seconds for network idle before reading hydrated HTML.
 Between cells pause 2–4s. Existing `parse.ts` and carrier adapter parser process HTML.
 
 Session lifetime is additionally capped at 900s wall time. Always DELETE
@@ -179,40 +184,60 @@ Reuse the same Browser transport and parser for published `data-origin`/
 `data-destination` route attributes. One session per airline, five maximum, no Agent,
 no OTA pagination. No index rebuild is needed for catalog changes alone.
 
-## Worker, scheduling, health, and demo
+## Laptop contributor, schedules, and live monitoring
 
 ```dotenv
-SCRAPE_ENABLED=false
-TINYFISH_ENABLED=false
+# Configure locally on the contributor, using the same Neon DB as Vercel:
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
 TINYFISH_API_KEY=
 TINYFISH_COUNTRY=IN
-TINYFISH_MAX_SESSIONS_PER_RUN=5
-TINYFISH_MAX_AGENT_RUNS_PER_RUN=5
 TINYFISH_SESSION_TIMEOUT_S=900
-SNAPSHOT_HOURS=6
-COLLECT_MAX_HOURS=3
 DISCOVER_WITH_BROWSER=false
 ```
 
 ```bash
-npm run dev
 npm run collect:worker
-# External UTC cron for the price scheduler: 30 0 * * * npm run collect:daily
-# Weekly discovery: 30 20 * * 6 npm run collect:daily (Sunday 02:00 IST)
+npm run collect:worker -- --name "My Mac"
+npm run collect:worker -- --json
+npm run collect:worker -- --job <UUID>
+# Optional scheduler-only invocation:
+npm run collect:daily
 ```
 
-`collect:daily` enqueues due jobs; worker polls every 30s and also schedules them.
-Slot dedupe and the existing collect lock make a second scheduled trigger no-op.
-Jobs/lock heartbeat leases recover after five minutes. Known session/Agent IDs are
-cleaned up before resumption, while paid reservations prevent duplicate runs.
-`COLLECT_MAX_HOURS` defaults to 3; deadline and SIGTERM/SIGINT abort remote work and
-run cleanup before final snapshot/index rebuild. An older IST-day job never fetches
-live fares and mislabels them yesterday's observations. 18:00 is off unless explicitly
-configured with `SNAPSHOT_HOURS=6,18`.
+Install dependencies on the laptop, keep Terminal open and laptop awake. Startup
+reports DB connection, mode, and local Tinyfish readiness; logs show IST time, job,
+source/transport phases, each cell outcome, saved counts, and cleanup. `--once`
+drains due queued work once. No secret or CDP URL is displayed in admin or logs.
 
-`GET /v1/health/collection` and `/admin/scrape` expose HTTP/browser/agent/skipped path,
-session ID/deletion status, quotes parsed, blocked reason, session and Agent counts/caps,
-coverage, job progress, and robots results. No credentials/CDP URL are exposed.
+Use `/admin/scrape` to choose transport/caps, run now, or save a one-time/daily IST
+start. Schedules survive browser closure and Vercel restarts. Contributor checks
+every 5 seconds; it must be awake to execute them. Same-day starts can wait behind
+active work; missed past-date one-time schedules expire and daily schedules advance
+to their next future occurrence. No backdated live fares. No pricing schedule is
+seeded: on upgrade, recreate desired old `SNAPSHOT_HOURS` slots in admin.
+
+Run submissions and due schedules use transaction locks/dedupe. One global worker
+lease owns execution and orphan cleanup. Jobs heartbeat every 5 seconds; stale
+ownership becomes recoverable after five minutes. Known sessions/Agent IDs are
+cleaned up before resumption; paid reservations survive crashes. Ctrl+C cooperatively
+pauses the job for recovery. Operator cancellation becomes terminal after cleanup;
+runtime expiry fails visibly with saved observations retained. Retry creates a
+fresh current snapshot with saved settings, subject to the same caps.
+
+Deploy matching web/worker revisions and stop/restart the old contributor during
+upgrade. Idempotent bootstrap adds `collection_settings`, `collection_schedules`,
+`collection_workers`, `collection_worker_lease`, `pipeline_job_events`, and job
+progress/ownership/cancellation columns. Pricing ignores legacy `SCRAPE_ENABLED`,
+`TINYFISH_ENABLED`, `COLLECT_MAX_HOURS`, and per-run cap env vars; database settings
+are authoritative. Optional Browser discovery still uses its explicit legacy gates.
+
+`GET /v1/collect/monitor` powers admin using a single uncached request: worker presence,
+selected run, next schedule/countdown, phases, real fare/gap counts, source outcomes,
+session/Agent cleanup, and durable events. Running work wins over newer queued jobs.
+Presence is stale after 30 seconds. Polling is 2s active/15s idle, paused hidden/offline;
+background refresh retains content and unsaved settings. Processed cells include
+missing/blocked/error outcomes, not successful fare coverage. No fabricated ETA.
+The legacy `GET /v1/health/collection` retains snapshot coverage/provenance summaries.
 Alert webhook fires for observed coverage <0.80 or any blocked airline, never buys
 another session. Coverage is the passenger-weighted share of **non-imputed basket
 lead-bin cells**; below 0.60 stays provisional/low quality.
@@ -222,16 +247,17 @@ Use `/admin/ingest`, CSV/JSON endpoints, or `data/drops/*.csv` to complete gaps 
 `collected_at` preserves observation timestamp. Rereading a morning operator file
 does not turn it into an evening observation.
 
-For offline judging keep both live flags false, set `SYNTHETIC_DEMO_ENABLED=true`,
-enable its adapter, and enqueue `{demo:true}`. Synthetic quotes remain tagged and
+For offline judging select offline, set `SYNTHETIC_DEMO_ENABLED=true`,
+enable its adapter, and enqueue `{demo:true,transportMode:"offline"}`. Synthetic quotes remain tagged and
 produce demo vintage/zero observed coverage; normal rebuilds exclude them.
 
 ## Verification
 
 `npm test` uses mocked HTTP/CDP/provider responses. It verifies robots deny → no
-session, HTTP success → no Tinyfish, one session/page for all cells, no Agent after
-parser hit, delete-on-throw, budget disable, async cancellation, worklist order/DOW,
-economy isolation, catalog weight isolation, and demo provenance. No paid API calls.
+session, Tinyfish-first → no HTTP, explicit HTTP/offline isolation, hydrated-shell
+probing, partial Browser success → only unresolved Agent cells, delete-on-throw,
+budget disable, async cancellation, worklist order/DOW, schedule validation/IST,
+economy isolation, catalog weights, and demo provenance. No paid API calls.
 
 Optional PostgreSQL integration uses a disposable test container only:
 
@@ -245,5 +271,10 @@ docker stop opusairs-collection-test
 
 When Docker is unavailable, `COLLECT_TEST_PGLITE_MODULE=/absolute/path/to/@electric-sql/pglite/dist/index.js`
 runs the same integration against an in-memory PostgreSQL WASM engine. The test
-also verifies persisted budget reservations, catalog-only relatives, other-cabin
-isolation, and a mocked provider 402 followed by a successful index rebuild.
+also verifies atomic duplicate-click/schedule enqueue, expiry/daily recurrence,
+worker lease takeover/presence, direct/queued run completion, persisted budget
+reservations, catalog-only relatives, other-cabin isolation, and a mocked provider
+402 followed by a successful index rebuild. `scripts/verify-experience.mjs` covers
+desktop/mobile monitor rendering, stable polling DOM, unsaved settings, IST schedules,
+cancel, stale/terminal states, and successful sign-out. Live Google/provider access
+still requires validation against configured production accounts.

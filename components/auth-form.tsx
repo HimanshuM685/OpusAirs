@@ -6,6 +6,7 @@ import { authClient, googleCallback } from "@/lib/auth/client";
 import { loginPath } from "@/lib/auth/navigation";
 import { api, clearApiCache } from "@/lib/api";
 import { GoogleIcon } from "./google-icon";
+import { googleAccountChooser } from "@/lib/auth/google";
 
 type Stage = "ready" | "google" | "email" | "verifying" | "redirecting" | "verification-sent" | "signing-out";
 const errors: Record<string, string> = {
@@ -54,10 +55,10 @@ export function AuthForm({ register = false, admin = false, next = "/dashboard",
       const result = await authClient.signIn.social({ provider: "google", callbackURL,
         errorCallbackURL: callbackURL, disableRedirect: true, fetchOptions: { signal } });
       if (result.error) throw new Error(result.error.message || "Google sign-in failed. Please try again.");
-      if (!result.data?.url) throw new Error("Google sign-in did not return a destination. Please try again.");
-      if (signal.aborted) return;
-      setStage("redirecting");
-      window.location.assign(result.data.url);
+       if (!result.data?.url) throw new Error("Google sign-in did not return a destination. Please try again.");
+       if (signal.aborted) return;
+       setStage("redirecting");
+       window.location.assign(googleAccountChooser(result.data.url));
     });
   }
 
@@ -107,9 +108,9 @@ export function AuthForm({ register = false, admin = false, next = "/dashboard",
         <li aria-current={stage === "redirecting" ? "step" : undefined}>Open workspace</li>
       </ol>
       {error && <div ref={alert} tabIndex={-1} className="auth-error" role="alert">{error}</div>}
-      {signedInEmail && admin && <div className="auth-account">
+      {signedInEmail && <div className="auth-account">
         <p>Current account: <strong>{signedInEmail}</strong></p>
-        <button type="button" disabled={busy} onClick={switchAccount}>Sign out & switch account</button>
+        <button type="button" disabled={busy} onClick={switchAccount}>Sign out & choose another Google account</button>
         <Link href="/dashboard">Return to dashboard</Link>
       </div>}
       <div role="status" className="auth-status" aria-live="polite">

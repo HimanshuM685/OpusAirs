@@ -30,6 +30,8 @@ All `/v1` responses use `Cache-Control: private, no-store`; do not add public CD
 | **GET** | `/v1/health/collection` | Scraping engine status and health metrics per source. |
 | **GET** | `/v1/health` | Signed-in snapshot/index health summary. |
 | **POST** | `/v1/collect/run` | Trigger collection pipeline (portal scraping + clean + index). |
+| **GET** | `/v1/collect/monitor?job=UUID` | Uncached contributor, run progress, source outcomes, events, and schedules. |
+| **GET / POST** | `/v1/collect/control` | Read/save settings, schedule, cancel, or retry (Google operator only). |
 | **POST** | `/v1/ingest/quotes` | Direct JSON quote batch dump with optional auto-rebuild. |
 | **POST** | `/v1/ingest/csv` | Multipart CSV quote file upload with optional auto-rebuild. |
 | **POST** | `/v1/ingest/dump` | Queue text or structured observations for worker parsing. |
@@ -61,7 +63,7 @@ Returns aggregate Airfare Price Index series calculated using elementary Jevons 
 
 `GET /v1/bulletin?frequency=monthly&format=json|csv` is the official extract. CSV comment lines start with `#`.
 
-`POST /v1/collect/run`, `POST /v1/ingest/*`, and `POST /v1/index/rebuild` return `202 { job_id }`. A running `npm run collect:worker` process is required for execution. Collect fetches only when `SCRAPE_ENABLED=true`. `GET /v1/jobs` needs an authorized operator session or `x-api-key`.
+`POST /v1/collect/run`, `POST /v1/ingest/*`, and `POST /v1/index/rebuild` return `202 { job_id }`. A running `npm run collect:worker` process is required. Pricing uses database-managed transport/caps; Tinyfish is default, HTTP/offline require explicit selection. `GET /v1/jobs` needs an authorized operator session or `x-api-key`.
 
 `GET /v1/backtest/dgca` adds `mape`, `rmse`, `n`, `points`, and `pass`.
 
@@ -221,10 +223,28 @@ Admin cookie required. Returns slot coverage, quality, blocked sources, job prog
 ```
 
 #### `POST /v1/collect/run`
-Admin cookie or ingest API key required. Returns **202 `{ "job_id": "UUID" }`** after durably enqueueing a full-basket adhoc snapshot. Optional `{ "origin": "CCU", "dest": "BOM" }` adds a pair without removing basket routes. `scrape=false` uses offline sources only; `full=true` never overrides `SCRAPE_ENABLED=false`. `{ "demo": true }` includes explicitly enabled synthetic demo data. Run `npm run collect:worker` to process queued collection jobs.
+Admin cookie or ingest API key required. Returns **202 `{ "job_id": "UUID", "existing": false, "transport_mode": "tinyfish" }`** after durably enqueueing a full-basket adhoc snapshot. Repeated submissions return the existing active collection (`existing: true`), not another paid run. Optional `{ "origin": "CCU", "dest": "BOM" }` adds a pair without removing basket routes. `transportMode` accepts `tinyfish`, `http`, or `offline`; omission uses saved defaults. `scrape=false` explicitly selects offline. Settings are snapshotted into the queued payload. `{ "demo": true, "transportMode": "offline" }` includes enabled synthetic demo data. A contributor with the same database executes jobs; Tinyfish credentials belong on that worker.
+
+#### `GET /v1/collect/monitor?job=UUID`
+Google operator session required; machine ingestion keys do not grant access. Returns `server_time`, `settings`, `schedules`, `workers`, `jobs`, selected `job`, `events`, `counts`, `total`, `completed`, `quotes`, per-source totals, `budget`, and `adapters`. Defaults to the running job, then a queued job, then the latest run. Worker presence is online only with a heartbeat in the last 30 seconds. Key readiness is reported by the worker, not inferred from Vercel environment variables.
+
+This endpoint reads the durable ledger only: no provider requests, robots checks, rebuild, or response cache. `completed` includes missing/blocked/error cells and does not mean fares were found. `quotes` counts accepted non-synthetic saved fare rows. UI polls every 2 seconds while a job is queued/running, otherwise every 15 seconds; hidden/offline tabs pause and background reads preserve content.
+
+#### `GET /v1/collect/control` / `POST /v1/collect/control`
+Google operator session required, including mutations. GET returns `{ settings, schedules }`. POST accepts:
+
+| Action | Fields | Behavior |
+|---|---|---|
+| `settings` | `transport_mode`, `max_sessions`, `max_agent_runs`, `max_hours` | Save defaults. Integer caps 0–5; Tinyfish needs at least one Browser session; runtime 0.05–3h. |
+| `schedule` | `run_at` (ISO timestamp with offset), optional `transport_mode`, `recurrence` (`once`/`daily`) | Persist future start, return 202. UI converts IST explicitly. Mode is saved on schedule; caps are snapshotted when queued. |
+| `cancel_schedule` | `schedule_id` | Cancel future occurrences. Does not stop an already queued/running job. |
+| `cancel` | `job_id` | Queued jobs become cancelled immediately; running jobs request cooperative stop and cleanup. |
+| `retry` | `job_id` | Failed/cancelled runs only; queue fresh current snapshot with original settings/routes. Repeated retry requests deduplicate. |
+
+No pricing schedule is seeded. Due jobs are queued by the contributor or `collect:daily`; concurrent triggers are serialized. A busy collection delays another scheduled start. Missed past-date one-time schedules expire; missed daily dates advance to a future occurrence instead of fabricating historical fares. Legacy `SNAPSHOT_HOURS` no longer queues pricing work; recreate required slots in admin.
 
 #### `GET /v1/collect/sources`
-Admin cookie. Adapter registry with configured enabled state, effective environment gate, priority, host, and persisted slot blocks. This endpoint never contacts airline hosts. An eligible live adapter reports `robots.verdict: "pending"`; the worker checks robots.txt before collecting fares and fails closed on denial/error. `runnable` describes configuration eligibility, not a successful robots audit. Opening or refreshing the control page does not initiate collection or repeat robots checks.
+Admin cookie. Adapter registry with configured enabled state, database transport gate, priority, host, and persisted slot blocks. This endpoint never contacts airline hosts. An eligible live adapter reports `robots.verdict: "pending"`; the worker checks robots.txt before collecting fares and fails closed on denial/error. `runnable` describes configuration eligibility, not a successful robots audit or provider readiness. Opening or refreshing the control page does not initiate collection or repeat robots checks.
 
 #### `POST /v1/collect/sources`
 Admin cookie. Body `{ "id": "file_drop", "enabled": true }` persists the adapter control. Policy-skipped hosts cannot be enabled.
@@ -236,7 +256,7 @@ Catalog routes never change national basket weights automatically.
 
 Collection health additionally exposes `sessions_opened`, `sessions_deleted`, `session_attempts`,
 `agent_runs`, caps, Tinyfish disable reason, and per-airline HTTP/browser/agent/skipped path.
-Default pricing schedule is 06:00 IST only; set `SNAPSHOT_HOURS=6,18` to enable 18:00.
+Pricing starts are managed through `/v1/collect/control` or `/admin/scrape`.
 
 #### `POST /v1/ingest/dump`
 Authorized operator session or ingest API key. Body `{ "text": "...", "rebuild_index": true }`, or `{ "quotes": [...], "rebuild_index": true }`. Accepts JSON, CSV, or prose; prose needs `GEMINI_API_KEY` on the worker. Limit: 500,000 text characters or 2,000 quote objects. The complete input is persisted before returning `202 { "job_id": "UUID" }`.
@@ -282,7 +302,7 @@ Queues index reconstruction from cleaned observations. Requires an authorized op
 #### `GET /v1/jobs` / `GET /v1/jobs/{id}`
 Requires an authorized operator session or ingest API key. The list returns the 20 most recent jobs. Individual jobs return `id`, `type`, `status`, `stats`, `error`, and creation/start/finish timestamps; an unknown ID returns **404**.
 
-Lifecycle: `queued` → `running` → `ok` or `error`. Submission success means the job was persisted, not that ingestion or collection finished. The worker stores complete inputs, claims jobs atomically, heartbeats running work every 30 seconds, and requeues stale jobs on a later worker pass after five minutes without a heartbeat. A worker is required even for manual ingestion and rebuilds. Failed jobs stay visible with their error; clients do not automatically resubmit mutations after network failures.
+Lifecycle: `queued` → `running` → `ok`, `error`, or `cancelled`. Submission success means persisted, not completed. The worker claims jobs atomically under a global owner lease, heartbeats every 5 seconds, and recovers stale jobs after five minutes. A worker is required even for manual ingestion/rebuilds. Detailed job responses include progress, cancellation, worker ownership, and heartbeat fields. Failed jobs stay visible; clients never automatically resubmit mutations after network failures.
 
 #### `GET /v1/backtest/dgca`
 Compares computed APIx against the DGCA TMU published 72-route benchmark (`data/dgca_benchmark.csv`).
@@ -296,7 +316,7 @@ The Neon Auth SDK proxy handles Google OAuth, email sign-up/sign-in, email verif
 
 The `/login` UI starts Google sign-in with a same-origin `/auth/callback?next=...`, uses an explicit redirect stage, and bounds stalled requests. `/auth/callback` verifies the challenge-bound login with Neon, preserves Neon-issued cookies, and records signed Google-session evidence bound to the managed user/session. Protected local return paths and query strings are preserved; external and recursive auth destinations are rejected. `/register` redirects to the account-creation stage on `/login`.
 
-`authClient.signIn.email(...)` and `authClient.signUp.email(...)` provide public email/password access. `POST /api/auth/sign-out` (also used by `authClient.signOut()`) revokes the Neon session and clears Google/legacy proofs. The authenticated shell calls this endpoint directly to keep the sign-in SDK out of its client bundle. Providers and trusted origins must be enabled/configured in Neon Console.
+Google authorization URLs force `prompt=select_account`, remove account hints, and preserve OAuth state/PKCE/callback parameters. Only HTTPS `accounts.google.com` destinations are accepted. `authClient.signIn.email(...)` and `authClient.signUp.email(...)` provide public email/password access. Successful `POST /api/auth/sign-out` revokes the Neon session and clears local token/session-data/challenge cookies and Google/legacy proofs. The shell calls this endpoint directly to keep the sign-in SDK out of its bundle, then opens `/login?choose=1`. This does not log out of Google globally. Providers and trusted origins must be configured in Neon Console.
 
 Failed/cancelled OAuth returns to staged login with the intended destination. Missing auth configuration produces **503 `AUTH_NOT_CONFIGURED`** on auth APIs; unexpected route failures produce **500 `AUTH_INTERNAL_ERROR`** and server diagnostics. Callback failures redirect to recoverable login instead of displaying raw JSON. See [deployment troubleshooting](../Deploy.md#troubleshooting-google-sign-in-failures).
 

@@ -16,6 +16,8 @@ import { dataDir, isoDate, isoDateTime, sql } from "./db";
 import { displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
 import { neededQuotes } from "./needed";
 import { DEFAULT_CSV_TEMPLATE } from "./seeds";
+import { cancelCollection, cancelSchedule, CollectionInputError, createCollectionSchedule, listCollectionSchedules, queueCollection, readCollectionSettings, updateCollectionSettings, validCollectionMode } from "./collect/control";
+import { collectionMonitor } from "./collect/monitor";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status });
@@ -403,23 +405,82 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "POST" && path === "collect/run") {
     const denied = await requireWriter(req);
     if (denied) return denied;
-    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean; demo?: boolean } = {};
+    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean; demo?: boolean; transportMode?: string } = {};
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text) as typeof body;
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid object");
     } catch {
       return json({ detail: "Invalid JSON" }, 400);
     }
     const scrape = body.scrape !== false && sp.get("scrape") !== "false";
+    const settings = await readCollectionSettings(q);
+    const transportMode = !scrape ? "offline" : body.transportMode || settings.transport_mode;
+    if (!validCollectionMode(transportMode)) return json({ detail: "transportMode must be tinyfish, http, or offline" }, 400);
     const origin = iata(body.origin || sp.get("origin"));
     const dest = iata(body.dest || sp.get("dest"));
     if ((origin || dest) && (!validIata(origin) || !validIata(dest))) return json({ detail: "origin and dest must be 3-letter IATA codes" }, 400);
     if (body.demo && process.env.SYNTHETIC_DEMO_ENABLED !== "true") return json({ detail: "Set SYNTHETIC_DEMO_ENABLED=true to enable demo snapshots" }, 400);
     const routes = validIata(origin) && validIata(dest) ? [{ origin, destination: dest }] : undefined;
     const snapshotAt = new Date().toISOString();
-    const id = await enqueue(q, "collect", { scrape, routes, demo: body.demo === true,
-      full: true, slot: "adhoc", snapshotAt, day: istDate(new Date(snapshotAt)) });
-    return json({ job_id: id }, 202);
+    const queued = await queueCollection(q, { scrape: scrape && transportMode !== "offline", routes, demo: body.demo === true,
+      transportMode, settings: { ...settings, transport_mode: transportMode }, full: true, slot: "adhoc", snapshotAt, day: istDate(new Date(snapshotAt)), requestedBy: (await getUser(req))?.id || "machine" });
+    return json({ job_id: queued.id, existing: queued.existing, transport_mode: transportMode }, 202);
+  }
+
+  if (req.method === "GET" && path === "collect/monitor") {
+    const selected = sp.get("job") || undefined;
+    if (selected && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(selected)) return json({ detail: "Invalid job ID" }, 400);
+    return json(await collectionMonitor(q, selected));
+  }
+
+  if (req.method === "GET" && path === "collect/control") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    return json({ settings: await readCollectionSettings(q), schedules: await listCollectionSchedules(q) });
+  }
+
+  if (req.method === "POST" && path === "collect/control") {
+    const admin = await requireAdmin(req);
+    if (isAuthResponse(admin)) return admin;
+    let body: { action?: string; run_at?: string; transport_mode?: string; recurrence?: string; schedule_id?: string;
+      max_sessions?: number; max_agent_runs?: number; max_hours?: number; job_id?: string };
+    try { body = await req.json(); if (!body || typeof body !== "object") throw new Error(); }
+    catch { return json({ detail: "Supply a JSON object" }, 400); }
+    try {
+    if (body.action === "settings") {
+      return json({ settings: await updateCollectionSettings(q, { transport_mode: body.transport_mode, max_sessions: body.max_sessions,
+        max_agent_runs: body.max_agent_runs, max_hours: body.max_hours }) });
+    }
+    if (body.action === "schedule") {
+      const runAt = new Date(body.run_at || "");
+      if (Number.isNaN(runAt.getTime())) return json({ detail: "run_at must be an ISO date-time" }, 400);
+      const mode = body.transport_mode || (await readCollectionSettings(q)).transport_mode;
+      if (!validCollectionMode(mode)) return json({ detail: "transport_mode must be tinyfish, http, or offline" }, 400);
+      return json({ schedule: await createCollectionSchedule(q, { runAt: runAt.toISOString(), mode, recurrence: body.recurrence, requestedBy: admin.id }) }, 202);
+    }
+    if (body.action === "cancel_schedule" && body.schedule_id) {
+      if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.schedule_id)) return json({ detail: "Invalid schedule ID" }, 400);
+      return json({ cancelled: Boolean((await cancelSchedule(q, body.schedule_id)).length) });
+    }
+    if (body.action === "cancel" && body.job_id) {
+      if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.job_id)) return json({ detail: "Invalid job_id" }, 400);
+      return json({ cancelled: await cancelCollection(q, body.job_id) });
+    }
+    if (body.action === "retry" && body.job_id) {
+      if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.job_id)) return json({ detail: "Invalid job ID" }, 400);
+      const previous = (await q`SELECT status, payload FROM pipeline_jobs WHERE id = ${body.job_id} AND type = 'collect'`)[0];
+      if (!previous) return json({ detail: "Job not found" }, 404);
+      if (!["error", "cancelled"].includes(previous.status)) return json({ detail: "Only failed or cancelled runs can be retried. Stop an active job first." }, 409);
+      const saved = previous.payload || {};
+      const settings = saved.settings || await readCollectionSettings(q); const at = new Date();
+      const transportMode = saved.scrape === false ? "offline" : saved.transportMode || settings.transport_mode;
+      const queued = await queueCollection(q, { transportMode, settings: { ...settings, transport_mode: transportMode }, routes: saved.routes, demo: saved.demo === true, retryOf: body.job_id,
+        snapshotAt: at.toISOString(), day: istDate(at), slot: "retry", requestedBy: admin.id }, `retry:${body.job_id}`);
+      return json({ job_id: queued.id, existing: queued.existing }, 202);
+    }
+    return json({ detail: "Use settings, schedule, cancel_schedule, cancel, or retry" }, 400);
+    } catch (error) { if (error instanceof CollectionInputError) return json({ detail: error.message }, 400); throw error; }
   }
 
   if (req.method === "GET" && path === "collect/sources") {

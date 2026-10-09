@@ -4,7 +4,7 @@ import { handleV1 } from "../api-routes";
 import { isAdminPath, loginPath, safeReturnPath } from "./navigation";
 
 it("rejects anonymous warehouse and admin calls before attempting database bootstrap", async () => {
-  const paths = ["index", "search", "trends/DEL/BOM", "routes", "quotes", "heatmap", "elasticity", "health", "health/collection", "jobs", "backtest/dgca", "bulletin", "ingest/template"];
+  const paths = ["index", "search", "trends/DEL/BOM", "routes", "quotes", "heatmap", "elasticity", "health", "health/collection", "jobs", "backtest/dgca", "bulletin", "ingest/template", "collect/control", "collect/monitor"];
   for (const path of paths) {
     const response = await handleV1(new Request(`https://app.example/v1/${path}`), path.split("/"));
     assert.equal(response.status, 401, path);
@@ -12,7 +12,7 @@ it("rejects anonymous warehouse and admin calls before attempting database boots
 });
 
 it("legacy cookies cannot read private data or enqueue work", async () => {
-  for (const path of ["ingest/dump", "ingest/csv", "collect/run", "index/rebuild"]) {
+  for (const path of ["ingest/dump", "ingest/csv", "collect/run", "index/rebuild", "collect/control"]) {
     const response = await handleV1(new Request(`https://app.example/v1/${path}`, { method: "POST", headers: { cookie: "opus_admin=old-proof; opus_session=old-proof" } }), path.split("/"));
     assert.equal(response.status, 401, path);
   }
@@ -22,7 +22,7 @@ it("machine keys cannot substitute for user or operator sessions on other endpoi
   const previous = process.env.INGEST_API_KEY;
   process.env.INGEST_API_KEY = "fixture-machine-key";
   try {
-    for (const path of ["index", "search", "health", "health/collection", "bulletin", "collect/sources", "ingest/needed"]) {
+    for (const path of ["index", "search", "health", "health/collection", "bulletin", "collect/sources", "ingest/needed", "collect/control", "collect/monitor"]) {
       const response = await handleV1(new Request(`https://app.example/v1/${path}`, { headers: { "x-api-key": "fixture-machine-key" } }), path.split("/"));
       assert.equal(response.status, 401, path);
     }

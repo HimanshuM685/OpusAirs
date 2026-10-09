@@ -9,7 +9,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const admin = isAdminPath(next);
   const user = await getCurrentUser();
   const error = typeof params.error === "string" ? params.error : undefined;
-  if (user && (!admin || user.role === "admin") && !error) redirect(next);
+  if (user && (!admin || user.role === "admin") && !error && params.choose !== "1") redirect(next);
   return <AuthForm next={next} admin={admin} register={!admin && params.stage === "register"}
     initialError={error} signedInEmail={user?.email} />;
 }

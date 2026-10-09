@@ -9,13 +9,14 @@ import { PoliteHttp, sharedHttp } from "../http";
 import { manual } from "./manual";
 import { fileDrop } from "./file_drop";
 import { syntheticDemo } from "./synthetic_demo";
+import { liveCollectionEnabled } from "../runtime";
 
 export function collectors(q: ReturnType<typeof sqlFn>, day: string, http: PoliteHttp = sharedHttp()): SourceAdapter[] {
   const all = [manual(q, day), fileDrop(day), syntheticDemo, indigo, airindia(http), airindiaExpress(http), akasa(http), spicejet(http)];
   return all.map((a) => ({ ...a, discoveryPath: process.env[`DISCOVER_${a.id.toUpperCase()}_PATH`] }));
 }
 
-export function selectAdapters(all: SourceAdapter[], enabledIds: Set<string>, live = process.env.SCRAPE_ENABLED === "true", demo = false): SourceAdapter[] {
+export function selectAdapters(all: SourceAdapter[], enabledIds: Set<string>, live = liveCollectionEnabled(), demo = false): SourceAdapter[] {
   return all.filter((a) => enabledIds.has(a.id) && a.enabled() && a.kind !== "skip"
     && (live || (a.kind !== "html" && a.kind !== "api")) && (a.kind !== "demo" || demo));
 }

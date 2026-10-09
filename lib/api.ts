@@ -55,7 +55,8 @@ export async function apiUpload<T>(path: string, body: FormData, options: Reques
 }
 
 export type PipelineJob = { id: string; type: string; status: string; error?: string | null; stats?: Record<string, number | string>;
-  created_at?: string; started_at?: string | null; finished_at?: string | null };
+  progress?: Record<string, unknown>; cancel_requested?: boolean; created_at?: string; started_at?: string | null;
+  heartbeat_at?: string | null; finished_at?: string | null };
 
 const readCache = new Map<string, { data: unknown; until: number }>();
 const inFlight = new Map<string, { controller: AbortController; promise: Promise<unknown>; consumers: number }>();
@@ -176,12 +177,14 @@ export type CollectionSummary = {
   blocked_sources: string[];
   scrape_enabled: boolean;
   progress: Record<string, number>;
-  job: { id: string; status: string; error?: string | null; created_at?: string; started_at?: string | null; heartbeat_at?: string | null } | null;
+  job: { id: string; status: string; error?: string | null; progress?: Record<string, unknown>; events?: { id: number; created_at: string; level: string; event: string; source?: string | null; transport?: string | null; message: string; data?: Record<string, unknown> }[]; created_at?: string; started_at?: string | null; heartbeat_at?: string | null } | null;
+  collection_settings?: { transport_mode: "tinyfish" | "http" | "offline"; max_sessions: number; max_agent_runs: number; max_hours: number };
+  tinyfish_readiness?: string;
   tinyfish_enabled: boolean; tinyfish_disabled: boolean; budget_notes: string | null;
   sessions_opened: number; sessions_deleted: number; session_attempts: number;
   agent_runs: number; max_sessions: number; max_agent_runs: number;
-  airlines: Record<string, { path?: string; session_id?: string; session_deleted?: boolean; quotes_parsed?: number;
-    blocked_reason?: string; error?: string; agent_id?: string }>;
+  airlines: Record<string, { path?: string; phase?: string; current_cell?: string; last_status?: string; session_id?: string; session_deleted?: boolean; quotes_parsed?: number;
+     blocked_reason?: string; error?: string; agent_id?: string }>;
 };
 
 export type AdapterHealth = {

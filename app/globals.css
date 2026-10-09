@@ -900,6 +900,8 @@ h1, h2, h3 { text-wrap: balance; scroll-margin-top: 140px; }
 .empty-state h2 { font-size: 20px; margin-bottom: 10px; }
 .empty-state p { color: var(--text-secondary); max-width: 60ch; margin: 0 auto; }
 .resource-status { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); min-height: 44px; margin: 12px 0; }
+.refresh-status { color: var(--text-secondary); font-size: 12px; min-height: 20px; margin: 4px 0; }
+.spinner-small { width: 11px; height: 11px; border-width: 1px; }
 .resource-error { background: #fff0ee; color: #9b2528; border: 1px solid #e5b4b0; border-radius: 8px; padding: 16px; margin: 16px 0; overflow-wrap: anywhere; }
 .resource-error p { margin: 0 0 8px; }
 .quality-note { padding: 16px; background: #f3efdf; border-radius: 8px; color: #584714; }
@@ -916,6 +918,31 @@ h1, h2, h3 { text-wrap: balance; scroll-margin-top: 140px; }
 .admin-main > h1 { margin: 12px 0; }
 .admin-main .panel:has(> table) { overflow-x: auto; }
 .job-id { display: block; overflow-wrap: anywhere; font-size: 11px; color: var(--text-secondary); margin: 5px 0; }
+.collection-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: end; margin: 18px 0; }
+.collection-control-grid label, .schedule-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.collection-control-grid select, .collection-control-grid input, .schedule-form input, .schedule-form select { min-height: 44px; min-width: 0; width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: white; color: var(--text-primary); }
+.status-note { padding: 12px 14px; background: #edf2ee; border-radius: 8px; color: var(--text-secondary); min-height: 44px; }
+.schedule-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.schedule-form input { min-width: 220px; }
+.schedule-list { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; }
+.schedule-list p { margin: 8px 0; color: var(--text-secondary); }
+.worker-events { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; max-height: 300px; overflow: auto; }
+.worker-events li { display: grid; grid-template-columns: 100px 150px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; overflow-wrap: anywhere; }
+.monitor-sync { display: flex; justify-content: space-between; align-items: center; min-height: 44px; font-size: 12px; color: var(--text-secondary); gap: 12px; }
+.collector-worker { border-block: 1px solid var(--border); padding: 20px 0; margin: 16px 0; }
+.collector-worker h2 { font-size: 16px; margin-bottom: 10px; }
+.collector-worker p { margin: 8px 0; }
+.run-progress progress { width: 100%; height: 10px; accent-color: #0b3b2a; margin: 12px 0; }
+.run-progress-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 24px; font-variant-numeric: tabular-nums; }
+.run-state { padding: 6px 10px; font-size: 12px; border: 1px solid #c4d4c9; border-radius: 5px; background: #edf2ee; }
+.state-error, .state-cancelled { background: #fff0ee; border-color: #e5b4b0; color: #9b2528; }
+.run-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin: 24px 0; }
+.run-counts dt { font-size: 13px; color: var(--text-secondary); }
+.run-counts dd { margin: 6px 0 0; font-size: 24px; font-variant-numeric: tabular-nums; }
+.run-actions select { max-width: 100%; }
+.admin-main .table-scroll progress { display: block; width: 110px; accent-color: #0b3b2a; height: 6px; margin-top: 8px; }
+.next-run { margin: 20px 0; }
+.worker-events time, .worker-events strong { color: var(--text-secondary); font-size: 12px; }
 .bulletin-data { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
 .auth-page { max-width: 500px; margin: 40px auto; padding-bottom: 30px; }
 .auth-brand { display: block; text-align: center; margin-bottom: 24px; }
@@ -942,6 +969,8 @@ h1, h2, h3 { text-wrap: balance; scroll-margin-top: 140px; }
   .user-main { padding: 24px 16px max(36px, env(safe-area-inset-bottom)); }
   .workspace .panel, .admin-main .panel { padding: 18px 14px; }
   .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .collection-control-grid { grid-template-columns: 1fr; }
+  .worker-events li { grid-template-columns: 1fr; gap: 3px; }
   .search-form { grid-template-columns: minmax(0, 1fr); }
   .search-form > button { width: 100%; }
   .toolbar label { flex: 1 1 180px; }

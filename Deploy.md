@@ -28,7 +28,8 @@ GEMINI_API_KEY=
 # Data & Index Settings
 # ------------------------------------------------------------------------------
 APIX_BASE_DATE=2026-08-01
-SCRAPE_ENABLED=false
+# On the contributor only:
+TINYFISH_API_KEY=
 
 # ------------------------------------------------------------------------------
 # Scraper Politeness & Rate Limits
@@ -80,6 +81,10 @@ npm run collect:worker
 
 The worker runs collection, discovery, **manual ingestion, and index rebuilds**. `202 { job_id }` means persisted, not completed. Without a worker, these jobs remain queued. Production worker installations need `tsx` (currently a dev dependency), so install with `npm ci --include=dev`. `npm run collect:worker -- --once` schedules due work and processes the queue once; run the normal command under a process supervisor for continuous execution.
 
+For a laptop contributor, install dependencies on that laptop (do not copy another OS's `node_modules`), keep Terminal open, and prevent sleep while collecting. Configure its own `.env.local` with the shared `DATABASE_URL` and private `TINYFISH_API_KEY`; the Vercel web process does not need the Tinyfish key. `-- --name "My Mac"` labels presence; `-- --json` emits structured logs; `-- --job <UUID>` attempts one queued job. Ctrl+C saves progress and cleans up remote sessions.
+
+Choose pricing transport/caps and one-time/daily IST schedules in `/admin/scrape`. They persist in Neon and apply without redeploying. Tinyfish is the default mode; missing worker credentials fail visibly without switching to HTTP. **Upgrade:** stop the old contributor, deploy matching web/worker code, then restart. Idempotent bootstrap adds the control tables. Recreate desired `SNAPSHOT_HOURS` slots in admin; the legacy variable no longer enqueues pricing runs. No pricing schedule is seeded automatically.
+
 ---
 
 ## 3. Docker Deployment
@@ -123,7 +128,7 @@ docker run -d --restart unless-stopped --env-file .env.local opusairs-worker
     - Database tables are automatically provisioned on the first authorized warehouse API call via `lib/bootstrap.ts`. Authentication and the public landing page do not initialize the warehouse.
 5. **Run a worker separately** on a persistent Node.js/Docker host with the same database and collection configuration. Vercel request handlers persist jobs and return immediately; they no longer detach ingestion/rebuild work into the request process. Deploy matching web/worker revisions.
 
-Do not publicly cache `/v1` responses or protected pages. API responses send `Cache-Control: private, no-store`; user/admin layouts render dynamically. Selected warehouse reads and browser reads each have a short 20-second internal cache. A worker cannot invalidate another process's memory, so freshness can lag across both cache layers.
+Do not publicly cache `/v1` responses or protected pages. API responses send `Cache-Control: private, no-store`; user/admin layouts render dynamically. Selected analytics reads and browser reads each have a short 20-second internal cache. Collection monitoring is uncached and polls every 2 seconds with active jobs, otherwise every 15 seconds; hidden/offline tabs pause. Background refresh retains content and unsaved settings.
 
 ### Troubleshooting Google sign-in failures
 
@@ -133,7 +138,9 @@ Auth configuration is checked when a request arrives, so a successful build does
 - **500 `AUTH_INTERNAL_ERROR`**: Open this request's Vercel Runtime Logs and look for `[auth] Unexpected route failure`, which includes the exception. Configuration errors log only the variable name/problem, never its value.
 - **Signed in but admin denied**: Check verified Google authentication and `ADMIN_EMAILS`. The allowlist is evaluated after login; it does not cause Google sign-in initiation to return 500.
 - **Callback failed or cancelled**: The browser returns to `/login` with its protected destination and an actionable error. Inspect `/api/auth` responses and runtime logs for configuration details; callback errors no longer leave a raw JSON screen.
-- **Ingestion stays queued**: Confirm the worker is running the current revision against the same database. Check `/v1/jobs/{id}` as an authorized operator or with the configured `x-api-key`. Worker heartbeats are every 30 seconds; stale running jobs become eligible for recovery after five minutes without a heartbeat.
+- **Wrong Google account**: Sign out, then choose Google again. Authorization requests force `prompt=select_account` and remove old account hints while preserving OAuth state/PKCE. Successful logout clears Neon token/session-data cookies and Google proofs; Google's own browser session remains intact.
+- **Ingestion stays queued**: Confirm the worker is running the current revision against the same database. Check `/v1/jobs/{id}` as an authorized operator or with the configured `x-api-key`. Worker heartbeats are every 5 seconds; presence is stale after 30 seconds, and running jobs become recoverable after five minutes without a heartbeat.
+- **Tinyfish unavailable or zero fares**: Check contributor readiness, source errors, and provider cleanup in `/admin/scrape`. Key presence is not proof of account credits/capabilities. Robots denial, challenges, unsupported booking pages, and missing fares stay explicit; processed-cell percentage is not successful fare coverage.
 
 ## 5. Release Verification
 

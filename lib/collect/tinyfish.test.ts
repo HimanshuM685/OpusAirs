@@ -11,6 +11,7 @@ import { buildWorklist } from "./jobs";
 import type { sql as sqlFn } from "../db";
 import type { CollectCell, CollectResult } from "./types";
 import { parseQuoteRows } from "./parse";
+import { withCollectionSettings } from "./runtime";
 
 class MemoryBudget extends CollectBudget {
   constructor() {
@@ -42,7 +43,7 @@ beforeEach(() => {
 afterEach(() => { process.env = env; });
 function fakeBrowser(content: () => string = () => html) {
   const navigated: string[] = []; let connections = 0; let pages = 0; let closed = 0;
-  const page = { setDefaultTimeout() {}, goto: async (url: string) => { navigated.push(url); return { status: () => 200 }; }, content: async () => content() };
+  const page = { setDefaultTimeout() {}, waitForLoadState: async () => {}, goto: async (url: string) => { navigated.push(url); return { status: () => 200 }; }, content: async () => content() };
   const context = { pages: () => { pages++; return [page]; }, setExtraHTTPHeaders: async (headers: Record<string, string>) => { assert.match(headers["User-Agent"], /^OpusAirs-APIx-Bot\/1.0/); },
     newCDPSession: async () => ({ send: async () => {} }), route: async () => {} };
   return { navigated, counts: () => ({ connections, pages, closed }), connect: async () => {
@@ -167,5 +168,49 @@ it("non-India country or either disabled flag prevents every Tinyfish call", asy
     await collectBrowser(adapter, cells, budget, async () => {}, signal(), { api, gate: allowed });
     assert.equal(calls.length, 0);
     process.env[key] = previous;
+  }
+});
+
+const tinyfishSettings = { transport_mode: "tinyfish" as const, max_sessions: 5, max_agent_runs: 5, max_hours: 3 };
+it("Tinyfish-first skips HTTP, probes two hydrated shells, deletes Browser then starts one Agent", async () => {
+  process.env.SCRAPE_ENABLED = "false"; process.env.TINYFISH_ENABLED = "false";
+  await withCollectionSettings(tinyfishSettings, async () => {
+    const budget = new MemoryBudget(); const browser = fakeBrowser(() => '<script src="app.js"></script>');
+    const { api, calls } = browserApi(budget); let agentCells = 0;
+    await collectAirline({ ...adapter, collect: async () => { throw new Error("HTTP must not run"); } }, cells, budget, async () => {}, signal(), {
+      mode: "tinyfish", gate: allowed,
+      browser: (...args) => collectBrowser(...args, { api, gate: allowed, connect: browser.connect, sleep: async () => {} }),
+      agent: async (_adapter, remaining) => { assert.equal(budget.state.sessions_deleted, 1); assert.ok(budget.canRunAgent(adapter.id)); agentCells = remaining.length; },
+    });
+    assert.equal(browser.navigated.length, 2); assert.equal(agentCells, cells.length);
+    assert.equal(calls.filter((c) => c.method === "POST").length, 1);
+  });
+});
+it("Tinyfish partial Browser success sends only unresolved cells to Agent, preserving observed fares", async () => {
+  await withCollectionSettings(tinyfishSettings, async () => {
+    const budget = new MemoryBudget(); const saved: CollectCell[] = [];
+    await collectAirline(adapter, cells, budget, async (cell) => { saved.push(cell); }, signal(), {
+      mode: "tinyfish", gate: allowed,
+      browser: async (_a, work, b, save) => {
+        await b.airline(adapter.id, { session_id: "br-partial", session_deleted: true, browser_complete: true, browser_visits: cells.length, quotes_parsed: 1, parser_misses: cells.length - 1 });
+        await save(work[0], adapter.parseHtml!(html, work[0]));
+        for (const cell of work.slice(1)) await save(cell, { source: adapter.id, sourceRank: 25, status: "missing", quotes: [] });
+      },
+      agent: async (_a, remaining, _b, save) => {
+        assert.deepEqual(remaining, cells.slice(1));
+        await save(remaining[0], adapter.parseHtml!(html, remaining[0]));
+      },
+    });
+    assert.equal(saved.length, cells.length); assert.equal(new Set(saved).size, cells.length);
+  });
+});
+it("explicit HTTP never escalates and offline performs no robots or provider request", async () => {
+  for (const mode of ["http", "offline"] as const) {
+    let http = 0; let gates = 0;
+    await collectAirline({ ...adapter, collect: async (c) => { http++; return adapter.parseHtml!("<script></script>", c); } }, cells, new MemoryBudget(), async () => {}, signal(), {
+      mode, gate: async () => { gates++; return allowed(); },
+      browser: async () => { assert.fail("Unexpected Browser"); }, agent: async () => { assert.fail("Unexpected Agent"); },
+    });
+    assert.equal(http, mode === "http" ? cells.length : 0); assert.equal(gates, mode === "http" ? 1 : 0);
   }
 });

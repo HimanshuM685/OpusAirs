@@ -1,4 +1,5 @@
 import { CHALLENGE, PoliteHttp, sharedHttp, botUserAgent, skippedHost, type HttpAttempt } from "./http";
+import { liveCollectionEnabled } from "./runtime";
 
 export type RobotsVerdict = { verdict: "allow" | "deny" | "fetch_error" | "disabled"; notes: string; checked_at: string | null };
 const cache = new Map<string, { expires: number; value: Promise<string | null> }>();
@@ -48,7 +49,7 @@ export function robotsAllows(text: string, pathname: string, ua: string): boolea
 }
 
 export async function robotsVerdict(url: string, http: PoliteHttp = sharedHttp(), record?: (attempt: HttpAttempt) => void): Promise<RobotsVerdict> {
-  if (process.env.SCRAPE_ENABLED !== "true") return { verdict: "disabled", notes: "SCRAPE_ENABLED=false", checked_at: null };
+  if (!liveCollectionEnabled()) return { verdict: "disabled", notes: "Live transport disabled for this run", checked_at: null };
   const parsed = new URL(url);
   if (skippedHost(parsed.hostname)) return { verdict: "deny", notes: "search host skipped by collection policy", checked_at: null };
   const origin = parsed.origin;

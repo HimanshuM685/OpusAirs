@@ -2,6 +2,7 @@ import { istDate } from "./policy";
 import { snapshotStamp } from "../snapshot";
 import { enqueue } from "../jobs";
 import type { sql as sqlFn } from "../db";
+import { scheduleDueCollections } from "./control";
 
 export function dueSnapshots(now = new Date(), hours = process.env.SNAPSHOT_HOURS || "6") {
   const day = istDate(now);
@@ -23,9 +24,5 @@ export async function scheduleDiscovery(q: ReturnType<typeof sqlFn>, now = new D
 }
 
 export async function scheduleSnapshots(q: ReturnType<typeof sqlFn>, now = new Date()): Promise<string[]> {
-  const ids: string[] = [];
-  for (const slot of dueSnapshots(now)) {
-    ids.push(await enqueue(q, "collect", { ...slot, scrape: true }, `collect:${slot.snapshotAt}`));
-  }
-  return ids;
+  return scheduleDueCollections(q, now);
 }

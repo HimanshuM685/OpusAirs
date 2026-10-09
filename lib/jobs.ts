@@ -23,13 +23,13 @@ export async function enqueue(
 }
 
 export async function readJob(q: Q, id: string) {
-  const rows = (await q`SELECT id, type, status, stats, error, created_at, started_at, finished_at FROM pipeline_jobs WHERE id = ${id} LIMIT 1`) as Record<string, unknown>[];
+  const rows = (await q`SELECT id, type, status, stats, progress, error, cancel_requested, created_at, started_at, heartbeat_at, finished_at FROM pipeline_jobs WHERE id = ${id} LIMIT 1`) as Record<string, unknown>[];
   return rows[0] ?? null;
 }
 
 export async function recentJobs(q: Q, limit = 20) {
   return (await q`
-    SELECT id, type, status, stats, error, created_at, started_at, finished_at
+    SELECT id, type, status, stats, progress, error, cancel_requested, created_at, started_at, heartbeat_at, finished_at
     FROM pipeline_jobs ORDER BY created_at DESC LIMIT ${limit}
   `) as Record<string, unknown>[];
 }

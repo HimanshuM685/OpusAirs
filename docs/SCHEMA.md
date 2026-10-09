@@ -38,6 +38,17 @@ Fixed market basket populated from `data/psd_basket.csv` containing city pairs (
 ### `collection_runs`
 Audit log recording every scraper execution and manual ingest batch.
 
+### Durable collection control
+- `collection_settings`: singleton pricing mode (`tinyfish`, `http`, `offline`) and Browser/Agent/runtime caps. Changes apply to future enqueues; job payloads retain a settings snapshot.
+- `collection_schedules`: once/daily starts as `TIMESTAMPTZ`, recurrence, transport, status, operator, and latest queued job. Admin inputs/display use IST. No schedule is automatically seeded.
+- `collection_workers`: contributor identity, label, current job, heartbeat, and nonsecret readiness. Presence expires after 30 seconds.
+- `collection_worker_lease`: singleton owner/heartbeat serializes worker execution and remote-resource recovery; stale after five minutes.
+- `pipeline_jobs`: persisted inputs/settings, status, progress JSON, cancellation request, worker ID, stats/errors, and start/heartbeat/finish times. Terminal statuses include `ok`, `error`, and `cancelled`.
+- `pipeline_job_events`: bounded-size phase messages and sampled cell events keyed to a job, ordered by ID. Every cell outcome remains in `collect_jobs`/`collect_attempts`; progress percentage is not fare coverage.
+- `collect_budget`: crash-durable paid reservations, Browser session IDs/deletion confirmation, Agent IDs/terminal state, and per-source phases/errors. Credentials and CDP connection URLs are never stored here.
+
+Bootstrap applies idempotent DDL under a database advisory lock; `data/schema.sql` mirrors the migration contract. Due-schedule enqueue, cancellation, and duplicate run submissions use the settings row as a transaction lock.
+
 ---
 
 ## 2. Ingest Formats

@@ -66,9 +66,11 @@ OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon
 - **Price Elasticity (`/elasticity`)**: Non-linear fare surges plotted against booking advance days.
 
 ### 2. Admin & Operator Side
-- **Operator Overview (`/admin`)**: Summary of collection pipelines, active data sources, and data warehouse volume.
-- **Scraper Mechanism (`/admin/scrape`)**:
-  - Trigger automated portal scrapes (`POST /v1/collect/run?scrape=true`).
+- **Operator Overview (`/admin`)**: Contributor connection, next scheduled start, active progress, and recent runs.
+- **Collection Control (`/admin/scrape`)**:
+   - Run now, schedule one-time/daily IST starts, cancel, or retry with saved settings.
+   - Database-managed Tinyfish/HTTP/offline mode and per-run Browser/Agent/runtime caps.
+   - Stable live progress, source phases, quote/gap counts, worker heartbeat, and durable activity log.
   - Automated robots.txt compliance validation and respectful User-Agent headers.
   - Built-in politeness rate-limiting and anti-bot challenge detection (`status=blocked`).
   - Source-by-source status board reporting OK, missing, sold-out, and blocked quotes.
@@ -114,11 +116,10 @@ NEON_AUTH_COOKIE_SECRET=change_this_to_at_least_32_characters_secret_string
 # Whitelisted Google accounts permitted operator access to /admin
 ADMIN_EMAILS=admin@example.com,operator@example.com
 
-SCRAPE_ENABLED=false
+TINYFISH_API_KEY= # Contributor machine only; keep the real key private
 INGEST_API_KEY=
 CPI_AIR_WEIGHT=0.004
 MAPE_TARGET=0.08
-SNAPSHOT_HOURS=6,18
 APIX_BASE_DATE=2026-08-01
 ```
 
@@ -151,15 +152,17 @@ In a second terminal, from the project root:
 npm run collect:worker
 ```
 
-The web process queues collection, discovery, ingestion, and rebuild jobs; the worker executes them against the same database. Without a running worker, submitted jobs remain queued. `npm run collect:worker -- --once` schedules due work and drains the current queue once. Scraping still requires explicit collection configuration; offline/manual ingestion works with `SCRAPE_ENABLED=false`.
+The web process queues collection, discovery, ingestion, and rebuild jobs; the worker executes them against the same database. Without a running worker, submitted jobs remain queued. `npm run collect:worker -- --once` schedules due work and drains the current queue once. Choose **Tinyfish** (default), **HTTP only**, or **offline** in `/admin/scrape`. Pricing mode, caps, and schedules are persisted in Neon rather than environment flags.
 
-For a Vercel web deployment, you can run this command on your computer using the same Neon `DATABASE_URL` in `.env.local` (or `.env`). Keep the terminal open and the computer awake. The worker prints a `worker: "started"` event after connecting; the collection page shows running jobs and their last heartbeat. Vercel's environment variables do not automatically configure the local worker, so set `SCRAPE_ENABLED` and optional collection keys locally too. A queued job is already saved; it does not need to be submitted again.
+For Vercel, run the contributor on your laptop with the same Neon `DATABASE_URL` and a local `TINYFISH_API_KEY` in `.env.local` (or `.env`). Keep Terminal open and laptop awake. Vercel's environment does not configure your laptop. Startup reports database connection, mode, and key readiness; each phase/cell is logged with IST time. Add `-- --name "My Mac"`, `-- --json`, or `-- --job <UUID>` for labeling, JSON logs, or one specific queued job. Ctrl+C saves progress and closes known remote sessions.
+
+No pricing schedule is created automatically. Save one in `/admin/scrape`; on upgrade, recreate old `SNAPSHOT_HOURS` slots there. Existing queued runs remain visible and can be stopped before starting a fresh run. Deploy matching web/worker revisions and restart the contributor after updating. See [collection operations](docs/COLLECTION.md) for limits, recovery, and provider behavior.
 
 ### Request and Session Behavior
 
 - Anonymous analytics/admin requests return to `/login` with the requested path and query preserved. APIs deny unauthorized calls before warehouse initialization or data reads.
 - Client reads have bounded timeouts, shared in-flight requests, short-lived tab-local caching, and stale-response cancellation. Mutations are never automatically retried.
-- Session expiry and cross-tab sign-out return to staged sign-in. Sign-out revokes the Neon session and clears local cached data and ingestion drafts.
+- Session expiry and cross-tab sign-out return to staged sign-in. Sign-out revokes the Neon session and clears local session cookies, cached data, and ingestion drafts. Google sign-in requests an account chooser; it does not globally sign you out of Google.
 - Tables are paginated and charts load near the viewport. Filter state stays in the URL; loading, empty, error, and retry states are explicit.
 
 ---

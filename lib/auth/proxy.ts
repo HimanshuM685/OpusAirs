@@ -1,6 +1,8 @@
 import { CHALLENGE_COOKIES, challengeValue, clearProofs, cookieValue, GOOGLE_PENDING_COOKIE, GOOGLE_SESSION_COOKIE,
   NEON_SESSION_TOKEN, OAUTH_VERIFIER, proofCookie, readProof, safeReturnPath, signProof, type ManagedSession } from "./policy";
 import { loginPath } from "./navigation";
+import { googleAccountChooser } from "./google";
+import { NEON_AUTH_SESSION_DATA_COOKIE_NAME } from "@neondatabase/auth/server";
 
 type Forward = (request: Request, path: string[]) => Promise<Response>;
 
@@ -19,15 +21,27 @@ export async function authProxy(request: Request, path: string[], forward: Forwa
     } catch { return Response.json({ message: "Use the same-origin /auth/callback URL" }, { status: 400 }); }
     google = true;
   }
-  const response = await forward(request, path);
+  let response = await forward(request, path);
   response.headers.set("Cache-Control", "private, no-store");
   // Only a successful Google initiation can mint the challenge-bound pending proof.
   if (google && response.ok) {
+    const body = await response.clone().json().catch(() => null);
+    if (typeof body?.url === "string") {
+      try { body.url = googleAccountChooser(body.url); }
+      catch { return Response.json({ message: "Google sign-in returned an unexpected authorization URL" }, { status: 502 }); }
+      const headers = new Headers(response.headers); headers.delete("content-length"); headers.delete("content-encoding");
+      response = Response.json(body, { status: response.status, headers });
+    }
     const challenge = response.headers.getSetCookie().map((h) => challengeValue(h.split(";")[0])).find(Boolean);
     if (challenge) response.headers.append("Set-Cookie", proofCookie(GOOGLE_PENDING_COOKIE,
       signProof({ challenge, next, exp: Date.now() + 10 * 60000 }, "google-pending", secret), 600));
   }
   if (endpoint === "sign-out" || (response.ok && (endpoint === "sign-in/email" || endpoint === "sign-up/email"))) clearProofs(response);
+  if (endpoint === "sign-out" && response.ok) {
+    for (const name of [NEON_SESSION_TOKEN, NEON_AUTH_SESSION_DATA_COOKIE_NAME, ...CHALLENGE_COOKIES]) {
+      response.headers.append("Set-Cookie", `${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+    }
+  }
   return response;
 }
 

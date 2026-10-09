@@ -29,6 +29,16 @@ function exchangeResponse() {
 }
 
 describe("managed auth proxy", () => {
+  it("forces Google's account chooser while preserving state/PKCE and challenge cookies", async () => {
+    const response = await authProxy(initiation(), ["sign-in", "social"], async () => Response.json({
+      url: "https://accounts.google.com/o/oauth2/v2/auth?state=signed-state&code_challenge=pkce&prompt=none&login_hint=default%40example.com&authuser=0",
+    }, { headers: { "Set-Cookie": "__Secure-neon-auth.session_challenge=challenge; Path=/; Secure; HttpOnly" } }), secret);
+    const url = new URL((await response.json()).url);
+    assert.equal(url.searchParams.get("prompt"), "select_account");
+    assert.equal(url.searchParams.get("state"), "signed-state"); assert.equal(url.searchParams.get("code_challenge"), "pkce");
+    assert.equal(url.searchParams.has("login_hint"), false); assert.equal(url.searchParams.has("authuser"), false);
+    assert.ok(cookie(response, GOOGLE_PENDING_COOKIE));
+  });
   it("mints only challenge-bound pending proof, not admin/session proof, on Google initiation", async () => {
     const response = await authProxy(initiation(), ["sign-in", "social"], async () => {
       const upstream = Response.json({ url: "https://accounts.google.com/auth", redirect: true });
@@ -55,6 +65,9 @@ describe("managed auth proxy", () => {
       const request = new Request(`${origin}/api/auth/${path.join("/")}`, { method: "POST" });
       const response = await authProxy(request, path, async () => Response.json({ success: true }), secret);
       for (const name of [GOOGLE_PENDING_COOKIE, GOOGLE_SESSION_COOKIE, "opus_session", "opus_admin"]) {
+        assert.ok(response.headers.getSetCookie().some((h) => h.startsWith(`${name}=`) && h.includes("Max-Age=0")));
+      }
+      if (path[0] === "sign-out") for (const name of ["__Secure-neon-auth.session_token", "__Secure-neon-auth.local.session_data"]) {
         assert.ok(response.headers.getSetCookie().some((h) => h.startsWith(`${name}=`) && h.includes("Max-Age=0")));
       }
     }

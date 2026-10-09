@@ -1,3 +1,4 @@
+import { liveCollectionEnabled } from "./runtime";
 export type HttpAttempt = { host: string; status: number; error: string; at: string };
 export type FetchResult = { status: number; text: string; transient: boolean; error: string };
 export const CHALLENGE = /captcha|recaptcha|hcaptcha|cf-challenge|cf-turnstile|challenge-platform|verify you are human|access denied|unusual traffic|just a moment/i;
@@ -41,7 +42,7 @@ export class PoliteHttp {
       now: options.now ?? Date.now,
       sleep: options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
       random: options.random ?? Math.random,
-      enabled: options.enabled ?? (() => process.env.SCRAPE_ENABLED === "true"),
+      enabled: options.enabled ?? liveCollectionEnabled,
       minJitter: options.minJitter ?? Math.max(3000, min || 3000),
       maxJitter: options.maxJitter ?? Math.max(3000, min || 3000, max || 8000),
       rpm: options.rpm ?? Math.max(1, Math.min(8, Number(process.env.COLLECT_MAX_RPM_PER_HOST) || 8)),

@@ -241,6 +241,53 @@ const DDL = [
     started_at TIMESTAMPTZ,
     finished_at TIMESTAMPTZ
   )`,
+  `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS progress JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS cancel_requested BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS pipeline_job_events (
+    id BIGSERIAL PRIMARY KEY,
+    job_id UUID NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    level VARCHAR(16) NOT NULL DEFAULT 'info',
+    event VARCHAR(64) NOT NULL,
+    source VARCHAR(64),
+    transport VARCHAR(32),
+    message TEXT NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}'::jsonb
+  )`,
+  `CREATE INDEX IF NOT EXISTS ix_pipeline_job_events_job ON pipeline_job_events (job_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS collection_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    transport_mode VARCHAR(16) NOT NULL DEFAULT 'tinyfish',
+    max_sessions INTEGER NOT NULL DEFAULT 5,
+    max_agent_runs INTEGER NOT NULL DEFAULT 5,
+    max_hours DOUBLE PRECISION NOT NULL DEFAULT 3,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `INSERT INTO collection_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`,
+  `CREATE TABLE IF NOT EXISTS collection_schedules (
+    id UUID PRIMARY KEY,
+    run_at TIMESTAMPTZ NOT NULL,
+    slot VARCHAR(16) NOT NULL DEFAULT 'adhoc',
+    transport_mode VARCHAR(16) NOT NULL,
+    include_demo BOOLEAN NOT NULL DEFAULT false,
+    status VARCHAR(16) NOT NULL DEFAULT 'scheduled',
+    pipeline_job_id UUID REFERENCES pipeline_jobs(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS ix_collection_schedules_due ON collection_schedules (status, run_at)`,
+  `ALTER TABLE collection_schedules ADD COLUMN IF NOT EXISTS recurrence TEXT NOT NULL DEFAULT 'once'`,
+  `ALTER TABLE collection_schedules ADD COLUMN IF NOT EXISTS requested_by TEXT`,
+  `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS worker_id TEXT`,
+  `CREATE TABLE IF NOT EXISTS collection_workers (
+    id TEXT PRIMARY KEY, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'idle',
+    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    current_job_id UUID, tinyfish_ready BOOLEAN NOT NULL DEFAULT false, tinyfish_reason TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS collection_worker_lease (
+    id INTEGER PRIMARY KEY CHECK (id = 1), owner TEXT, heartbeat_at TIMESTAMPTZ
+  )`,
+  `INSERT INTO collection_worker_lease (id) VALUES (1) ON CONFLICT DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS index_revisions (
     series VARCHAR(64) NOT NULL,
     frequency VARCHAR(16) NOT NULL,

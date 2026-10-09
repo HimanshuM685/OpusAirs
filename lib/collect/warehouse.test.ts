@@ -20,6 +20,9 @@ import { parseSchedule } from "./catalog";
 import { upsertCatalog } from "./discover";
 import { pathToFileURL } from "node:url";
 import { istDate } from "./policy";
+import { cancelCollection, cancelSchedule, createCollectionSchedule, queueCollection, readCollectionSettings, scheduleDueCollections, updateCollectionSettings } from "./control";
+import { acquireWorkerLease, announceWorker, releaseWorkerLease, renewWorkerLease } from "./worker-presence";
+import { collectionMonitor } from "./monitor";
 
 // Opt-in integration test. Only a disposable, explicitly named PostgreSQL container is used.
 it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, and demo isolation", {
@@ -62,14 +65,13 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
     return result;
   }
   const literal = (value: unknown): string => value == null ? "NULL" : typeof value === "number" || typeof value === "boolean" ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
-  const query = async (text: string) => {
+  const resultQuery = (text: string) => {
     if (/^\s*SELECT/i.test(text) || /\bRETURNING\b/i.test(text)) {
-      const lines = await execute(`WITH result AS (${text}) SELECT COALESCE(json_agg(result), '[]') FROM result`);
-      return JSON.parse(lines.join("\n"));
+      return `WITH result AS (${text}) SELECT COALESCE(json_agg(result), '[]') FROM result`;
     }
-    await execute(text);
-    return [];
+    return `${text}; SELECT '[]'::json`;
   };
+  const query = async (text: string) => JSON.parse((await execute(resultQuery(text))).join("\n"));
   const tagged = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.map((part, i) => part + (i < values.length ? literal(values[i]) : "")).join("");
     return { text,
@@ -78,7 +80,10 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
     };
   };
   const q = Object.assign(tagged, {
-    transaction: async (queries: { text: string }[]) => { await execute(`BEGIN; ${queries.map((q) => q.text).join(";")}; COMMIT`); return []; },
+    transaction: async (queries: { text: string }[]) => {
+      try { return (await execute(`BEGIN; ${queries.map((q) => resultQuery(q.text)).join(";")}; COMMIT`)).map((line) => JSON.parse(line)); }
+      catch (err) { await execute("ROLLBACK"); throw err; }
+    },
   }) as unknown as ReturnType<typeof sqlFn>;
 
   try {
@@ -89,6 +94,41 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
       quotes_raw, collection_runs, collect_lock, basket_routes, scrape_sources, dgca_benchmark,
       collect_budget, route_catalog RESTART IDENTITY CASCADE`;
     await bootstrap(q); // Actual runtime DDL and seeds, as one advisory-locked transaction.
+    assert.equal((await readCollectionSettings(q)).transport_mode, "tinyfish");
+    await updateCollectionSettings(q, { transport_mode: "offline", max_sessions: 0, max_agent_runs: 0, max_hours: 1 });
+    // Two web clicks share one active collection. Cancelled jobs stop blocking new work.
+    const clicks = await Promise.all([queueCollection(q, { transportMode: "offline" }), queueCollection(q, { transportMode: "offline" })]);
+    assert.equal(clicks[0].id, clicks[1].id); assert.equal(clicks.filter((r) => !r.existing).length, 1);
+    assert.equal(await cancelCollection(q, clicks[0].id), true);
+    assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${clicks[0].id}`)[0].status, "cancelled");
+    const now = new Date("2026-10-09T03:00:00Z");
+    const once = await createCollectionSchedule(q, { runAt: now.toISOString(), mode: "offline" }, now);
+    const scheduled = await Promise.all([scheduleDueCollections(q, now), scheduleDueCollections(q, now)]);
+    assert.equal(scheduled.flat().length, 1);
+    const scheduledId = scheduled.flat()[0];
+    assert.equal((await q`SELECT pipeline_job_id FROM collection_schedules WHERE id = ${once.id}`)[0].pipeline_job_id, scheduledId);
+    await cancelCollection(q, scheduledId);
+    assert.equal((await q`SELECT status FROM collection_schedules WHERE id = ${once.id}`)[0].status, "cancelled");
+    const daily = await createCollectionSchedule(q, { runAt: now.toISOString(), mode: "offline", recurrence: "daily" }, now);
+    const [dailyJob] = await scheduleDueCollections(q, now);
+    assert.ok(dailyJob); await cancelCollection(q, dailyJob);
+    const nextDay = (await q`SELECT run_at, status FROM collection_schedules WHERE id = ${daily.id}`)[0];
+    assert.equal(new Date(String(nextDay.run_at)).toISOString(), "2026-10-10T03:00:00.000Z"); assert.equal(nextDay.status, "scheduled");
+    await cancelSchedule(q, String(daily.id));
+    const yesterday = new Date(now.getTime() - 86400000);
+    const expired = await createCollectionSchedule(q, { runAt: yesterday.toISOString(), mode: "offline" }, yesterday);
+    assert.deepEqual(await scheduleDueCollections(q, now), []);
+    assert.equal((await q`SELECT status FROM collection_schedules WHERE id = ${expired.id}`)[0].status, "expired");
+    const owner = randomUUID(), rival = randomUUID();
+    assert.equal(await acquireWorkerLease(q, owner), true); assert.equal(await acquireWorkerLease(q, rival), false);
+    await q`UPDATE collection_worker_lease SET heartbeat_at = NOW() - INTERVAL '6 minutes'`;
+    assert.equal(await acquireWorkerLease(q, rival), true); assert.equal(await renewWorkerLease(q, owner), false);
+    await releaseWorkerLease(q, owner); assert.equal(await acquireWorkerLease(q, owner), false);
+    await releaseWorkerLease(q, rival);
+    await announceWorker(q, owner, "Integration contributor");
+    assert.equal((await collectionMonitor(q)).workers[0].online, true);
+    await q`UPDATE collection_workers SET heartbeat_at = NOW() - INTERVAL '1 minute'`;
+    assert.equal((await collectionMonitor(q)).workers[0].online, false);
     const day = "2026-10-05";
     const morning = `${day}T00:30:00.000Z`;
     const evening = `${day}T12:30:00.000Z`;
@@ -103,7 +143,7 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
     assert.equal((await claimNext(q, morning, "manual"))?.snapshot_slot, "0600");
     assert.equal((await claimNext(q, evening, "manual"))?.snapshot_slot, "1800");
 
-    const first = await enqueue(q, "collect", { slot: "0600", snapshotAt: morning }, `collect:${morning}`);
+    const first = await enqueue(q, "collect", { slot: "0600", snapshotAt: morning, transportMode: "offline" }, `collect:${morning}`);
     assert.equal(await enqueue(q, "collect", {}, `collect:${morning}`), first);
     await new Promise(setImmediate);
     const queued = await q`SELECT status FROM pipeline_jobs WHERE id = ${first}`;
@@ -193,7 +233,12 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
     process.env.SCRAPE_ENABLED = "false";
     process.env.SYNTHETIC_DEMO_ENABLED = "true";
     try {
-      const result = await runPipeline({ day, slot: "0600", snapshotAt: morning, demo: true }, q);
+      const directId = randomUUID();
+      const result = await runPipeline({ day, slot: "0600", snapshotAt: morning, demo: true, transportMode: "offline", runId: directId }, q);
+      assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${directId}`)[0].status, "ok");
+      const monitor = await collectionMonitor(q, directId);
+      assert.equal(monitor.completed, monitor.total); assert.equal(monitor.quotes, 0);
+      assert.ok(monitor.events.length); assert.ok(monitor.counts.done > 0);
       assert.equal(result.coverage.vintage, "demo");
       assert.equal(result.coverage.coverage, 0);
       assert.equal(result.coverage.jobs.pending || 0, 0);
@@ -206,6 +251,21 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
       const completedJob = await q`SELECT status, stats FROM pipeline_jobs WHERE id = ${first}`;
       assert.equal(completedJob[0].status, "ok");
       assert.equal((completedJob[0].stats as { coverage: { vintage: string } }).coverage.vintage, "provisional");
+      const cancellable = await queueCollection(q, { transportMode: "offline", day, snapshotAt: `${day}T02:00:00Z` });
+      let cancellation: Promise<unknown> | undefined;
+      await runCollectJobs(q, undefined, { jobId: cancellable.id, log: (entry) => {
+        if (entry.event === "job_claimed") cancellation = cancelCollection(q, cancellable.id);
+      } });
+      await cancellation;
+      assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${cancellable.id}`)[0].status, "cancelled");
+      const failureId = randomUUID();
+      const setupKey = process.env.TINYFISH_API_KEY; delete process.env.TINYFISH_API_KEY;
+      try {
+        await assert.rejects(runPipeline({ runId: failureId, transportMode: "tinyfish",
+          settings: { transport_mode: "tinyfish", max_sessions: 1, max_agent_runs: 0, max_hours: 1 } }, q), /Tinyfish API key/);
+      } finally { if (setupKey !== undefined) process.env.TINYFISH_API_KEY = setupKey; }
+      const failedSetup = (await q`SELECT status, error FROM pipeline_jobs WHERE id = ${failureId}`)[0];
+      assert.equal(failedSetup.status, "error"); assert.match(String(failedSetup.error), /Tinyfish API key/);
       // Operator jobs persist the complete input and survive response completion or
       // a worker restart; neither parsing nor ingestion runs in the HTTP process.
       const csv = `origin,destination,carrier,flight_no,dep_date,total_fare,collected_on\nDEL,BOM,6E,6E900,${day},5200,${day}`;
@@ -240,7 +300,8 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
         };
         // Test stays fast while still using the real policy/HTTP adapter and SQL pipeline.
         const current = istDate();
-        const result = await runPipeline({ day: current, snapshotAt: `${current}T00:30:00Z`, slot: '0600', demo: true, runId: randomUUID() }, q);
+        const result = await runPipeline({ day: current, snapshotAt: `${current}T00:30:00Z`, slot: '0600', demo: true, runId: randomUUID(), transportMode: "tinyfish",
+          settings: { transport_mode: "tinyfish", max_sessions: 5, max_agent_runs: 5, max_hours: 1 } }, q);
         assert.equal(costlyPosts, 1); assert.equal(result.budget.tinyfish_disabled, true);
         assert.equal(result.budget.sessions_opened, 0); assert.ok(result.index_rows > 0);
       } finally { process.env = oldEnv; globalThis.fetch = originalFetch; }
