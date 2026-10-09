@@ -11,6 +11,7 @@ process.once("SIGINT", () => shutdown.abort());
 async function main() {
   await bootstrap();
   const q = sql();
+  console.log(JSON.stringify({ worker: "started", scrape_enabled: process.env.SCRAPE_ENABLED === "true", poll_interval_ms: 30000 }));
   do {
     try {
       await scheduleSnapshots(q);

@@ -224,7 +224,7 @@ Admin cookie required. Returns slot coverage, quality, blocked sources, job prog
 Admin cookie or ingest API key required. Returns **202 `{ "job_id": "UUID" }`** after durably enqueueing a full-basket adhoc snapshot. Optional `{ "origin": "CCU", "dest": "BOM" }` adds a pair without removing basket routes. `scrape=false` uses offline sources only; `full=true` never overrides `SCRAPE_ENABLED=false`. `{ "demo": true }` includes explicitly enabled synthetic demo data. Run `npm run collect:worker` to process queued collection jobs.
 
 #### `GET /v1/collect/sources`
-Admin cookie. Adapter registry with configured enabled state, effective environment gate, priority, host, and live robots verdict. No HTTP occurs when scraping is disabled.
+Admin cookie. Adapter registry with configured enabled state, effective environment gate, priority, host, and persisted slot blocks. This endpoint never contacts airline hosts. An eligible live adapter reports `robots.verdict: "pending"`; the worker checks robots.txt before collecting fares and fails closed on denial/error. `runnable` describes configuration eligibility, not a successful robots audit. Opening or refreshing the control page does not initiate collection or repeat robots checks.
 
 #### `POST /v1/collect/sources`
 Admin cookie. Body `{ "id": "file_drop", "enabled": true }` persists the adapter control. Policy-skipped hosts cannot be enabled.

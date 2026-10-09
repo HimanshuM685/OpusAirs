@@ -150,16 +150,33 @@ try {
   }
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" }); await signIn(context, true);
   const admin = await context.newPage(); const requests = []; await warehouse(admin, requests);
-  await admin.goto(base + "/admin/scrape"); await admin.getByRole("heading", { name: "Basket collection" }).waitFor();
-  await admin.waitForTimeout(500);
-  await admin.screenshot({ path: `${output}/experience-admin-390.png`, fullPage: true });
-  assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await admin.route("**/v1/health/collection", (route) => {
+    requests.push("/v1/health/collection");
+    return route.fulfill({ json: { ...health, scrape_enabled: true, job: {
+      id: "7f06a003-1a54-4697-aa78-70c6220dd945", status: "queued", started_at: null, heartbeat_at: null,
+    } } });
+  });
+  await admin.route("**/v1/collect/sources", (route) => {
+    requests.push("/v1/collect/sources");
+    return route.fulfill({ json: { sources: [{ id: "airindia", kind: "html", host: "www.airindia.com", source_rank: 12,
+      enabled: true, runnable: true, robots: { verdict: "pending", notes: "The worker checks robots.txt before collecting fares.", checked_at: null } }] } });
+  });
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await admin.setViewportSize(viewport);
+    await admin.goto(base + "/admin/scrape");
+    await admin.getByRole("heading", { name: "Waiting for a collection worker" }).waitFor();
+    await admin.getByText("Worker checks robots first", { exact: true }).waitFor();
+    assert.equal(await admin.getByRole("button", { name: "Snapshot queued", exact: true }).isDisabled(), true);
+    assert.equal(await admin.getByText("Loading adapters…", { exact: true }).count(), 0);
+    assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await admin.screenshot({ path: `${output}/experience-admin-${viewport.width}.png`, fullPage: true });
+  }
   // Visibility is deterministic here, without relying on headless tab throttling.
   await admin.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
   const before = requests.length; await admin.waitForTimeout(16000); assert.equal(requests.length, before);
   await admin.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
   await admin.waitForTimeout(500); assert.ok(requests.length > before);
-  results.push({ authorizedAdmin: "pass", hiddenTabPolling: "paused", resumePolling: "pass" });
+  results.push({ authorizedAdmin: "pass", queuedWorkerInstructions: "pass", adapterGateRendering: "pass", hiddenTabPolling: "paused", resumePolling: "pass" });
   await admin.getByRole("button", { name: "Sign out", exact: true }).click();
   await admin.waitForURL("**/login");
   const cookies = await context.cookies();

@@ -8,7 +8,7 @@ import { ResourceState } from "@/components/resource-state";
 
 export default function ScrapePage() {
   const summary = useResource<CollectionSummary>("/v1/health/collection", { pollMs: 15000, ttlMs: 10000 });
-  const registry = useResource<{ sources: AdapterHealth[] }>("/v1/collect/sources", { ttlMs: 30000 });
+  const registry = useResource<{ sources: AdapterHealth[] }>("/v1/collect/sources", { pollMs: 15000, ttlMs: 10000 });
   const health = summary.data;
   const adapters = registry.data?.sources || [];
   const [err, setErr] = useState<string | null>(null);
@@ -18,11 +18,12 @@ export default function ScrapePage() {
   const load = () => { summary.refresh(); registry.refresh(); };
 
   async function runSnapshot() {
+    if (busy || ["queued", "running"].includes(health?.job?.status || "")) return;
     setBusy(true); setErr(null); setMsg(null);
     try {
       const result = await apiPost<{ job_id: string }>("/v1/collect/run", { full: true, demo });
       setMsg(`Snapshot queued: ${result.job_id}. The collection worker will process the complete basket.`);
-      await load();
+      load();
     } catch (error) { setErr(String(error)); }
     finally { setBusy(false); }
   }
@@ -31,7 +32,7 @@ export default function ScrapePage() {
     setBusy(true); setErr(null);
     try {
       await apiPost("/v1/collect/sources", { id: adapter.id, enabled: !adapter.enabled });
-      await load();
+      load();
     } catch (error) { setErr(String(error)); }
     finally { setBusy(false); }
   }
@@ -48,8 +49,8 @@ export default function ScrapePage() {
       </p>
       {err && <p className="err" role="alert">{err}</p>}
       {msg && <p className="sub" role="status">{msg}</p>}
-      <ResourceState {...summary} retry={summary.refresh} label="collection status" />
-      <ResourceState {...registry} retry={registry.refresh} label="adapters" />
+      <ResourceState error={summary.error} loading={summary.loading && !summary.data} retry={summary.refresh} label="collection status" />
+      <ResourceState error={registry.error} loading={registry.loading && !registry.data} retry={registry.refresh} label="adapters" />
 
       <section className="panel" aria-labelledby="snapshot-heading">
         <h2 id="snapshot-heading">Snapshot control</h2>
@@ -62,9 +63,15 @@ export default function ScrapePage() {
           Include synthetic demo fares (requires SYNTHETIC_DEMO_ENABLED=true; synthetic fares never enter an official vintage)
         </label>
         <button className="primary" type="button" disabled={busy || !health || ["queued", "running"].includes(health.job?.status || "")} onClick={() => void runSnapshot()}>
-          {busy ? "Working…" : "Run snapshot now"}
+          {busy ? "Queueing…" : health?.job?.status === "queued" ? "Snapshot queued" : health?.job?.status === "running" ? "Snapshot running" : "Run snapshot now"}
         </button>
-        {health?.job && <p className="sub" style={{ marginTop: 16 }}>Job {health.job.id}: {health.job.status}{health.job.error ? ` — ${health.job.error}` : ""}</p>}
+        {health?.job && <p className="sub job-id" style={{ marginTop: 16 }}>Job {health.job.id}: {health.job.status}{health.job.error ? ` — ${health.job.error}` : ""}</p>}
+        {health?.job?.status === "queued" && <div role="status" style={{ marginTop: 16 }}>
+          <h3>Waiting for a collection worker</h3>
+          <p>{health.job.heartbeat_at ? "This job is queued for the worker to resume." : "No worker has claimed this job yet."} Vercel serves the app but does not start the collection worker.</p>
+          <p>On your computer or a persistent server, open this project with the same Neon database configured and run <code>npm run collect:worker</code>. Keep it running; this page updates automatically.</p>
+        </div>}
+        {health?.job?.status === "running" && health.job.heartbeat_at && <p className="sub">Last worker heartbeat: {new Date(health.job.heartbeat_at).toLocaleTimeString()}.</p>}
       </section>
 
       <section className="panel" aria-labelledby="transport-heading" style={{ overflowX: "auto" }}>
@@ -113,7 +120,7 @@ export default function ScrapePage() {
               <td><strong>{a.id}</strong><br /><small>{a.host || a.kind}</small>{a.skipped_reason && <p className="sub">{a.skipped_reason}</p>}</td>
               <td>{a.source_rank}</td>
               <td>{a.robots.verdict.replace(/_/g, " ")}<br /><small>{a.robots.notes}</small>{a.robots.checked_at && <p className="sub">Checked {new Date(a.robots.checked_at).toLocaleTimeString()}</p>}</td>
-              <td><button type="button" disabled={busy || a.kind === "skip"} onClick={() => void toggle(a)} aria-label={`${a.enabled ? "Disable" : "Enable"} ${a.id}`}>{a.enabled ? "Disable" : "Enable"}</button><br /><small>{a.kind === "skip" ? "Skipped by policy" : a.robots.verdict === "blocked" ? "Closed for this slot" : a.runnable ? "Available" : "Environment gate closed"}</small></td>
+              <td><button type="button" disabled={busy || a.kind === "skip"} onClick={() => void toggle(a)} aria-label={`${a.enabled ? "Disable" : "Enable"} ${a.id}`}>{a.enabled ? "Disable" : "Enable"}</button><br /><small>{a.kind === "skip" ? "Skipped by policy" : a.robots.verdict === "blocked" ? "Closed for this slot" : a.runnable ? a.robots.verdict === "pending" ? "Worker checks robots first" : "Available" : a.enabled ? "Environment gate closed" : "Adapter disabled"}</small></td>
             </tr>
           ))}</tbody>
         </table>

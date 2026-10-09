@@ -176,7 +176,7 @@ export type CollectionSummary = {
   blocked_sources: string[];
   scrape_enabled: boolean;
   progress: Record<string, number>;
-  job: { id: string; status: string; error?: string | null } | null;
+  job: { id: string; status: string; error?: string | null; created_at?: string; started_at?: string | null; heartbeat_at?: string | null } | null;
   tinyfish_enabled: boolean; tinyfish_disabled: boolean; budget_notes: string | null;
   sessions_opened: number; sessions_deleted: number; session_attempts: number;
   agent_runs: number; max_sessions: number; max_agent_runs: number;

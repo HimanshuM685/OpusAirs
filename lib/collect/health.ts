@@ -6,7 +6,8 @@ import { budgetCap, tinyfishEnabled, type BudgetState } from "./budget";
 export async function collectionHealth(q: ReturnType<typeof sqlFn>) {
   const snaps = (await q`SELECT snapshot_at, snapshot_slot FROM quote_snapshots ORDER BY snapshot_at DESC LIMIT 1`) as { snapshot_at: string; snapshot_slot: string }[];
   const at = snaps[0] ? new Date(snaps[0].snapshot_at).toISOString() : null;
-  const latestJobs = (await q`SELECT id, status, stats, error, payload, vintage_note FROM pipeline_jobs WHERE type = 'collect' ORDER BY created_at DESC LIMIT 1`) as Record<string, unknown>[];
+  const latestJobs = (await q`SELECT id, status, stats, error, payload, vintage_note, created_at, started_at, heartbeat_at
+    FROM pipeline_jobs WHERE type = 'collect' ORDER BY created_at DESC LIMIT 1`) as Record<string, unknown>[];
   const job = latestJobs[0] || null;
   const payload = job?.payload as { snapshotAt?: string } | undefined;
   const workAt = payload?.snapshotAt || at;

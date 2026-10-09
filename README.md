@@ -153,6 +153,8 @@ npm run collect:worker
 
 The web process queues collection, discovery, ingestion, and rebuild jobs; the worker executes them against the same database. Without a running worker, submitted jobs remain queued. `npm run collect:worker -- --once` schedules due work and drains the current queue once. Scraping still requires explicit collection configuration; offline/manual ingestion works with `SCRAPE_ENABLED=false`.
 
+For a Vercel web deployment, you can run this command on your computer using the same Neon `DATABASE_URL` in `.env.local` (or `.env`). Keep the terminal open and the computer awake. The worker prints a `worker: "started"` event after connecting; the collection page shows running jobs and their last heartbeat. Vercel's environment variables do not automatically configure the local worker, so set `SCRAPE_ENABLED` and optional collection keys locally too. A queued job is already saved; it does not need to be submitted again.
+
 ### Request and Session Behavior
 
 - Anonymous analytics/admin requests return to `/login` with the requested path and query preserved. APIs deny unauthorized calls before warehouse initialization or data reads.
