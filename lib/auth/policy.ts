@@ -64,9 +64,4 @@ export function clearProofs(response: Response): void {
     response.headers.append("Set-Cookie", proofCookie(name, "", 0));
   }
 }
-export function safeReturnPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\r\n]/.test(value)) return "/search";
-  const url = new URL(value, "https://opusairs.invalid");
-  if (url.origin !== "https://opusairs.invalid" || url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/callback")) return "/search";
-  return `${url.pathname}${url.search}${url.hash}`;
-}
+export { safeReturnPath } from "./navigation";

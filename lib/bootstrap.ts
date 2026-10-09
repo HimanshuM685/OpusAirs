@@ -294,9 +294,15 @@ const DDL = [
 ];
 
 let bootstrapped = false;
+let bootstrapping: Promise<void> | undefined;
 
 export async function bootstrap(db?: ReturnType<typeof sql>): Promise<void> {
   if (bootstrapped) return;
+  if (!bootstrapping) bootstrapping = initialize(db).catch((error) => { bootstrapping = undefined; throw error; });
+  return bootstrapping;
+}
+
+async function initialize(db?: ReturnType<typeof sql>): Promise<void> {
   const q = db || sql();
   // Web and collection worker can start together. Serialize schema + seeds in one
   // transaction, using an xact lock (session locks are unsuitable for Neon HTTP).

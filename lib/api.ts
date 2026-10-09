@@ -1,23 +1,105 @@
-export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(path, { cache: "no-store", credentials: "include" });
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText} for ${path}`);
+export class ApiError extends Error {
+  constructor(public readonly status: number, public readonly path: string, message: string) {
+    super(message); this.name = "ApiError";
   }
-  return res.json() as Promise<T>;
 }
 
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+export type RequestOptions = { signal?: AbortSignal; cache?: RequestCache; timeoutMs?: number };
+
+export function isAbort(error: unknown): boolean { return error instanceof Error && error.name === "AbortError"; }
+
+async function send<T>(path: string, init: RequestInit, options: RequestOptions): Promise<T> {
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 20000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  try {
+    const response = await fetch(path, { ...init, credentials: "include", cache: "no-store", signal });
+    return await readResponse<T>(response, path);
+  } catch (error) {
+    if (timeout.aborted && !options.signal?.aborted) throw new Error("Request timed out. Check your connection and try again.");
+    throw error;
+  }
+}
+
+async function readResponse<T>(res: Response, path: string): Promise<T> {
+  const contentType = res.headers.get("content-type") || "";
+  const body = contentType.includes("application/json") ? await res.json().catch(() => null) : await res.text().catch(() => "");
+  if (!res.ok) {
+    const detail = typeof body === "object" && body && "detail" in body ? String(body.detail) : typeof body === "object" && body && "message" in body ? String(body.message) : String(body || res.statusText);
+    if ((res.status === 401 || res.status === 403) && typeof window !== "undefined") {
+      clearApiCache();
+      window.dispatchEvent(new CustomEvent("session-required", { detail: { status: res.status } }));
+    }
+    throw new ApiError(res.status, path, `${detail} (${res.status})`);
+  }
+  return body as T;
+}
+
+export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return send<T>(path, { method: "GET" }, options);
+}
+
+export async function apiPost<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+  const result = await send<T>(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    cache: "no-store",
-    credentials: "include",
-  });
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText} for ${path}`);
+  }, options);
+  clearApiCache();
+  return result;
+}
+
+export async function apiUpload<T>(path: string, body: FormData, options: RequestOptions = {}): Promise<T> {
+  const result = await send<T>(path, { method: "POST", body }, options);
+  clearApiCache();
+  return result;
+}
+
+export type PipelineJob = { id: string; type: string; status: string; error?: string | null; stats?: Record<string, number | string>;
+  created_at?: string; started_at?: string | null; finished_at?: string | null };
+
+const readCache = new Map<string, { data: unknown; until: number }>();
+const inFlight = new Map<string, { controller: AbortController; promise: Promise<unknown>; consumers: number }>();
+let generation = 0;
+
+export function clearApiCache() { generation++; readCache.clear(); }
+export function invalidateRead(path: string) { readCache.delete(path); }
+
+// Browser-only, short-lived shared reads. Last consumer aborts transport. Never
+// share authenticated responses across server requests or cache auth/error data.
+export function readApi<T>(path: string, signal: AbortSignal, ttlMs = 20000): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  if (typeof window === "undefined") return api<T>(path, { signal });
+  const cached = readCache.get(path);
+  if (cached && cached.until > Date.now()) return Promise.resolve(cached.data as T);
+  let entry = inFlight.get(path);
+  if (!entry || entry.controller.signal.aborted) {
+    const controller = new AbortController();
+    const epoch = generation;
+    const created = { controller, promise: Promise.resolve<unknown>(null), consumers: 0 };
+    created.promise = api<T>(path, { signal: controller.signal }).then((data) => {
+      if (!controller.signal.aborted && epoch === generation && ttlMs > 0 && !path.startsWith("/v1/auth") && !path.startsWith("/v1/admin")) {
+        if (readCache.size >= 50) readCache.delete(readCache.keys().next().value!);
+        readCache.set(path, { data, until: Date.now() + ttlMs });
+      }
+      return data;
+    }).finally(() => { if (inFlight.get(path) === created) inFlight.delete(path); });
+    entry = created;
+    inFlight.set(path, entry);
   }
-  return res.json() as Promise<T>;
+  const shared = entry;
+  shared.consumers++;
+  return new Promise<T>((resolve, reject) => {
+    let done = false;
+    const release = () => {
+      if (done) return false;
+      done = true; signal.removeEventListener("abort", abort);
+      if (--shared.consumers === 0) shared.controller.abort();
+      return true;
+    };
+    const abort = () => { if (release()) reject(signal.reason); };
+    signal.addEventListener("abort", abort, { once: true });
+    shared.promise.then((value) => { if (release()) resolve(value as T); }, (error) => { if (release()) reject(error); });
+  });
 }
 
 export type IndexPoint = {

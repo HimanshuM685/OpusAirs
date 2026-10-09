@@ -5,10 +5,12 @@ type Ctx = { params: Promise<{ path: string[] }> };
 async function run(req: Request, ctx: Ctx) {
   try {
     const { path } = await ctx.params;
-    return await handleV1(req, path);
+    const response = await handleV1(req, path);
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    return Response.json({ detail }, { status: 500 });
+    return Response.json({ detail }, { status: 500, headers: { "Cache-Control": "private, no-store" } });
   }
 }
 

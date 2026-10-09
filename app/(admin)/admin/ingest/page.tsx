@@ -1,188 +1,73 @@
 "use client";
-
-import { useEffect, useState } from "react";
-
-type NeededCell = {
-  origin: string;
-  destination: string;
-  trip_type: string;
-  lead_time_days: number;
-  last_collected_on: string | null;
-  hint: string;
-  dump_line: string;
-};
-
-const CSV_HEADER =
-  "source,origin,destination,carrier,flight_no,dep_date,return_date,trip_type,lead_time_days,collected_on,base_fare,taxes,udf,convenience,total_fare,status";
-
-const SAMPLE = `DEL-BOM 6E201 17 Sep economy, total 5054.
-Round trip CCU-BOM IndiGo 12 Oct going 19 Oct return, total 11200.`;
-
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { apiPost, apiUpload, clearApiCache, type PipelineJob } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { useUrlState } from "@/lib/use-url-state";
+import { number } from "@/lib/format";
+import { PageHeading } from "@/components/page-heading";
+import { ResourceState } from "@/components/resource-state";
+type Needed = { origin: string; destination: string; trip_type: string; lead_time_days: number; last_collected_on: string | null; dump_line: string };
+const CSV_HEADER = "source,origin,destination,carrier,flight_no,dep_date,return_date,trip_type,lead_time_days,collected_on,base_fare,taxes,udf,convenience,total_fare,status";
 export default function IngestPage() {
-  const [dumpText, setDumpText] = useState(SAMPLE);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [needed, setNeeded] = useState<NeededCell[]>([]);
-  const [fields, setFields] = useState<string[]>([]);
-
-  function loadNeeded() {
-    fetch("/v1/ingest/needed", { credentials: "include" })
-      .then((r) => r.json())
-      .then((d: { needed?: NeededCell[]; fields?: string[]; detail?: string }) => {
-        if (d.detail) throw new Error(d.detail);
-        setNeeded(d.needed || []);
-        setFields(d.fields || []);
-      })
-      .catch((e) => setErr(String(e)));
-  }
-
+  const { params, update } = useUrlState();
+  const jobId = params.get("job");
+  const validJob = jobId && /^[0-9a-f-]{36}$/i.test(jobId);
+  const job = useResource<PipelineJob>(validJob ? `/v1/jobs/${jobId}` : null, { pollMs: 2000, ttlMs: 0, stopWhen: (j) => ["ok", "error"].includes(j.status) });
+  const needed = useResource<{ needed: Needed[]; count: number }>("/v1/ingest/needed");
+  const [text, setText] = useState("");
+  const [restored, setRestored] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const active = useRef<AbortController | null>(null);
+  const completed = useRef<string | null>(null);
+  const working = Boolean(job.data && ["queued", "running"].includes(job.data.status));
+  const locked = busy || working || Boolean(validJob && job.loading && !job.data);
+  useEffect(() => { try { setText(sessionStorage.getItem("opus-ingest-draft") || ""); } catch {} setRestored(true); return () => active.current?.abort(); }, []);
+  useEffect(() => { if (restored) try { sessionStorage.setItem("opus-ingest-draft", text); } catch {} }, [text, restored]);
   useEffect(() => {
-    loadNeeded();
-  }, []);
-
-  async function sendDump() {
-    setErr(null);
-    setMsg("Parsing dump…");
-    try {
-      const res = await fetch(`/v1/ingest/dump`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: dumpText, rebuild_index: true }),
-      });
-      const body = await res.text();
-      if (!res.ok) throw new Error(`${res.status} ${body}`);
-      setMsg(body);
-      loadNeeded();
-    } catch (e) {
-      setErr(String(e));
-      setMsg(null);
+    if (job.data?.status === "ok" && completed.current !== job.data.id) {
+      completed.current = job.data.id; clearApiCache(); needed.refresh();
     }
-  }
-
-  async function sendCsv(file: File) {
-    setErr(null);
-    setMsg(`Uploading ${file.name}…`);
-    const fd = new FormData();
-    fd.append("file", file);
+  }, [job.data, needed.refresh]);
+  async function queue(file?: File) {
+    if (locked || active.current) return;
+    if (file && file.size > 2 * 1024 * 1024) { setError(new Error("Choose a CSV file smaller than 2 MB.")); return; }
+    setBusy(true); setError(null);
+    const controller = new AbortController(); active.current = controller;
     try {
-      const res = await fetch(`/v1/ingest/csv`, {
-        method: "POST",
-        credentials: "include",
-        body: fd,
-      });
-      const body = await res.text();
-      if (!res.ok) throw new Error(`${res.status} ${body}`);
-      setMsg(body);
-      loadNeeded();
-    } catch (e) {
-      setErr(String(e));
-      setMsg(null);
-    }
+      let result: { job_id: string };
+      if (file) { const form = new FormData(); form.append("file", file); result = await apiUpload("/v1/ingest/csv", form, { signal: controller.signal }); }
+      else result = await apiPost("/v1/ingest/dump", { text, rebuild_index: true }, { signal: controller.signal });
+      update({ job: result.job_id }, true);
+    } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err : new Error(String(err))); }
+    finally { active.current = null; setBusy(false); }
   }
-
-  async function downloadTemplate() {
-    const res = await fetch(`/v1/ingest/template`, { credentials: "include" });
-    const text = await res.text();
-    const blob = new Blob([text], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "quotes_manual.example.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function fillFromNeeded(row: NeededCell) {
-    setDumpText((prev) => {
-      const first = prev.trim().split(/\n/, 1)[0] || "";
-      if (!/origin/i.test(first) || !first.includes(",")) {
-        return `${CSV_HEADER}\n${row.dump_line}`;
-      }
-      return `${prev.trim()}\n${row.dump_line}`;
-    });
-  }
-
-  return (
-    <>
-      <h1>Feed quotes</h1>
-      <p className="sub">
-        Dump natural language, JSON, or CSV. One-way and round-trip both store as quotes.
-        Prose uses Gemini if <code>GEMINI_API_KEY</code> is set. JSON/CSV work without a key.
-      </p>
-      {err && <p className="err">{err}</p>}
-      {msg && <p className="sub">{msg}</p>}
-
-      <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: 18 }}>What to collect</h2>
-        <p className="sub">
-          Required: origin, destination, dep_date, total_fare, trip_type (one_way or round_trip).
-          Round trip: add return_date. Optional: carrier, flight_no, taxes split.
-        </p>
-        {fields.length > 0 && <p className="sub">{fields.join(" · ")}</p>}
-        <p className="sub">{needed.length} stale or missing basket cells (T+1 / T+7 / T+21, both trip types).</p>
-        <div style={{ overflowX: "auto", maxHeight: 320 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Route</th>
-                <th>Trip</th>
-                <th>Lead</th>
-                <th>Last seen</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {needed.slice(0, 80).map((r) => (
-                <tr key={`${r.origin}-${r.destination}-${r.trip_type}-${r.lead_time_days}`}>
-                  <td>
-                    {r.origin}→{r.destination}
-                  </td>
-                  <td>{r.trip_type.replace("_", " ")}</td>
-                  <td>T+{r.lead_time_days}</td>
-                  <td>{r.last_collected_on || "never"}</td>
-                  <td>
-                    <button type="button" onClick={() => fillFromNeeded(r)}>
-                      Add CSV line
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: 18 }}>Dump (NL / JSON / CSV)</h2>
-        <textarea value={dumpText} onChange={(e) => setDumpText(e.target.value)} spellCheck={false} rows={12} />
-        <p>
-          <button className="primary" type="button" onClick={() => void sendDump()}>
-            Ingest dump
-          </button>
-        </p>
-      </div>
-
-      <div className="panel">
-        <h2 style={{ marginTop: 0, fontSize: 18 }}>CSV file</h2>
-        <p className="sub">
-          Columns: source, origin, destination, carrier, flight_no, dep_date, return_date, trip_type,
-          lead_time_days, collected_on, base_fare, taxes, udf, convenience, total_fare, status
-        </p>
-        <div className="row">
-          <button type="button" onClick={downloadTemplate}>
-            Download CSV template
-          </button>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void sendCsv(f);
-            }}
-          />
-        </div>
-      </div>
-    </>
-  );
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const rows = needed.data?.needed || [];
+  const pages = Math.max(1, Math.ceil(rows.length / 20));
+  const currentPage = Math.min(page, pages);
+  return <>
+    <PageHeading title="Feed quotes">Paste fare observations or upload CSV. Submit once, then track parsing, ingestion, and index rebuild as a background job.</PageHeading>
+    <ResourceState error={error} />
+    {validJob && <section className="panel job-progress" aria-live="polite"><h2>Ingestion progress</h2><p className="job-id">{jobId}</p>
+      <ResourceState {...job} retry={job.refresh} label="job status" />
+      {job.data && <><p><strong>{job.data.status === "queued" ? "Queued — waiting for the worker" : job.data.status === "running" ? "Processing observations…" : job.data.status === "ok" ? "Completed" : "Job failed"}</strong></p>
+        {job.data.status === "queued" && <p className="sub">Keep <code>npm run collect:worker</code> running. You can leave this page and return using this URL.</p>}
+        {job.data.error && <p className="err" role="alert">{job.data.error}</p>}
+        {job.data.status === "ok" && <p>{number(Number(job.data.stats?.received || 0))} observations processed; {number(Number(job.data.stats?.index_rows || 0))} index rows rebuilt.</p>}
+        {["ok", "error"].includes(job.data.status) && <button type="button" onClick={() => update({ job: null })}>Start another submission</button>}</>}
+      <p className="sub">Status refresh pauses in hidden tabs and resumes when you return.</p>
+    </section>}
+    <form className="panel" onSubmit={(e: FormEvent) => { e.preventDefault(); void queue(); }}>
+      <h2>Paste observations</h2><p className="sub">JSON, CSV, or prose. Prose needs the worker’s Gemini configuration. Departure dates are required. Your draft stays in this tab.</p>
+      <label htmlFor="fare-dump">Fare data</label><textarea id="fare-dump" name="text" rows={9} spellCheck={false} value={text} maxLength={500000} onChange={(e) => setText(e.target.value)} placeholder="Paste CSV headers and fare rows…" disabled={busy} />
+      <button className="primary" type="submit" disabled={locked || !text.trim()}>{busy ? "Queueing…" : working ? "Job in progress" : "Queue ingestion"}</button>
+    </form>
+    <section className="panel"><h2>Upload CSV</h2><p className="sub">Maximum 2 MB. The worker parses the file and rebuilds the index.</p><div className="toolbar">
+      <a className="text-link" href="/v1/ingest/template" download>Download CSV template</a><label>Choose CSV<input name="csv" type="file" accept=".csv,text/csv" disabled={locked} onChange={(e) => { const file = e.target.files?.[0]; if (file) void queue(file); e.target.value = ""; }} /></label></div></section>
+    <section className="panel"><h2>Missing observations</h2><p className="sub">Economy, one-way basket gaps across T+1/7/15/21/30/45 and configured snapshot slots.</p><ResourceState {...needed} retry={needed.refresh} empty={Boolean(needed.data) && !rows.length} label="missing cells" />
+      {!!rows.length && <><div className="table-scroll"><table><thead><tr><th scope="col">Route</th><th scope="col">Lead</th><th scope="col">Last seen</th><th scope="col">Draft</th></tr></thead><tbody>{rows.slice((currentPage - 1) * 20, currentPage * 20).map((r, i) => <tr key={`${r.origin}-${r.destination}-${r.lead_time_days}-${i}`}><td>{r.origin} → {r.destination}</td><td>T+{r.lead_time_days}</td><td>{r.last_collected_on || "Never"}</td><td><button type="button" disabled={busy} onClick={() => setText((prev) => prev.startsWith(CSV_HEADER) ? `${prev.trim()}\n${r.dump_line}` : `${CSV_HEADER}\n${r.dump_line}`)} aria-label={`Add ${r.origin} to ${r.destination} T+${r.lead_time_days} to draft`}>Add CSV row</button></td></tr>)}</tbody></table></div>
+        <div className="pagination"><button disabled={currentPage === 1} onClick={() => update({ page: String(currentPage - 1) })}>Previous</button><span>Page {currentPage} of {pages}</span><button disabled={currentPage === pages} onClick={() => update({ page: String(currentPage + 1) })}>Next</button></div></>}
+    </section>
+  </>;
 }

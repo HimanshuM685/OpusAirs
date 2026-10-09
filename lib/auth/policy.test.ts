@@ -70,7 +70,7 @@ describe("auth configuration and redirects", () => {
   it("preserves local return paths and blocks external or recursive auth redirects", () => {
     assert.equal(safeReturnPath("/admin/ingest?tab=csv"), "/admin/ingest?tab=csv");
     for (const path of [null, "https://attacker.invalid", "//attacker.invalid", "/\\attacker.invalid", "/api/auth/sign-out", "/auth/callback", "/../api/auth/get-session", "/search\r\nLocation: evil"]) {
-      assert.equal(safeReturnPath(path), "/search", String(path));
+      assert.equal(safeReturnPath(path), "/dashboard", String(path));
     }
   });
 });

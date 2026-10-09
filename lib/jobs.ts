@@ -1,20 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { sql as sqlFn } from "./db";
-import { clearIndexCache } from "./http-cache";
 
 type Q = ReturnType<typeof sqlFn>;
 export type JobType = "ingest" | "collect" | "discover" | "clean" | "rebuild" | "bulletin" | "snapshot";
-
-const listeners = new Set<() => void>();
-export function onJobOk(fn: () => void): void {
-  listeners.add(fn);
-}
 
 export async function enqueue(
   q: Q,
   type: JobType,
   payload: unknown,
-  run?: () => Promise<Record<string, unknown>>,
   dedupeKey?: string,
 ): Promise<string> {
   const id = randomUUID();
@@ -24,30 +17,9 @@ export async function enqueue(
     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
     RETURNING id
   `;
-  const jobId = String(rows[0].id);
-  if (!run || jobId !== id) return jobId;
-  setImmediate(async () => {
-    await q`UPDATE pipeline_jobs SET status = 'running', started_at = NOW() WHERE id = ${id}`;
-    try {
-      const stats = await run();
-      await q`
-        UPDATE pipeline_jobs
-        SET status = 'ok', finished_at = NOW(), stats = ${JSON.stringify(stats)}::jsonb
-        WHERE id = ${id}
-      `;
-      if (["rebuild", "ingest", "collect"].includes(type)) {
-        clearIndexCache();
-        for (const fn of listeners) fn();
-      }
-    } catch (err) {
-      await q`
-        UPDATE pipeline_jobs
-        SET status = 'error', finished_at = NOW(), error = ${String(err).slice(0, 2000)}
-        WHERE id = ${id}
-      `;
-    }
-  });
-  return jobId;
+  // Worker owns execution. Never detach work with setImmediate: Vercel may freeze
+  // the function as soon as this HTTP response is returned.
+  return String(rows[0].id);
 }
 
 export async function readJob(q: Q, id: string) {

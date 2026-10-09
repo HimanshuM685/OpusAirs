@@ -1,110 +1,22 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { api, type CollectionHealth, type CollectionSummary } from "@/lib/api";
+import Link from "next/link";
+import type { CollectionSummary, PipelineJob } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { date, number, percent } from "@/lib/format";
+import { ResourceState } from "@/components/resource-state";
+import { PageHeading } from "@/components/page-heading";
 
 export default function AdminOverviewPage() {
-  const [health, setHealth] = useState<CollectionHealth[]>([]);
-  const [jobs, setJobs] = useState<{ id: string; type: string; status: string; started_at?: string; finished_at?: string }[]>([]);
-  const [snap, setSnap] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<CollectionSummary>("/v1/health/collection")
-      .then((summary) => setHealth(summary.sources))
-      .catch((e) => setErr(String(e)));
-    api<{ id: string; type: string; status: string; started_at?: string; finished_at?: string }[]>("/v1/jobs")
-      .then(setJobs)
-      .catch(() => setJobs([]));
-    api<{ last_snapshot_at?: string | null; coverage?: number }>("/v1/health")
-      .then((h) => setSnap(h.last_snapshot_at ? `${h.last_snapshot_at} · coverage ${h.coverage ?? "—"}` : "no snapshot"))
-      .catch(() => setSnap(null));
-  }, []);
-
-  const totalOk = health.reduce((s, r) => s + r.quotes_ok, 0);
-  const totalBlocked = health.reduce((s, r) => s + r.quotes_blocked, 0);
-  const totalMissing = health.reduce((s, r) => s + r.quotes_missing, 0);
-
-  return (
-    <>
-      <h1 className="fade-in">Admin Overview</h1>
-      <p className="sub fade-in fade-in-delay-1">
-        Collection health summary across all data sources.
-      </p>
-      {err && <p className="err">{err}</p>}
-      <p className="sub">Last snapshot: {snap || "—"}</p>
-      <div className="panel">
-        <h2>Recent jobs</h2>
-        <table>
-          <thead><tr><th>Type</th><th>Status</th><th>Started</th><th>Finished</th></tr></thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.id}><td>{j.type}</td><td>{j.status}</td><td>{j.started_at || "—"}</td><td>{j.finished_at || "—"}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="stat-row fade-in fade-in-delay-1">
-        <div className="stat-card">
-          <div className="stat-label">Sources</div>
-          <div className="stat-value">{health.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Quotes OK</div>
-          <div className="stat-value" style={{ color: "var(--accent-green)" }}>
-            {totalOk}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Missing</div>
-          <div className="stat-value" style={{ color: "var(--accent-gold)" }}>
-            {totalMissing}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Blocked</div>
-          <div className="stat-value" style={{ color: "var(--accent-red)" }}>
-            {totalBlocked}
-          </div>
-        </div>
-      </div>
-
-      <div className="panel fade-in fade-in-delay-2">
-        <h2>Collection Sources</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Status</th>
-              <th>OK</th>
-              <th>Missing</th>
-              <th>Blocked</th>
-              <th>Last Run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {health.map((r) => (
-              <tr key={r.source}>
-                <td style={{ fontWeight: 600 }}>{r.source}</td>
-                <td>
-                  <span
-                    className={`badge ${r.status === "ok" ? "badge-ok" : r.status === "running" ? "badge-warn" : "badge-err"}`}
-                  >
-                    {r.status}
-                  </span>
-                </td>
-                <td>{r.quotes_ok}</td>
-                <td>{r.quotes_missing}</td>
-                <td>{r.quotes_blocked}</td>
-                <td style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                  {r.last_finished_at || r.last_started_at || "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
+  const health = useResource<CollectionSummary>("/v1/health/collection", { pollMs: 15000, ttlMs: 10000 });
+  const jobs = useResource<PipelineJob[]>("/v1/jobs", { pollMs: 15000, ttlMs: 10000 });
+  return <>
+    <PageHeading title="Operator overview" action={<Link className="btn primary" href="/admin/ingest">Feed quotes</Link>}>Monitor collection quality and durable background jobs. Refresh pauses when this tab is hidden or offline.</PageHeading>
+    <ResourceState {...health} retry={health.refresh} label="collection health" />
+    <div className="metric-strip"><div><span>Observed coverage</span><strong>{percent(health.data?.coverage)}</strong></div><div><span>Missing cells</span><strong>{number(health.data?.unavailable_cells)}</strong></div><div><span>Quality</span><strong>{health.data?.quality || "—"}</strong></div></div>
+    <p className="sub">Latest snapshot: {date(health.data?.last_snapshot_at, true)} IST. Queued jobs need a running collection worker.</p>
+    <section className="panel"><h2>Recent jobs</h2><ResourceState {...jobs} retry={jobs.refresh} empty={Boolean(jobs.data) && !jobs.data?.length} label="jobs" />
+      {!!jobs.data?.length && <div className="table-scroll"><table><thead><tr><th scope="col">Job</th><th scope="col">State</th><th scope="col">Started</th><th scope="col">Finished</th><th scope="col">Details</th></tr></thead><tbody>{jobs.data.map((j) => <tr key={j.id}><td>{j.type}<small className="job-id">{j.id}</small></td><td>{j.status}</td><td>{date(j.started_at, true)}</td><td>{date(j.finished_at, true)}</td><td>{j.error || (j.type === "ingest" ? <Link className="text-link" href={`/admin/ingest?job=${j.id}`}>View progress</Link> : "—")}</td></tr>)}</tbody></table></div>}
+    </section>
+    <section className="panel"><h2>Sources</h2><div className="table-scroll"><table><thead><tr>{["Source", "Status", "OK", "Missing", "Blocked", "Last run"].map((v) => <th key={v} scope="col">{v}</th>)}</tr></thead><tbody>{health.data?.sources.map((s) => <tr key={s.source}><td>{s.source}</td><td>{s.status}</td><td>{number(s.quotes_ok)}</td><td>{number(s.quotes_missing)}</td><td>{number(s.quotes_blocked)}</td><td>{date(s.last_finished_at || s.last_started_at, true)}</td></tr>)}</tbody></table></div><Link className="text-link" href="/admin/scrape">Collection controls</Link></section>
+  </>;
 }

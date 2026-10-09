@@ -3,7 +3,7 @@
 > Smart India Hackathon 2026 — [SIH26056](https://sih2026.vuce.in/ps/SIH26056)  
 > High-frequency airfare collection, Laspeyres/Jevons price index construction, and route analytics for MoSPI / NSO and RBI.
 
-OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon). It delivers a **two-sided architecture**: a public consumer interface for flight search, carrier fare comparison, and macroeconomic price indices, alongside a dedicated operator/admin suite for web scraping, multi-source data ingestion, and benchmark validation.
+OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon). A public landing page leads into one staged sign-in flow: users access collected airfare comparisons and macroeconomic price indices, while authorized Google accounts also access collection, ingestion, and benchmark tools. Analytics pages and warehouse APIs require a live Neon session.
 
 ---
 
@@ -48,18 +48,19 @@ OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon
 
 ## 🌟 Feature Tour
 
-### 1. User Side (Public Portal)
-- **Landing Page (`/`)**: Hero overview, live APIx index ticker, real-time pulse metrics, direct navigation into flight search or macro analytics.
+### 1. Airfare Workspace
+- **Landing Page (`/`)**: Public product overview and links into the signed-in workspace. It does not query private warehouse data.
+- **Sign In (`/login`)**: Google first, Neon email/password secondary. Sign-in, verification, and redirect progress share one screen. Failed or cancelled sign-in preserves your destination; `/register` opens the account-creation stage.
 - **Real-Time Airfare Price Index Dashboard (`/dashboard`)**:
   - Daily, weekly, and monthly APIx series.
-  - Multi-series methodology: **Laspeyres APIx** (weighted basket), **Jevons** (unweighted geometric mean), and **T+21** (MoSPI 2024 advance-purchase recommendation).
+  - Laspeyres, Jevons, T+21, chain-linked, and moving-mean series, with coverage, imputed share, and observation freshness.
   - Time window toggles: **30 Days**, **3 Months**, **6 Months**, and **All-Time**.
-  - Interactive gradient area charts and index movement metrics.
+  - Deferred charts and index movement metrics without continuous background animation.
 - **Flight Search & Price Compare (`/search`)**:
   - Origin & Destination route selectors across key domestic corridors.
-  - **Carrier Comparison Bar Chart**: Compare latest fares across airlines (IndiGo, Air India, Akasa, SpiceJet, AI Express).
-  - **Fares Breakdown Table**: Displays carrier, flight number, departure date, lead time, base fare, taxes, and total fare.
-  - **Historical Price Gain Tracking**: Visual trend chart tracking fare evolution over **last 30 days**, **last 3 months**, and **last 6 months**, with real-time price gain percentage badges.
+  - Optional departure and cabin filters, one-way/round-trip selection, and shareable filter URLs.
+  - **Fare Breakdown Table**: Paginated carrier observations with flight, departure, cabin, collection date, and fare components.
+  - **Price History**: Independently loaded fare trends over 30 days, 3 months, 6 months, or all available history. Changing the history window does not reload the fare table. Searches read collected observations; they do not trigger scraping or book flights.
 - **Route Relatives (`/routes`)**: Performance and current elementary price relatives across basket city-pairs.
 - **Lead-Time Heatmap (`/heatmap`)**: Matrix visualizing how fares shift across advance-purchase windows ($T+1$ to $T+45$).
 - **Price Elasticity (`/elasticity`)**: Non-linear fare surges plotted against booking advance days.
@@ -73,10 +74,10 @@ OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon
   - Source-by-source status board reporting OK, missing, sold-out, and blocked quotes.
 - **Manual Data Dump Area (`/admin/ingest`)**:
   - Direct data dump for manual collection from airline websites or aggregators.
-  - **JSON Dump**: Paste structured quote arrays directly for instant upsert.
-  - **CSV Upload**: Drag-and-drop CSV quote batches with automatic parsing.
+  - **JSON/CSV/Prose Dump**: Paste observations into a tab-local draft; submit once and follow a durable job. Prose parsing requires the worker's `GEMINI_API_KEY`.
+  - **CSV Upload**: Select a file up to 2 MB for worker-side parsing.
   - **Template Download**: One-click download of standardized CSV template.
-  - **Auto Index Rebuild**: Automatically triggers data cleaning (deduplication, component estimation, MAD outlier detection) and rebuilds the APIx index.
+  - **Auto Index Rebuild**: Worker performs ingestion, cleaning, and index construction. Job URLs survive navigation; polling pauses in hidden tabs and stops on completion/error.
 - **DGCA Benchmark Backtest (`/admin/backtest`)**: Evaluates computed monthly APIx series against published DGCA Tariff Monitoring Unit (TMU) composites.
 
 ---
@@ -92,7 +93,7 @@ OpusAirs is a full-stack Next.js platform powered by serverless PostgreSQL (Neon
 ```bash
 git clone https://github.com/HimanshuM685/OpusAirs.git
 cd OpusAirs
-npm install
+npm ci
 ```
 
 ### 2. Configure Environment
@@ -134,13 +135,30 @@ npm run dev
 ```
 
 - Public User Interface: [http://localhost:3000](http://localhost:3000)
-- User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-- Flight Search & Compare: [http://localhost:3000/search](http://localhost:3000/search)
+- User Dashboard: [http://localhost:3000/dashboard](http://localhost:3000/dashboard) (sign-in required)
+- Price Check: [http://localhost:3000/search](http://localhost:3000/search) (sign-in required)
 - User Sign In / Register: [http://localhost:3000/login](http://localhost:3000/login) & [http://localhost:3000/register](http://localhost:3000/register) (Google recommended; Neon email/password secondary)
 - Operator / Admin Suite: [http://localhost:3000/admin](http://localhost:3000/admin) (Google OAuth sign-in; granted if account email is listed in `ADMIN_EMAILS`)
-- API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index)
+- API Root: [http://localhost:3000/v1/index](http://localhost:3000/v1/index) (authenticated session required)
 
 Legacy local password accounts and `opus_session`/`opus_admin` cookies no longer authenticate. Existing users should sign in or register through Neon Auth. Warehouse data remains intact.
+
+### 4. Run the Background Worker
+
+In a second terminal, from the project root:
+
+```bash
+npm run collect:worker
+```
+
+The web process queues collection, discovery, ingestion, and rebuild jobs; the worker executes them against the same database. Without a running worker, submitted jobs remain queued. `npm run collect:worker -- --once` schedules due work and drains the current queue once. Scraping still requires explicit collection configuration; offline/manual ingestion works with `SCRAPE_ENABLED=false`.
+
+### Request and Session Behavior
+
+- Anonymous analytics/admin requests return to `/login` with the requested path and query preserved. APIs deny unauthorized calls before warehouse initialization or data reads.
+- Client reads have bounded timeouts, shared in-flight requests, short-lived tab-local caching, and stale-response cancellation. Mutations are never automatically retried.
+- Session expiry and cross-tab sign-out return to staged sign-in. Sign-out revokes the Neon session and clears local cached data and ingestion drafts.
+- Tables are paginated and charts load near the viewport. Filter state stays in the URL; loading, empty, error, and retry states are explicit.
 
 ---
 
@@ -148,24 +166,43 @@ Legacy local password accounts and `opus_session`/`opus_admin` cookies no longer
 
 You can feed airfare quote data using any of the following methods:
 
+For command-line examples, configure `INGEST_API_KEY` on the server and export the same value in your shell. The key is limited to documented ingestion/collection/rebuild and job-status endpoints; it does not grant analytics or general operator access. Browser operators use their authorized Neon Google session.
+
 1. **Admin UI**: Navigate to [http://localhost:3000/admin/ingest](http://localhost:3000/admin/ingest) and upload CSV or paste JSON.
 2. **API (JSON)**:
    ```bash
    curl -X POST http://localhost:3000/v1/ingest/quotes \
+     -H "x-api-key: $INGEST_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"rebuild_index": true, "quotes": [{"source":"manual","origin":"DEL","destination":"BOM","carrier":"6E","dep_date":"2026-09-20","total_fare":4850}]}'
    ```
 3. **API (CSV)**:
    ```bash
    curl -X POST http://localhost:3000/v1/ingest/csv \
+     -H "x-api-key: $INGEST_API_KEY" \
      -F "file=@data/quotes_manual.example.csv"
    ```
 4. **Trigger Scrape**:
    ```bash
-   curl -X POST "http://localhost:3000/v1/collect/run?scrape=true"
+   curl -X POST "http://localhost:3000/v1/collect/run?scrape=true" \
+     -H "x-api-key: $INGEST_API_KEY"
    ```
 
 ---
+
+Each submission returns `202 { "job_id": "..." }`. Read `/v1/jobs/{job_id}` with the same credentials until `status` is `ok` or `error`. Text input is limited to 500,000 characters, JSON batches to 2,000 quotes, and CSV files to 2 MB.
+
+## Verification
+
+```bash
+npm test
+npm run build
+# Install browser binaries outside .next, which builds can clean:
+npx playwright-core install chromium
+node scripts/verify-experience.mjs
+```
+
+The browser harness starts its own production server on port 3101 with fixture Neon/warehouse responses and stops it afterwards. It checks real route gates, navigation, request lifecycles, sign-out, and mobile layout. It does not validate live Google credentials or production latency. On Linux, browser setup may also require `npx playwright-core install-deps chromium`. PostgreSQL integration is opt-in; see [verification evidence](docs/OPTIMIZATION.md) for the PGlite command and measured local results.
 
 ## 📚 Documentation
 
@@ -174,3 +211,4 @@ You can feed airfare quote data using any of the following methods:
 - [docs/COLLECTION.md](docs/COLLECTION.md) — Collection methodology, scraper safety, and rate limits.
 - [docs/METHODOLOGY.md](docs/METHODOLOGY.md) — Jevons, Laspeyres, MAD cleaning, and T+21 economic principles.
 - [Deploy.md](Deploy.md) / [docs/Deploy.md](docs/Deploy.md) — Deployment instructions for Vercel and Docker.
+- [docs/OPTIMIZATION.md](docs/OPTIMIZATION.md) — Optimization decisions, local measurements, and verification limits.

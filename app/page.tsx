@@ -1,26 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, type IndexPoint } from "@/lib/api";
 import GlyphPortal from "@/components/ui/glyph-portal";
 import { GradientWave } from "@/components/ui/gradient-wave";
 
 const family = '"Outfit", "Inter", sans-serif';
 
 export default function LandingPage() {
-  const [latestIdx, setLatestIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    api<IndexPoint[]>("/v1/index?frequency=daily&series=apix_laspeyres")
-      .then((rows) => {
-        if (rows.length) setLatestIdx(rows[rows.length - 1].value);
-      })
-      .catch(() => { });
-  }, []);
 
   return (
-    <div className="page-open-animate" style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base, #ffffff)", color: "var(--text-primary, #0c1212)" }}>
+    <main id="main-content" className="landing-page" style={{ width: "100%", minHeight: "100vh", background: "var(--bg-base, #ffffff)", color: "var(--text-primary, #0c1212)" }}>
       <style>{`
         .opus-header {
           position: absolute;
@@ -103,7 +92,7 @@ export default function LandingPage() {
                       boxShadow: "0 0 8px #0b3b2a",
                     }}
                   />
-                  Live Index: {latestIdx != null ? latestIdx.toFixed(2) : "100.00"}
+                   Daily airfare index
                 </div>
                 <Link
                   href="/login"
@@ -303,6 +292,6 @@ export default function LandingPage() {
           </footer>
         </div>
       </GlyphPortal>
-    </div>
+    </main>
   );
 }

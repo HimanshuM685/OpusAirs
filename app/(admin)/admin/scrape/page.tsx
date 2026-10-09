@@ -1,31 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { api, apiPost, type AdapterHealth, type CollectionSummary } from "@/lib/api";
+import { useState } from "react";
+import Link from "next/link";
+import { apiPost, type AdapterHealth, type CollectionSummary } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { ResourceState } from "@/components/resource-state";
 
 export default function ScrapePage() {
-  const [health, setHealth] = useState<CollectionSummary | null>(null);
-  const [adapters, setAdapters] = useState<AdapterHealth[]>([]);
+  const summary = useResource<CollectionSummary>("/v1/health/collection", { pollMs: 15000, ttlMs: 10000 });
+  const registry = useResource<{ sources: AdapterHealth[] }>("/v1/collect/sources", { ttlMs: 30000 });
+  const health = summary.data;
+  const adapters = registry.data?.sources || [];
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demo, setDemo] = useState(false);
-  const load = useCallback(async () => {
-    try {
-      const [summary, registry] = await Promise.all([
-        api<CollectionSummary>("/v1/health/collection"),
-        api<{ sources: AdapterHealth[] }>("/v1/collect/sources"),
-      ]);
-      setHealth(summary);
-      setAdapters(registry.sources);
-    } catch (error) { setErr(String(error)); }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), 15000);
-    return () => clearInterval(timer);
-  }, [load]);
+  const load = () => { summary.refresh(); registry.refresh(); };
 
   async function runSnapshot() {
     setBusy(true); setErr(null); setMsg(null);
@@ -54,10 +44,12 @@ export default function ScrapePage() {
       <h1>Basket collection</h1>
       <p className="sub" style={{ maxWidth: 720 }}>
         One economy, one-way fare per basket route and lead-time bin, at 06:00 IST (18:00 only when configured).
-        Disallowed searches and challenges close that host for the slot. Fill gaps through <a href="/admin/ingest">operator ingest</a>.
+        Disallowed searches and challenges close that host for the slot. Fill gaps through <Link className="text-link" href="/admin/ingest">operator ingest</Link>.
       </p>
       {err && <p className="err" role="alert">{err}</p>}
       {msg && <p className="sub" role="status">{msg}</p>}
+      <ResourceState {...summary} retry={summary.refresh} label="collection status" />
+      <ResourceState {...registry} retry={registry.refresh} label="adapters" />
 
       <section className="panel" aria-labelledby="snapshot-heading">
         <h2 id="snapshot-heading">Snapshot control</h2>
@@ -69,7 +61,7 @@ export default function ScrapePage() {
           <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
           Include synthetic demo fares (requires SYNTHETIC_DEMO_ENABLED=true; synthetic fares never enter an official vintage)
         </label>
-        <button className="primary" type="button" disabled={busy} onClick={() => void runSnapshot()}>
+        <button className="primary" type="button" disabled={busy || !health || ["queued", "running"].includes(health.job?.status || "")} onClick={() => void runSnapshot()}>
           {busy ? "Working…" : "Run snapshot now"}
         </button>
         {health?.job && <p className="sub" style={{ marginTop: 16 }}>Job {health.job.id}: {health.job.status}{health.job.error ? ` — ${health.job.error}` : ""}</p>}
@@ -102,7 +94,7 @@ export default function ScrapePage() {
         </dl>
         <p className="sub">Target: 80% weighted basket cells observed. Below 60% stays provisional with low quality. Imputed and synthetic fares do not count as observations.</p>
         <p className="sub">Blocked sources: {health?.blocked_sources.join(", ") || "none recorded"}</p>
-        <a href="/admin/ingest">Complete missing cells with CSV / JSON</a>
+        <Link className="text-link" href="/admin/ingest">Complete missing cells with CSV / JSON</Link>
       </section>
 
       <section className="panel" aria-labelledby="progress-heading">

@@ -1,85 +1,26 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { api, type IndexPoint, type QuoteOut } from "@/lib/api";
+import dynamic from "next/dynamic";
+import type { IndexPoint, QuoteOut } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { date, money } from "@/lib/format";
+import { PageHeading } from "@/components/page-heading";
+import { ResourceState } from "@/components/resource-state";
+const Chart = dynamic(() => import("@/components/charts/series-chart"), { loading: () => <div className="chart-placeholder" /> });
 
 export default function RouteDetailPage() {
-  const params = useParams<{ pair: string }>();
-  const [origin, dest] = (params.pair || "DEL-BOM").split("-");
-  const [idx, setIdx] = useState<IndexPoint[]>([]);
-  const [quotes, setQuotes] = useState<QuoteOut[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([
-      api<IndexPoint[]>(`/v1/index/routes/${origin}/${dest}?frequency=daily`),
-      api<QuoteOut[]>(`/v1/quotes?origin=${origin}&dest=${dest}&limit=40`),
-    ])
-      .then(([a, b]) => {
-        setIdx(a);
-        setQuotes(b);
-      })
-      .catch((e) => setErr(String(e)));
-  }, [origin, dest]);
-
-  return (
-    <>
-      <h1>
-        {origin} → {dest}
-      </h1>
-      <p className="sub">Route-level APIx and recent cleaned quotes with fare components.</p>
-      {err && <p className="err">{err}</p>}
-      <div className="panel" style={{ height: 320 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={idx.map((r) => ({ date: r.period_date, value: r.value }))}>
-            <CartesianGrid stroke="#243049" />
-            <XAxis dataKey="date" stroke="#93a0bd" />
-            <YAxis stroke="#93a0bd" />
-            <Tooltip />
-            <Line type="monotone" dataKey="value" stroke="#e8a54b" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="panel">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Carrier</th>
-              <th>Lead</th>
-              <th>Base</th>
-              <th>Taxes</th>
-              <th>UDF</th>
-              <th>Conv.</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quotes.map((q) => (
-              <tr key={`${q.collected_on}-${q.carrier}-${q.flight_no}-${q.lead_time_days}`}>
-                <td>{q.collected_on}</td>
-                <td>{q.carrier}</td>
-                <td>T+{q.lead_time_days}</td>
-                <td>{q.base_fare.toLocaleString("en-IN")}</td>
-                <td>{q.taxes.toLocaleString("en-IN")}</td>
-                <td>{q.udf.toLocaleString("en-IN")}</td>
-                <td>{q.convenience.toLocaleString("en-IN")}</td>
-                <td>{q.total_fare.toLocaleString("en-IN")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
+  const { pair } = useParams<{ pair: string }>();
+  const valid = /^[A-Z]{3}-[A-Z]{3}$/.test(pair);
+  const [origin, dest] = pair.split("-");
+  const index = useResource<IndexPoint[]>(valid ? `/v1/index/routes/${origin}/${dest}?frequency=daily` : null);
+  const quotes = useResource<QuoteOut[]>(valid ? `/v1/quotes?origin=${origin}&dest=${dest}&limit=40` : null);
+  if (!valid) return <><PageHeading title="Route not found">Choose a route from the basket.</PageHeading><Link href="/routes">Browse routes</Link></>;
+  return <>
+    <PageHeading title={`${origin} → ${dest}`} action={<Link className="btn primary" href={`/search?origin=${origin}&dest=${dest}`}>Check fares</Link>}>Route-level APIx and recent cleaned observations.</PageHeading>
+    <section className="panel"><h2>Index history</h2><ResourceState {...index} retry={index.refresh} empty={Boolean(index.data) && !index.data?.length} label="index history" />{!!index.data?.length && <Chart data={index.data} />}</section>
+    <section className="panel"><h2>Recent fares</h2><ResourceState {...quotes} retry={quotes.refresh} empty={Boolean(quotes.data) && !quotes.data?.length} label="fare observations" />
+      {!!quotes.data?.length && <div className="table-scroll"><table><thead><tr>{["Collected", "Carrier", "Departure", "Lead", "Base", "Taxes", "UDF", "Fee", "Total"].map((v) => <th key={v} scope="col">{v}</th>)}</tr></thead><tbody>{quotes.data.map((q, i) => <tr key={`${q.flight_no}-${q.collected_on}-${i}`}><td>{date(q.collected_on)}</td><td>{q.carrier}</td><td>{date(q.dep_date)}</td><td>T+{q.lead_time_days}</td><td>{money(q.base_fare)}</td><td>{money(q.taxes)}</td><td>{money(q.udf)}</td><td>{money(q.convenience)}</td><td>{money(q.total_fare)}</td></tr>)}</tbody></table></div>}
+    </section>
+  </>;
 }

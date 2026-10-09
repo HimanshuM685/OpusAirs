@@ -1,17 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, type BacktestSummary } from "@/lib/api";
+import type { BacktestSummary } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { ResourceState } from "@/components/resource-state";
 
 export default function BacktestPage() {
-  const [data, setData] = useState<BacktestSummary | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<BacktestSummary>("/v1/backtest/dgca")
-      .then(setData)
-      .catch((e) => setErr(String(e)));
-  }, []);
+  const resource = useResource<BacktestSummary>("/v1/backtest/dgca");
+  const data = resource.data;
 
   const national = data?.rows.filter((r) => !r.origin) ?? [];
   const routes = data?.rows.filter((r) => r.origin) ?? [];
@@ -20,7 +15,7 @@ export default function BacktestPage() {
     <>
       <h1>DGCA backtest</h1>
       <p className="sub">{data?.note}</p>
-      {err && <p className="err">{err}</p>}
+      <ResourceState {...resource} retry={resource.refresh} empty={Boolean(data) && !data?.rows.length} label="backtest comparisons" />
       <div className="row">
         <div className="card">
           <div className="k">Correlation (overlapping months)</div>

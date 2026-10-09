@@ -83,21 +83,27 @@ describe("Google OAuth completion", () => {
     for (const request of [new Request(`${origin}/auth/callback?${OAUTH_VERIFIER}=forged`), callback("new-challenge", "old-challenge"),
       new Request(`${origin}/auth/callback`, { headers: callback().headers })]) {
       const response = await oauthCallback(request, forward, secret);
-      assert.equal(response.headers.get("location"), `${origin}/login?error=oauth`);
+      const location = new URL(response.headers.get("location")!);
+      assert.equal(location.pathname, "/login");
+      assert.equal(location.searchParams.get("error"), "oauth");
       assert.equal(cookie(response, GOOGLE_SESSION_COOKIE), null);
     }
   });
   it("rejects failed exchange, a cached-only response, and null session data", async () => {
     for (const response of [Response.json({ message: "invalid verifier" }, { status: 401 }), Response.json(session), Response.json(null)]) {
       const result = await oauthCallback(callback(), async () => response, secret);
-      assert.equal(result.headers.get("location"), `${origin}/login?error=oauth`);
+      const location = new URL(result.headers.get("location")!);
+      assert.equal(location.pathname, "/login");
+      assert.equal(location.searchParams.get("next"), "/admin");
+      assert.equal(location.searchParams.get("mode"), "admin");
+      assert.equal(location.searchParams.get("error"), "oauth");
       assert.equal(cookie(result, GOOGLE_SESSION_COOKIE), null);
     }
   });
   it("does not redirect authenticated users to another origin", async () => {
     const request = new Request(`${origin}/auth/callback?${OAUTH_VERIFIER}=valid&next=${encodeURIComponent("//attacker.invalid")}`, { headers: callback().headers });
     const response = await oauthCallback(request, async () => exchangeResponse(), secret);
-    assert.equal(response.headers.get("location"), `${origin}/search`);
+    assert.equal(response.headers.get("location"), `${origin}/dashboard`);
   });
 
   it("completes the flow through the installed Neon SDK proxy and signed-cookie minting", async (t) => {

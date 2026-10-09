@@ -63,11 +63,15 @@ describe("production auth route failures", () => {
     assert.ok(!logs.includes("private-password") && !logs.includes("private-short-secret"));
   });
 
-  it("handles the OAuth callback's missing configuration with the same diagnostics", async (t) => {
+  it("returns a failed OAuth callback to the staged login screen without exposing a JSON dead end", async (t) => {
     t.mock.method(console, "error", () => {});
-    const response = await callback(new Request("https://app.example/auth/callback?neon_auth_session_verifier=test"));
-    assert.equal(response.status, 503);
-    assert.equal((await response.json()).code, "AUTH_NOT_CONFIGURED");
+    const response = await callback(new Request("https://app.example/auth/callback?neon_auth_session_verifier=test&next=%2Fadmin%2Fingest"));
+    assert.equal(response.status, 303);
+    const url = new URL(response.headers.get("location")!);
+    assert.equal(url.pathname, "/login");
+    assert.equal(url.searchParams.get("error"), "unavailable");
+    assert.equal(url.searchParams.get("next"), "/admin/ingest");
+    assert.equal(url.searchParams.get("mode"), "admin");
   });
 
   it("logs unexpected synchronous and async failures but keeps private details out of the response", async (t) => {

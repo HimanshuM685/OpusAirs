@@ -1,199 +1,37 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { api, type HeatmapCell } from "@/lib/api";
-import JellyAnimatedHero from "@/components/ui/jelly-animated-hero";
-
-function color(v: number, min: number, max: number) {
-  const t = max === min ? 0.5 : (v - min) / (max - min);
-  // Emerald green (#0b3b2a) for low/stable -> Amber (#e8a54b) -> Red (#d9383a) for high spikes
-  if (t < 0.5) {
-    const r = Math.round(11 + t * 2 * (232 - 11));
-    const g = Math.round(59 + t * 2 * (165 - 59));
-    const b = Math.round(42 + t * 2 * (75 - 42));
-    return `rgb(${r},${g},${b})`;
-  } else {
-    const t2 = (t - 0.5) * 2;
-    const r = Math.round(232 + t2 * (217 - 232));
-    const g = Math.round(165 - t2 * (165 - 56));
-    const b = Math.round(75 - t2 * (75 - 58));
-    return `rgb(${r},${g},${b})`;
-  }
-}
+import Link from "next/link";
+import { useMemo } from "react";
+import type { HeatmapCell } from "@/lib/api";
+import { useResource } from "@/lib/use-resource";
+import { useUrlState } from "@/lib/use-url-state";
+import { date, number } from "@/lib/format";
+import { PageHeading } from "@/components/page-heading";
+import { ResourceState } from "@/components/resource-state";
 
 export default function HeatmapPage() {
-  const [cells, setCells] = useState<HeatmapCell[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<HeatmapCell[]>("/v1/heatmap")
-      .then(setCells)
-      .catch((e) => setErr(String(e)));
-  }, []);
-
-  const { routes, dates, map, min, max } = useMemo(() => {
-    const routeSet = new Set<string>();
-    const dateSet = new Set<string>();
-    const m = new Map<string, number>();
-    let mn = Infinity;
-    let mx = -Infinity;
-    for (const c of cells) {
-      const route = `${c.origin}-${c.destination}`;
-      routeSet.add(route);
-      dateSet.add(c.period_date);
-      m.set(`${route}|${c.period_date}`, c.value);
-      mn = Math.min(mn, c.value);
-      mx = Math.max(mx, c.value);
-    }
-    return {
-      routes: [...routeSet].sort(),
-      dates: [...dateSet].sort(),
-      map: m,
-      min: mn === Infinity ? 90 : mn,
-      max: mx === -Infinity ? 110 : mx,
-    };
-  }, [cells]);
-
-  return (
-    <div style={{ maxWidth: "1280px", margin: "0 auto", paddingBottom: "60px" }}>
-      <JellyAnimatedHero
-        badgeText={`Matrix Resolution · ${routes.length} Sectors Logged`}
-        title="Sector Index Heatmap"
-        subtitle="Daily route-level APIx intensity matrix (100 = base window). Spot real-time price surges across trunk corridors."
-        primaryCtaText="📊 View Dashboard"
-        primaryCtaHref="/dashboard"
-        secondaryCtaText="✈️ Search Routes"
-        secondaryCtaHref="/search"
-      />
-
-      {err && (
-        <div style={{ padding: "12px 16px", background: "#fdf2f2", border: "1px solid #f87171", borderRadius: "10px", color: "#d9383a", fontSize: "14px", marginBottom: "20px" }}>
-          {err}
-        </div>
-      )}
-      <p className="sub">Recommended book window is the cheapest recent cell on each route in this matrix.</p>
-
-      {/* Bento Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "20px" }}>
-        
-        {/* KPI Cards */}
-        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
-            Sectors Monitored
-          </div>
-          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0c1212" }}>
-            {routes.length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#0b3b2a", fontWeight: 600, marginTop: "6px" }}>
-            City-Pair Corridors
-          </div>
-        </div>
-
-        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
-            Historical Days
-          </div>
-          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0b3b2a" }}>
-            {dates.length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
-            Telemetry dates logged
-          </div>
-        </div>
-
-        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
-            Lowest Index Floor
-          </div>
-          <div style={{ fontSize: "32px", fontWeight: 800, color: "#0b3b2a" }}>
-            {min.toFixed(1)}
-          </div>
-          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
-            Favorable fare period
-          </div>
-        </div>
-
-        <div className="fade-in fade-in-delay-1" style={{ gridColumn: "span 3", background: "#ffffff", border: "1px solid #d8deda", borderRadius: "16px", padding: "20px 24px", boxShadow: "0 2px 8px rgba(11,59,42,0.04)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7c817b", marginBottom: "8px" }}>
-            Peak Index Spike
-          </div>
-          <div style={{ fontSize: "32px", fontWeight: 800, color: "#d9383a" }}>
-            {max.toFixed(1)}
-          </div>
-          <div style={{ fontSize: "12px", color: "#525854", marginTop: "6px" }}>
-            Highest recorded surge
-          </div>
-        </div>
-
-        {/* Heatmap Matrix Panel (12-cols) */}
-        <div
-          className="fade-in fade-in-delay-2"
-          style={{
-            gridColumn: "span 12",
-            background: "#ffffff",
-            border: "1px solid #d8deda",
-            borderRadius: "18px",
-            padding: "24px",
-            boxShadow: "0 4px 14px rgba(11, 59, 42, 0.05)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0c1212", margin: 0 }}>
-              Daily Sector Intensity Matrix
-            </h2>
-
-            {/* Legend */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#525854" }}>
-              <span>Low ({min.toFixed(0)})</span>
-              <div style={{ width: "16px", height: "16px", borderRadius: "4px", background: color(min, min, max) }} />
-              <div style={{ width: "16px", height: "16px", borderRadius: "4px", background: color((min + max) / 2, min, max) }} />
-              <div style={{ width: "16px", height: "16px", borderRadius: "4px", background: color(max, min, max) }} />
-              <span>High ({max.toFixed(0)})</span>
-            </div>
-          </div>
-
-          <div style={{ overflowX: "auto", paddingBottom: "12px" }}>
-            <div
-              className="heat"
-              style={{
-                gridTemplateColumns: `130px repeat(${Math.max(dates.length, 1)}, 16px)`,
-                gap: "4px",
-              }}
-            >
-              <div />
-              {dates.map((d) => (
-                <div key={d} title={d} style={{ fontSize: 0, height: 16 }} />
-              ))}
-              {routes.map((route) => (
-                <div key={route} style={{ display: "contents" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0c1212", lineHeight: "18px", display: "flex", alignItems: "center" }}>
-                    {route}
-                  </div>
-                  {dates.map((d) => {
-                    const v = map.get(`${route}|${d}`);
-                    return (
-                      <div
-                        key={`${route}|${d}`}
-                        className="heat-cell"
-                        title={`${route} (${d}): APIx ${v ? v.toFixed(2) : "n/a"}`}
-                        style={{
-                          width: "16px",
-                          height: "18px",
-                          borderRadius: "3px",
-                          background: v == null ? "#ebf2ee" : color(v, min, max),
-                          cursor: "pointer",
-                          transition: "transform 0.1s ease",
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
+  const resource = useResource<HeatmapCell[]>("/v1/heatmap");
+  const { params, update } = useUrlState();
+  const query = params.get("q") || "";
+  const { routes, dates, values } = useMemo(() => {
+    const cells = resource.data || [];
+    return { routes: [...new Set(cells.map((c) => `${c.origin}-${c.destination}`))].sort().filter((r) => r.toLowerCase().includes(query.toLowerCase())),
+      dates: [...new Set(cells.map((c) => c.period_date))].sort(), values: new Map(cells.map((c) => [`${c.origin}-${c.destination}|${c.period_date}`, c.value])) };
+  }, [resource.data, query]);
+  const pages = Math.max(1, Math.ceil(routes.length / 20));
+  const page = Math.min(pages, Math.max(1, Number(params.get("page")) || 1));
+  const datePages = Math.max(1, Math.ceil(dates.length / 14));
+  const datePage = Math.min(datePages, Math.max(1, Number(params.get("dates")) || datePages));
+  const visibleDates = dates.slice((datePage - 1) * 14, datePage * 14);
+  return <>
+    <PageHeading title="Route heatmap">Compare daily route indices. Each cell includes its numeric value; 100 is the base window.</PageHeading>
+    <div className="toolbar"><label>Filter routes<input name="q" type="search" autoComplete="off" placeholder="DEL-BOM…" value={query} onChange={(e) => update({ q: e.target.value, page: null })} /></label>
+      <div className="pagination"><button disabled={datePage === 1} onClick={() => update({ dates: String(datePage - 1) })}>Earlier dates</button><span>{visibleDates.length ? `${date(visibleDates[0])} – ${date(visibleDates.at(-1))}` : "No dates"}</span><button disabled={datePage === datePages} onClick={() => update({ dates: String(datePage + 1) })}>Later dates</button></div></div>
+    <ResourceState {...resource} retry={resource.refresh} empty={Boolean(resource.data) && !routes.length} label="matching observations" />
+    {!!routes.length && <section className="panel"><div className="table-scroll" tabIndex={0} role="region" aria-label="Route index heatmap"><table className="heatmap-table"><thead><tr><th scope="col">Route</th>{visibleDates.map((d) => <th key={d} scope="col">{date(d)}</th>)}</tr></thead>
+      <tbody>{routes.slice((page - 1) * 20, page * 20).map((r) => <tr key={r}><th scope="row"><Link className="text-link" href={`/routes/${r}`}>{r}</Link></th>{visibleDates.map((d) => {
+        const value = values.get(`${r}|${d}`);
+        return <td key={d} style={{ background: value == null ? "#f7faf8" : value > 110 ? "#f9e0dd" : value < 95 ? "#d5e9dd" : "#edf1d9", color: "#172c23" }}>{number(value, 1)}</td>;
+      })}</tr>)}</tbody></table></div><p className="sub">Green: below 95 · neutral: 95–110 · red: above 110 · —: no observation.</p>
+      <div className="pagination"><button disabled={page === 1} onClick={() => update({ page: String(page - 1) })}>Previous routes</button><span>Page {page} of {pages}</span><button disabled={page === pages} onClick={() => update({ page: String(page + 1) })}>Next routes</button></div></section>}
+  </>;
 }

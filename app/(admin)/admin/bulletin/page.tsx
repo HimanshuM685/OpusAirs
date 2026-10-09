@@ -1,28 +1,15 @@
 "use client";
-
-import { useState } from "react";
-
+import { useResource } from "@/lib/use-resource";
+import { useUrlState } from "@/lib/use-url-state";
+import { ResourceState } from "@/components/resource-state";
+import { PageHeading } from "@/components/page-heading";
 export default function BulletinPage() {
-  const [frequency, setFrequency] = useState("monthly");
-  return (
-    <>
-      <h1>Bulletin</h1>
-      <p className="sub">Official extract. CSV includes methodology comments. Use the browser print dialog for a one-page copy.</p>
-      <div className="panel">
-        <label>
-          Frequency{" "}
-          <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-        <p>
-          <a href={`/v1/bulletin?frequency=${frequency}&format=csv`}>Download CSV</a>
-        </p>
-        <button type="button" onClick={() => window.print()}>Print</button>
-        <iframe title="bulletin" src={`/v1/bulletin?frequency=${frequency}&format=json`} style={{ width: "100%", height: 360, border: "1px solid #d8deda", marginTop: 12 }} />
-      </div>
-    </>
-  );
+  const { params, update } = useUrlState();
+  const frequency = ["daily", "weekly", "monthly"].includes(params.get("frequency") || "") ? params.get("frequency")! : "monthly";
+  const resource = useResource<Record<string, unknown>>(`/v1/bulletin?frequency=${frequency}&format=json`);
+  return <><PageHeading title="Bulletin">Download the index extract with methodology comments, or print the current view.</PageHeading>
+    <div className="toolbar"><label>Frequency<select name="frequency" value={frequency} onChange={(e) => update({ frequency: e.target.value })}><option>daily</option><option>weekly</option><option>monthly</option></select></label>
+      <a className="text-link" href={`/v1/bulletin?frequency=${frequency}&format=csv`} download>Download CSV</a><button type="button" onClick={() => window.print()}>Print bulletin</button></div>
+    <ResourceState {...resource} retry={resource.refresh} label="bulletin" />
+    {resource.data && <pre className="panel bulletin-data" tabIndex={0}>{JSON.stringify(resource.data, null, 2)}</pre>}</>;
 }

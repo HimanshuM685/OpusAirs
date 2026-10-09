@@ -103,8 +103,8 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
     assert.equal((await claimNext(q, morning, "manual"))?.snapshot_slot, "0600");
     assert.equal((await claimNext(q, evening, "manual"))?.snapshot_slot, "1800");
 
-    const first = await enqueue(q, "collect", { slot: "0600", snapshotAt: morning }, undefined, `collect:${morning}`);
-    assert.equal(await enqueue(q, "collect", {}, undefined, `collect:${morning}`), first);
+    const first = await enqueue(q, "collect", { slot: "0600", snapshotAt: morning }, `collect:${morning}`);
+    assert.equal(await enqueue(q, "collect", {}, `collect:${morning}`), first);
     await new Promise(setImmediate);
     const queued = await q`SELECT status FROM pipeline_jobs WHERE id = ${first}`;
     assert.equal(queued[0].status, "queued");
@@ -206,6 +206,23 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
       const completedJob = await q`SELECT status, stats FROM pipeline_jobs WHERE id = ${first}`;
       assert.equal(completedJob[0].status, "ok");
       assert.equal((completedJob[0].stats as { coverage: { vintage: string } }).coverage.vintage, "provisional");
+      // Operator jobs persist the complete input and survive response completion or
+      // a worker restart; neither parsing nor ingestion runs in the HTTP process.
+      const csv = `origin,destination,carrier,flight_no,dep_date,total_fare,collected_on\nDEL,BOM,6E,6E900,${day},5200,${day}`;
+      const ingestJob = await enqueue(q, "ingest", { mode: "csv", text: csv, rebuild_index: false });
+      const waiting = await q`SELECT status, payload FROM pipeline_jobs WHERE id = ${ingestJob}`;
+      assert.equal(waiting[0].status, "queued");
+      assert.equal((waiting[0].payload as { text: string }).text, csv);
+      await q`UPDATE pipeline_jobs SET status = 'running', started_at = NOW() - INTERVAL '10 minutes', heartbeat_at = NOW() - INTERVAL '10 minutes' WHERE id = ${ingestJob}`;
+      await runCollectJobs(q);
+      const ingested = await q`SELECT status, stats FROM pipeline_jobs WHERE id = ${ingestJob}`;
+      assert.equal(ingested[0].status, "ok");
+      assert.equal((ingested[0].stats as { received: number }).received, 1);
+      const failedJob = await enqueue(q, "ingest", { mode: "quotes", quotes: [], rebuild_index: false });
+      const rebuildJob = await enqueue(q, "rebuild", { vintage: "provisional" });
+      await runCollectJobs(q);
+      assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${failedJob}`)[0].status, "error");
+      assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${rebuildJob}`)[0].status, "ok");
       const oldEnv = { ...process.env }; const originalFetch = globalThis.fetch;
       try {
         process.env.SCRAPE_ENABLED = 'true'; process.env.TINYFISH_ENABLED = 'true'; process.env.TINYFISH_API_KEY = 'test-only';

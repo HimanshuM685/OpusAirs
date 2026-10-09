@@ -1,23 +1,20 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { constructIndex } from "./apix";
-import { getUser, isAuthResponse, requireAdmin } from "./auth";
+import { getUser, isAuthResponse, requireAdmin, requireUser } from "./auth";
 import { clearProofs } from "./auth/policy";
 import { getAuth } from "./auth/server";
 import { computeBacktest } from "./backtest";
 import { APIX_BASE_DATE, bootstrap, loadPsdBasket } from "./bootstrap";
 import { readCache, writeCache } from "./http-cache";
 import { enqueue, readJob, recentJobs } from "./jobs";
-import { cleanQuotes } from "./cleaning";
 import { collectors } from "./collect/sources";
 import { robotsVerdict } from "./collect/robots";
 import { istDate } from "./collect/policy";
 import { collectionHealth } from "./collect/health";
 import { snapshotCoverage } from "./snapshot";
 import { dataDir, isoDate, isoDateTime, sql } from "./db";
-import { ingestQuotes, parseCsvQuotes, displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
+import { displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
 import { neededQuotes } from "./needed";
-import { parseDump } from "./parse-dump";
 import { DEFAULT_CSV_TEMPLATE } from "./seeds";
 
 function json(data: unknown, status = 200) {
@@ -78,6 +75,18 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     return json({ authenticated: Boolean(user), isAdmin, email: user?.email, name: user?.name,
       detail: user && !isAdmin ? "Admin access requires a verified Google sign-in and an email listed in ADMIN_EMAILS." : undefined });
   }
+  // Authorize before warehouse bootstrap, cache lookup, or database work.
+  const analytics = ["index", "quotes", "search", "routes", "trends", "heatmap", "elasticity", "health"];
+  const userRead = req.method === "GET" && analytics.includes(parts[0]) && authPath !== "health/collection";
+  if (userRead) {
+    const user = await requireUser(req);
+    if (isAuthResponse(user)) return user;
+  } else {
+    const machine = ["collect/run", "ingest/quotes", "ingest/csv", "ingest/dump", "index/rebuild"].includes(authPath)
+      || (req.method === "GET" && parts[0] === "jobs");
+    const denied = machine ? await requireWriter(req) : await requireAdmin(req);
+    if (denied instanceof Response) return denied;
+  }
   await bootstrap();
   const q = sql();
   const url = new URL(req.url);
@@ -89,7 +98,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const includeAll = sp.get("include") === "all";
     const series = sp.get("series") || "apix_laspeyres";
     const cacheKey = `index:${frequency}:${includeAll ? "all" : series}`;
-    const hit = readCache(cacheKey, 10 * 60 * 1000);
+    const hit = readCache(cacheKey, 20000);
     if (hit) return json(hit);
     const rows = includeAll
       ? await q`
@@ -153,7 +162,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "GET" && path === "heatmap") {
     const lead = qnum(sp, "lead_time");
     const cacheKey = `heatmap:${lead ?? "all"}`;
-    const cached = readCache(cacheKey, 10 * 60 * 1000);
+    const cached = readCache(cacheKey, 20000);
     if (cached) return json(cached);
     if (lead == null) {
       const rows = await q`
@@ -248,7 +257,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
 
   if (req.method === "GET" && path === "routes") {
     const cacheKey = "routes:list";
-    const cached = readCache(cacheKey, 10 * 60 * 1000);
+    const cached = readCache(cacheKey, 20000);
     if (cached) return json(cached);
     const routes = (await q`SELECT origin, destination, weight, raw_passengers FROM basket_routes ORDER BY weight DESC`) as {
       origin: string;
@@ -311,8 +320,12 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const origin = iata(sp.get("origin"));
     const dest = iata(sp.get("dest"));
     const trip = normalizeTripType(sp.get("trip_type") || sp.get("trip"));
-    const limit = Math.min(Number(sp.get("limit") || 50), 200);
-    if (!validIata(origin) || !validIata(dest)) {
+    const limit = Math.min(Math.max(Number(sp.get("limit")) || 50, 1), 200);
+    const departure = sp.get("dep_date") || null;
+    const cabin = sp.get("cabin") || null;
+    if (departure && (!/^\d{4}-\d{2}-\d{2}$/.test(departure) || !Number.isFinite(Date.parse(departure)))) return json({ detail: "Use a valid YYYY-MM-DD departure date" }, 400);
+    if (cabin && !["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"].includes(cabin)) return json({ detail: "Choose a supported cabin" }, 400);
+    if (!validIata(origin) || !validIata(dest) || origin === dest) {
       return json({ detail: "origin and dest must be 3-letter IATA codes" }, 400);
     }
 
@@ -322,7 +335,9 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
                convenience, total_fare, collected_on, trip_type, return_date
         FROM quotes_clean
         WHERE origin = ${origin} AND destination = ${dest} AND is_outlier = 0
-          AND COALESCE(trip_type, 'one_way') = ${trip}
+           AND COALESCE(trip_type, 'one_way') = ${trip}
+           AND (${departure}::date IS NULL OR dep_date = ${departure}::date)
+           AND (${cabin}::text IS NULL OR REPLACE(UPPER(fare_class), ' ', '_') = ${cabin})
         ORDER BY total_fare ASC
         LIMIT ${limit}
       `) as Record<string, unknown>[];
@@ -451,12 +466,9 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     if (denied) return denied;
     if (!ingestAllowed()) return json({ detail: "Ingest rate limit" }, 429);
     const body = (await req.json()) as { text?: string; quotes?: QuoteIn[]; rebuild_index?: boolean };
-    const id = await enqueue(q, "ingest", { chars: body.text?.length ?? 0, n: body.quotes?.length ?? 0 }, async () => {
-      let quotes = body.quotes;
-      if (!quotes?.length) quotes = await parseDump(body.text || "");
-      if (!quotes.length) return { detail: "No quotes parsed" };
-      return await ingestQuotes(q, quotes, body.rebuild_index !== false);
-    });
+    if ((!body.text?.trim() && !body.quotes?.length) || (body.text?.length || 0) > 500000 || (body.quotes?.length || 0) > 2000) return json({ detail: "Supply fare data: up to 500,000 text characters or 2,000 quotes per job" }, 400);
+    const id = await enqueue(q, "ingest", { mode: "dump", text: body.text || null, quotes: body.quotes || null,
+      rebuild_index: body.rebuild_index !== false, chars: body.text?.length ?? 0, n: body.quotes?.length ?? 0 });
     return json({ job_id: id }, 202);
   }
 
@@ -483,10 +495,8 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     if (denied) return denied;
     if (!ingestAllowed()) return json({ detail: "Ingest rate limit" }, 429);
     const body = (await req.json()) as { quotes?: QuoteIn[]; rebuild_index?: boolean };
-    if (!body.quotes?.length) return json({ detail: "quotes array is empty" }, 400);
-    const id = await enqueue(q, "ingest", { n: body.quotes.length }, async () =>
-      ingestQuotes(q, body.quotes || [], body.rebuild_index !== false),
-    );
+    if (!Array.isArray(body.quotes) || !body.quotes.length || body.quotes.length > 2000) return json({ detail: "Supply 1–2,000 quotes per job" }, 400);
+    const id = await enqueue(q, "ingest", { mode: "quotes", quotes: body.quotes, rebuild_index: body.rebuild_index !== false, n: body.quotes.length });
     return json({ job_id: id }, 202);
   }
 
@@ -497,12 +507,9 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json({ detail: "file required" }, 400);
+    if (file.size > 2 * 1024 * 1024) return json({ detail: "Choose a CSV file smaller than 2 MB" }, 413);
     const text = await file.text();
-    const id = await enqueue(q, "ingest", { file: file.name }, async () => {
-      const quotes = parseCsvQuotes(text);
-      if (!quotes.length) return { detail: "No valid quote rows in CSV" };
-      return ingestQuotes(q, quotes, sp.get("rebuild_index") !== "false");
-    });
+    const id = await enqueue(q, "ingest", { mode: "csv", file: file.name, text, rebuild_index: sp.get("rebuild_index") !== "false" });
     return json({ job_id: id }, 202);
   }
 
@@ -520,10 +527,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
     const denied = await requireWriter(req);
     if (denied) return denied;
     const vintage = sp.get("vintage") === "final" ? "final" : "provisional";
-    const id = await enqueue(q, "rebuild", { vintage }, async () => {
-      const index_rows = await constructIndex(q);
-      return { index_rows, vintage };
-    });
+    const id = await enqueue(q, "rebuild", { vintage });
     return json({ job_id: id }, 202);
   }
 

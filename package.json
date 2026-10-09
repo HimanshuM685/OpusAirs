@@ -6,7 +6,7 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "test": "tsx --test lib/auth/*.test.ts lib/collect/*.test.ts lib/index-math.test.ts",
+    "test": "tsx --test lib/auth/*.test.ts lib/collect/*.test.ts lib/*.test.ts",
     "collect:daily": "tsx scripts/collect-daily.ts",
     "collect:worker": "tsx scripts/collect-worker.ts"
   },

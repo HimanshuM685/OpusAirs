@@ -19,13 +19,13 @@ export function dueDiscovery(now = new Date()): string | null {
 
 export async function scheduleDiscovery(q: ReturnType<typeof sqlFn>, now = new Date()): Promise<string | null> {
   const day = dueDiscovery(now);
-  return day ? enqueue(q, "discover", { day }, undefined, `discover:${day}`) : null;
+  return day ? enqueue(q, "discover", { day }, `discover:${day}`) : null;
 }
 
 export async function scheduleSnapshots(q: ReturnType<typeof sqlFn>, now = new Date()): Promise<string[]> {
   const ids: string[] = [];
   for (const slot of dueSnapshots(now)) {
-    ids.push(await enqueue(q, "collect", { ...slot, scrape: true }, undefined, `collect:${slot.snapshotAt}`));
+    ids.push(await enqueue(q, "collect", { ...slot, scrape: true }, `collect:${slot.snapshotAt}`));
   }
   return ids;
 }

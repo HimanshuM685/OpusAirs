@@ -623,12 +623,11 @@ void main() {
     this.mesh = new this.minigl.Mesh(geometry, material);
 
     this.resize();
-    window.addEventListener("resize", () => this.resize());
   }
 
   resize(): void {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const width = Math.max(1, this.canvas.parentElement?.clientWidth || window.innerWidth);
+    const height = Math.max(1, this.canvas.parentElement?.clientHeight || window.innerHeight);
     this.minigl.setSize(width, height);
     this.minigl.setOrthographicCamera();
 
@@ -651,6 +650,8 @@ void main() {
   };
 
   start(): void {
+    if (this.isPlaying) return;
+    this.last = performance.now();
     this.isPlaying = true;
     this.animationId = requestAnimationFrame(this.animate);
   }
@@ -659,7 +660,20 @@ void main() {
     this.isPlaying = false;
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
+      this.animationId = undefined;
     }
+  }
+
+  destroy(): void {
+    this.stop();
+    const gl = this.minigl.gl;
+    for (const mesh of this.minigl.meshes) {
+      for (const attribute of Object.values(mesh.geometry.attributes) as { buffer: WebGLBuffer }[]) gl.deleteBuffer(attribute.buffer);
+      for (const shader of gl.getAttachedShaders(mesh.material.program) || []) gl.deleteShader(shader);
+      gl.deleteProgram(mesh.material.program);
+    }
+    this.minigl.meshes.length = 0;
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }
 
@@ -685,7 +699,7 @@ export interface GradientWaveProps {
 
 export function GradientWave({
   colors = ["#ffffff", "#0b3b2a", "#ffffff", "#14573f", "#ffffff", "#0b3b2a"],
-  isPlaying = true,
+  isPlaying = false,
   className = "",
   shadowPower = 8,
   darkenTop = false,
@@ -695,10 +709,13 @@ export function GradientWave({
 }: GradientWaveProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gradientRef = useRef<Gradient | null>(null);
+  const settings = JSON.stringify({ colors: colors.slice(0, 4), isPlaying, shadowPower, darkenTop, noiseSpeed, noiseFrequency, deform });
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
+    const container = containerRef.current;
+    if (!container) return;
+    const config = JSON.parse(settings) as { colors: string[]; isPlaying: boolean; shadowPower: number; darkenTop: boolean; noiseSpeed: number; noiseFrequency: [number, number]; deform: Record<string, unknown> };
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
     const canvas = document.createElement("canvas");
     Object.assign(canvas.style, {
       position: "absolute",
@@ -708,50 +725,48 @@ export function GradientWave({
       height: "100%",
       display: "block",
     });
-    containerRef.current.appendChild(canvas);
-
-    try {
-      const gradient = new Gradient(canvas, colors);
-      gradientRef.current = gradient;
-
-      // apply props to uniforms
-      gradient.mesh.material.uniforms.u_shadow_power.value = shadowPower;
-      gradient.mesh.material.uniforms.u_darken_top.value = darkenTop ? 1 : 0;
-      gradient.mesh.material.uniforms.u_global.value.noiseFreq.value =
-        noiseFrequency;
-      gradient.mesh.material.uniforms.u_global.value.noiseSpeed.value =
-        noiseSpeed;
-
-      // deform settings (only if provided)
-      Object.assign(gradient.mesh.material.uniforms.u_vertDeform.value, {
-        ...gradient.mesh.material.uniforms.u_vertDeform.value,
-        ...deform,
-      });
-
-      if (isPlaying) gradient.start();
-    } catch (error) {
-      console.error("Failed to initialize gradient:", error);
-    }
-
-    return () => {
-      gradientRef.current?.stop();
-      if (containerRef.current?.contains(canvas)) {
-        containerRef.current.removeChild(canvas);
+    let inView = false;
+    let failed = false;
+    const update = () => {
+      if (!inView || document.visibilityState !== "visible" || motion.matches) { gradientRef.current?.stop(); return; }
+      if (!gradientRef.current && !failed) {
+        try {
+          container.appendChild(canvas);
+          const gradient = new Gradient(canvas, config.colors);
+          gradientRef.current = gradient;
+          gradient.mesh.material.uniforms.u_shadow_power.value = config.shadowPower;
+          gradient.mesh.material.uniforms.u_darken_top.value = config.darkenTop ? 1 : 0;
+          gradient.mesh.material.uniforms.u_global.value.noiseFreq.value = config.noiseFrequency;
+          gradient.mesh.material.uniforms.u_global.value.noiseSpeed.value = config.noiseSpeed;
+          for (const [key, value] of Object.entries(config.deform)) {
+            const uniform = gradient.mesh.material.uniforms.u_vertDeform.value[key];
+            if (uniform) uniform.value = value;
+          }
+        } catch { failed = true; canvas.remove(); }
       }
+      if (config.isPlaying) gradientRef.current?.start();
+      else gradientRef.current?.minigl.render();
     };
-  }, [
-    colors,
-    isPlaying,
-    shadowPower,
-    darkenTop,
-    noiseSpeed,
-    noiseFrequency,
-    deform,
-  ]);
+    const observer = new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; update(); });
+    observer.observe(container);
+    const resize = new ResizeObserver(() => { if (inView) { gradientRef.current?.resize(); update(); } });
+    resize.observe(container);
+    document.addEventListener("visibilitychange", update);
+    motion.addEventListener("change", update);
+    return () => {
+      observer.disconnect(); resize.disconnect();
+      document.removeEventListener("visibilitychange", update);
+      motion.removeEventListener("change", update);
+      gradientRef.current?.destroy(); gradientRef.current = null;
+      canvas.remove();
+    };
+  }, [settings]);
 
   return (
     <div
       ref={containerRef}
+      aria-hidden="true"
+      style={{ position: "absolute", inset: 0, overflow: "hidden", background: colors[0] || "#0b3b2a" }}
       className={`absolute inset-0 z-0 w-full h-full overflow-hidden ${className}`}
     />
   );
