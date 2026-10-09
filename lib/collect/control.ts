@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { sql as sqlFn } from "../db";
 import { istDate } from "./policy";
-import { isCollectionMode, type CollectionMode, type CollectionSettings, type CollectionSchedule } from "./contracts";
+import { DEFAULT_SETTINGS, isCollectionMode, type CollectionMode, type CollectionSettings, type CollectionSchedule } from "./contracts";
 export type { CollectionMode, CollectionSettings } from "./contracts";
 export { isCollectionMode as validCollectionMode } from "./contracts";
 type Q = ReturnType<typeof sqlFn>;
@@ -26,7 +26,7 @@ export function validateSettings(input: unknown): CollectionSettings {
 }
 export async function readCollectionSettings(q: Q): Promise<CollectionSettings> {
   const rows = await q`SELECT transport_mode, max_sessions, max_agent_runs, max_hours FROM collection_settings WHERE id = 1`;
-  return validateSettings(rows[0] || { transport_mode: "tinyfish", max_sessions: 5, max_agent_runs: 5, max_hours: 3 });
+  return validateSettings(rows[0] || DEFAULT_SETTINGS);
 }
 export async function updateCollectionSettings(q: Q, input: unknown) {
   const value = validateSettings(input);

@@ -13,7 +13,7 @@ import { snapshotCoverage } from "../snapshot";
 import { buildWorklist, claimNext, expandJobs } from "./jobs";
 import { syntheticDemo } from "./sources/synthetic_demo";
 import { runPipeline } from "./run";
-import { runCollectJobs } from "./worker";
+import { MAX_JOB_ATTEMPTS, runCollectJobs } from "./worker";
 import { CollectBudget } from "./budget";
 import { randomUUID } from "node:crypto";
 import { parseSchedule } from "./catalog";
@@ -283,6 +283,17 @@ it("PostgreSQL: idempotent schema, durable slot jobs, raw statuses, snapshots, a
       await runCollectJobs(q);
       assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${failedJob}`)[0].status, "error");
       assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${rebuildJob}`)[0].status, "ok");
+      // A job that keeps stalling fails after MAX_JOB_ATTEMPTS instead of requeueing forever.
+      const stuck = await enqueue(q, "rebuild", { vintage: "provisional" });
+      await q`UPDATE pipeline_jobs SET status = 'running', attempts = ${MAX_JOB_ATTEMPTS}, heartbeat_at = NOW() - INTERVAL '10 minutes' WHERE id = ${stuck}`;
+      await runCollectJobs(q);
+      assert.equal((await q`SELECT status FROM pipeline_jobs WHERE id = ${stuck}`)[0].status, "error");
+      // A busy lease is reported, not silently swallowed.
+      await q`UPDATE collection_worker_lease SET owner = 'other-worker', heartbeat_at = NOW() WHERE id = 1`;
+      let leaseBusy = false;
+      assert.equal(await runCollectJobs(q, undefined, { onLeaseBusy: () => { leaseBusy = true; } }), 0);
+      assert.ok(leaseBusy);
+      await q`UPDATE collection_worker_lease SET owner = NULL WHERE id = 1`;
       const oldEnv = { ...process.env }; const originalFetch = globalThis.fetch;
       try {
         process.env.SCRAPE_ENABLED = 'true'; process.env.TINYFISH_ENABLED = 'true'; process.env.TINYFISH_API_KEY = 'test-only';

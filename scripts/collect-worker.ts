@@ -28,13 +28,20 @@ async function main() {
   const settings = await readCollectionSettings(q); const ready = tinyfishReadiness();
   log(`Worker connected · ${label} · mode=${settings.transport_mode}`);
   log(`Tinyfish: ${ready.reason}`);
+  const airlines = (await q`SELECT id FROM scrape_sources WHERE enabled = true AND carrier IS NOT NULL`).map((r) => String(r.id));
+  log(airlines.length ? `Airlines enabled: ${airlines.join(", ")}` : "No airlines enabled; runs will only process offline sources. Enable airlines in Admin › Collection.", airlines.length ? {} : { level: "warn" });
+  let leaseBusyLogged = false;
   log("Watching saved admin schedules and queued jobs. Ctrl+C saves progress and closes remote sessions.");
   try {
     do {
       await announceWorker(q, id, label);
       try {
         if (!jobId) { await scheduleSnapshots(q); await scheduleDiscovery(q); }
-        await runCollectJobs(q, shutdown.signal, { id, label, jobId, log: (entry) => {
+        const before = leaseBusyLogged; leaseBusyLogged = false;
+        await runCollectJobs(q, shutdown.signal, { id, label, jobId, onLeaseBusy: () => {
+          if (!before) log("Another worker holds the collection lease; waiting. Stop other workers (docker collection-worker, other terminals) if this persists.", { level: "warn" });
+          leaseBusyLogged = true;
+        }, log: (entry) => {
           log(entry.message, { job_id: entry.job_id, level: entry.level || "info", event: entry.event, ...entry.data });
           if ((args.includes("--once") || jobId) && entry.event === "job_error") process.exitCode = 1;
         } });

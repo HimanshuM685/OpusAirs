@@ -16,7 +16,7 @@ import { dataDir, isoDate, isoDateTime, sql } from "./db";
 import { displayFlightNo, normalizeTripType, type QuoteIn } from "./ingest";
 import { neededQuotes } from "./needed";
 import { DEFAULT_CSV_TEMPLATE } from "./seeds";
-import { cancelCollection, cancelSchedule, CollectionInputError, createCollectionSchedule, listCollectionSchedules, queueCollection, readCollectionSettings, updateCollectionSettings, validCollectionMode } from "./collect/control";
+import { cancelCollection, cancelSchedule, CollectionInputError, createCollectionSchedule, listCollectionSchedules, queueCollection, readCollectionSettings, updateCollectionSettings, validateSettings, validCollectionMode } from "./collect/control";
 import { collectionMonitor } from "./collect/monitor";
 
 function json(data: unknown, status = 200) {
@@ -405,7 +405,7 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
   if (req.method === "POST" && path === "collect/run") {
     const denied = await requireWriter(req);
     if (denied) return denied;
-    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean; demo?: boolean; transportMode?: string } = {};
+    let body: { origin?: string; dest?: string; scrape?: boolean; full?: boolean; demo?: boolean; transportMode?: string; settings?: unknown } = {};
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text) as typeof body;
@@ -414,7 +414,10 @@ export async function handleV1(req: Request, parts: string[]): Promise<Response>
       return json({ detail: "Invalid JSON" }, 400);
     }
     const scrape = body.scrape !== false && sp.get("scrape") !== "false";
-    const settings = await readCollectionSettings(q);
+    // Per-run settings from the admin form apply to this run only; saved defaults stay untouched.
+    let settings;
+    try { settings = body.settings ? validateSettings(body.settings) : await readCollectionSettings(q); }
+    catch (error) { if (error instanceof CollectionInputError) return json({ detail: error.message }, 400); throw error; }
     const transportMode = !scrape ? "offline" : body.transportMode || settings.transport_mode;
     if (!validCollectionMode(transportMode)) return json({ detail: "transportMode must be tinyfish, http, or offline" }, 400);
     const origin = iata(body.origin || sp.get("origin"));

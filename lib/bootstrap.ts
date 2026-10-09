@@ -338,6 +338,13 @@ const DDL = [
   `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS vintage_note text`,
   `ALTER TABLE quotes_raw ADD COLUMN IF NOT EXISTS parser_accepted boolean NOT NULL DEFAULT true`,
   `ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS work_order int NOT NULL DEFAULT 0`,
+  `ALTER TABLE pipeline_jobs ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+  // One-time: Tinyfish airlines on by default. Later operator toggles are kept.
+  `DO $$ BEGIN
+    INSERT INTO app_migrations (id) VALUES ('enable_tinyfish_airlines') ON CONFLICT DO NOTHING;
+    IF FOUND THEN UPDATE scrape_sources SET enabled = true WHERE id IN ('airindia', 'airindia_express', 'akasa', 'spicejet'); END IF;
+  END $$`,
 ];
 
 let bootstrapped = false;

@@ -6,7 +6,7 @@ import type { AuthUser } from "@/lib/auth";
 import { SignOut } from "./sign-out";
 import { SessionBoundary } from "./session-boundary";
 
-const links = [["/admin", "Overview"], ["/admin/scrape", "Collection & health"], ["/admin/ingest", "Feed quotes"], ["/admin/backtest", "DGCA backtest"], ["/admin/bulletin", "Bulletin"]];
+const links = [["/admin", "Overview"], ["/admin/scrape", "Collection"], ["/admin/ingest", "Feed quotes"], ["/admin/backtest", "DGCA backtest"], ["/admin/bulletin", "Bulletin"]];
 export function AdminShell({ user, children }: { user: AuthUser; children: ReactNode }) {
   const path = usePathname();
   return <div className="admin-shell"><aside className="admin-nav">

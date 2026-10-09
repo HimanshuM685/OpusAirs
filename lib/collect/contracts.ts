@@ -41,6 +41,7 @@ export type CollectionMonitor = {
   adapters: { id: string; enabled: boolean; kind: string; host: string | null; skipped_reason: string | null }[];
 };
 
+export const DEFAULT_SETTINGS: CollectionSettings = { transport_mode: "tinyfish", max_sessions: 5, max_agent_runs: 5, max_hours: 3 };
 export const isCollectionMode = (value: unknown): value is CollectionMode => ["tinyfish", "http", "offline"].includes(String(value));
 export const terminalJob = (status: string) => ["ok", "error", "cancelled"].includes(status);
 
